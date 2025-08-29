@@ -17,7 +17,7 @@ import importlib
 
 # Import our custom modules
 from analysis import get_player_kill_death_analysis, create_probability_scenarios_table
-from plotting import plot_kill_death_analysis, plot_positive_negative_impact, compare_players_impact, plot_impact_difference_per_round, plot_individual_impacts, compare_individual_impacts
+from plotting import plot_kill_death_analysis, plot_positive_negative_impact, plot_impact_difference_per_round, plot_individual_impacts, compare_individual_impacts
 
 #%%
 # Force reload modules (run this cell when you make changes to the modules)
@@ -143,8 +143,6 @@ print("="*80)
 # You can change these player names to compare different players
 player1 = "mezii"
 player2 = "bLitz"  # Change this to another player from the available list
-
-compare_players_impact(dem, player1, player2)
 
 # %%
 # Compare individual impacts between two players
