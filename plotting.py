@@ -957,3 +957,362 @@ def plot_individual_impacts(dem, player_name):
         print(f"• {state}: {avg_impact:+.1f} avg ({len(state_impacts)} events)")
     
     return individual_impacts
+
+
+def compare_individual_impacts(dem, player1_name, player2_name):
+    """
+    Compare individual kill/death impacts between two players side by side.
+    Shows round-by-round comparison with detailed analysis.
+    """
+    print(f"\n🔍 Comparing Individual Impacts: {player1_name} vs {player2_name}")
+    
+    # Get individual impacts for both players (but don't show the plots)
+    print(f"\n📊 Analyzing {player1_name}...")
+    from analysis import get_win_probability, calculate_impact_score
+    from collections import defaultdict
+    
+    # Get impacts for both players without showing individual plots
+    impacts1 = get_individual_impacts_data(dem, player1_name)
+    impacts2 = get_individual_impacts_data(dem, player2_name)
+    
+    if not impacts1 or not impacts2:
+        print("❌ Could not get individual impact data for one or both players")
+        return
+    
+    print(f"✅ Found {len(impacts1)} events for {player1_name}")
+    print(f"✅ Found {len(impacts2)} events for {player2_name}")
+    
+    # Create comparison visualization - now only 2 rows
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(18, 12))
+    
+    # Plot 1 & 2: Round-by-round comparison with common y-axis
+    def create_round_comparison(impacts, ax, player_name):
+        """Create round-by-round impact visualization"""
+        round_data = {}
+        for event in impacts:
+            round_num = event['round']
+            if round_num not in round_data:
+                round_data[round_num] = []
+            round_data[round_num].append(event['impact'])
+        
+        rounds = sorted(round_data.keys())
+        round_totals = [sum(round_data[r]) for r in rounds]
+        round_counts = [len(round_data[r]) for r in rounds]
+        
+        # Create bars with colors based on positive/negative
+        colors = ['green' if total > 0 else 'red' if total < 0 else 'gray' for total in round_totals]
+        bars = ax.bar(rounds, round_totals, color=colors, alpha=0.7)
+        
+        # Add event count labels on bars
+        for i, (round_num, total, count) in enumerate(zip(rounds, round_totals, round_counts)):
+            height = total + (1 if total > 0 else -1)
+            ax.text(round_num, height, f'{count}e', ha='center', 
+                   va='bottom' if total > 0 else 'top', fontsize=8)
+        
+        ax.set_title(f'{player_name} - Impact by Round (with event counts)')
+        ax.set_xlabel('Round')
+        ax.set_ylabel('Total Round Impact')
+        ax.grid(True, alpha=0.3)
+        ax.axhline(y=0, color='black', linestyle='-', alpha=0.8)
+        
+        return round_data, rounds, round_totals
+    
+    round_data1, rounds1, totals1 = create_round_comparison(impacts1, ax1, player1_name)
+    round_data2, rounds2, totals2 = create_round_comparison(impacts2, ax2, player2_name)
+    
+    # Set common y-axis for both round plots
+    all_totals = totals1 + totals2
+    if all_totals:
+        y_min = min(all_totals) - 5
+        y_max = max(all_totals) + 5
+        ax1.set_ylim(y_min, y_max)
+        ax2.set_ylim(y_min, y_max)
+    
+    # Plot 3: Direct statistical comparison
+    def create_stats_comparison(impacts1, impacts2, ax):
+        """Create side-by-side statistical comparison"""
+        # Extract data
+        pos1 = [imp['impact'] for imp in impacts1 if imp['impact'] > 0]
+        neg1 = [imp['impact'] for imp in impacts1 if imp['impact'] < 0]
+        pos2 = [imp['impact'] for imp in impacts2 if imp['impact'] > 0]
+        neg2 = [imp['impact'] for imp in impacts2 if imp['impact'] < 0]
+        
+        # Create comparison bars
+        categories = ['Positive\nEvents', 'Negative\nEvents', 'Total\nEvents', 'Net\nImpact']
+        
+        player1_stats = [
+            len(pos1),
+            len(neg1), 
+            len(impacts1),
+            sum(imp['impact'] for imp in impacts1)
+        ]
+        
+        player2_stats = [
+            len(pos2),
+            len(neg2),
+            len(impacts2), 
+            sum(imp['impact'] for imp in impacts2)
+        ]
+        
+        x = np.arange(len(categories))
+        width = 0.35
+        
+        bars1 = ax.bar(x - width/2, player1_stats, width, label=player1_name, 
+                      color='steelblue', alpha=0.8)
+        bars2 = ax.bar(x + width/2, player2_stats, width, label=player2_name, 
+                      color='orangered', alpha=0.8)
+        
+        # Add value labels on bars
+        for bars in [bars1, bars2]:
+            for bar in bars:
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2., height + 0.5,
+                       f'{height:.1f}' if isinstance(height, float) else f'{int(height)}',
+                       ha='center', va='bottom', fontsize=9)
+        
+        ax.set_title('Statistical Comparison')
+        ax.set_ylabel('Count / Impact Value')
+        ax.set_xticks(x)
+        ax.set_xticklabels(categories)
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+    
+    create_stats_comparison(impacts1, impacts2, ax3)
+    
+    # Plot 4: Head-to-head impact distribution
+    all_impacts1 = [imp['impact'] for imp in impacts1]
+    all_impacts2 = [imp['impact'] for imp in impacts2]
+    
+    # Create overlapping histograms
+    bins = np.linspace(min(min(all_impacts1), min(all_impacts2)), 
+                      max(max(all_impacts1), max(all_impacts2)), 20)
+    
+    ax4.hist(all_impacts1, bins=bins, alpha=0.6, color='steelblue', 
+            label=f'{player1_name} ({len(all_impacts1)} events)', edgecolor='black')
+    ax4.hist(all_impacts2, bins=bins, alpha=0.6, color='orangered', 
+            label=f'{player2_name} ({len(all_impacts2)} events)', edgecolor='black')
+    
+    ax4.set_title('Impact Distribution Comparison')
+    ax4.set_xlabel('Impact Score')
+    ax4.set_ylabel('Frequency')
+    ax4.legend()
+    ax4.grid(True, alpha=0.3)
+    ax4.axvline(x=0, color='black', linestyle='-', alpha=0.8)
+    
+    plt.tight_layout()
+    plt.show()
+    
+    # Print detailed comparison
+    print(f"\n📊 DETAILED INDIVIDUAL IMPACT COMPARISON")
+    print("=" * 80)
+    
+    # Calculate comprehensive stats
+    def calculate_player_stats(impacts, player_name):
+        all_impacts = [imp['impact'] for imp in impacts]
+        positive_impacts = [imp for imp in all_impacts if imp > 0]
+        negative_impacts = [imp for imp in all_impacts if imp < 0]
+        kill_impacts = [imp['impact'] for imp in impacts if imp['type'] == 'kill']
+        death_impacts = [imp['impact'] for imp in impacts if imp['type'] == 'death']
+        
+        return {
+            'name': player_name,
+            'total_events': len(impacts),
+            'kill_events': len(kill_impacts),
+            'death_events': len(death_impacts),
+            'positive_events': len(positive_impacts),
+            'negative_events': len(negative_impacts),
+            'total_impact': sum(all_impacts),
+            'total_positive': sum(positive_impacts) if positive_impacts else 0,
+            'total_negative': sum(negative_impacts) if negative_impacts else 0,
+            'avg_impact': sum(all_impacts) / len(all_impacts) if all_impacts else 0,
+            'avg_positive': sum(positive_impacts) / len(positive_impacts) if positive_impacts else 0,
+            'avg_negative': sum(negative_impacts) / len(negative_impacts) if negative_impacts else 0,
+            'max_impact': max(all_impacts) if all_impacts else 0,
+            'min_impact': min(all_impacts) if all_impacts else 0,
+        }
+    
+    stats1 = calculate_player_stats(impacts1, player1_name)
+    stats2 = calculate_player_stats(impacts2, player2_name)
+    
+    # Print comparison table
+    print(f"{'Metric':<25} {player1_name:<15} {player2_name:<15} {'Difference':<15}")
+    print("─" * 75)
+    print(f"{'Total Events:':<25} {stats1['total_events']:<15} {stats2['total_events']:<15} {stats1['total_events']-stats2['total_events']:+<15}")
+    print(f"{'Kill Events:':<25} {stats1['kill_events']:<15} {stats2['kill_events']:<15} {stats1['kill_events']-stats2['kill_events']:+<15}")
+    print(f"{'Death Events:':<25} {stats1['death_events']:<15} {stats2['death_events']:<15} {stats1['death_events']-stats2['death_events']:+<15}")
+    print(f"{'Positive Events:':<25} {stats1['positive_events']:<15} {stats2['positive_events']:<15} {stats1['positive_events']-stats2['positive_events']:+<15}")
+    print(f"{'Negative Events:':<25} {stats1['negative_events']:<15} {stats2['negative_events']:<15} {stats1['negative_events']-stats2['negative_events']:+<15}")
+    print()
+    print(f"{'Total Impact:':<25} {stats1['total_impact']:+<15.1f} {stats2['total_impact']:+<15.1f} {stats1['total_impact']-stats2['total_impact']:+<15.1f}")
+    print(f"{'Total Positive:':<25} {stats1['total_positive']:+<15.1f} {stats2['total_positive']:+<15.1f} {stats1['total_positive']-stats2['total_positive']:+<15.1f}")
+    print(f"{'Total Negative:':<25} {stats1['total_negative']:+<15.1f} {stats2['total_negative']:+<15.1f} {stats1['total_negative']-stats2['total_negative']:+<15.1f}")
+    print()
+    print(f"{'Avg Impact/Event:':<25} {stats1['avg_impact']:+<15.1f} {stats2['avg_impact']:+<15.1f} {stats1['avg_impact']-stats2['avg_impact']:+<15.1f}")
+    print(f"{'Avg Positive Impact:':<25} {stats1['avg_positive']:+<15.1f} {stats2['avg_positive']:+<15.1f} {stats1['avg_positive']-stats2['avg_positive']:+<15.1f}")
+    print(f"{'Avg Negative Impact:':<25} {stats1['avg_negative']:+<15.1f} {stats2['avg_negative']:+<15.1f} {stats1['avg_negative']-stats2['avg_negative']:+<15.1f}")
+    print()
+    print(f"{'Highest Impact:':<25} {stats1['max_impact']:+<15.1f} {stats2['max_impact']:+<15.1f} {stats1['max_impact']-stats2['max_impact']:+<15.1f}")
+    print(f"{'Lowest Impact:':<25} {stats1['min_impact']:+<15.1f} {stats2['min_impact']:+<15.1f} {stats1['min_impact']-stats2['min_impact']:+<15.1f}")
+    
+    # Find head-to-head moments (same rounds)
+    rounds1_set = set(imp['round'] for imp in impacts1)
+    rounds2_set = set(imp['round'] for imp in impacts2)
+    common_rounds = rounds1_set.intersection(rounds2_set)
+    
+    if common_rounds:
+        print(f"\n⚔️ HEAD-TO-HEAD ROUNDS ({len(common_rounds)} rounds with both players active):")
+        
+        h2h_stats1 = {'events': 0, 'impact': 0}
+        h2h_stats2 = {'events': 0, 'impact': 0}
+        
+        for round_num in sorted(common_rounds):
+            round_impacts1 = [imp for imp in impacts1 if imp['round'] == round_num]
+            round_impacts2 = [imp for imp in impacts2 if imp['round'] == round_num]
+            
+            total1 = sum(imp['impact'] for imp in round_impacts1)
+            total2 = sum(imp['impact'] for imp in round_impacts2)
+            
+            h2h_stats1['events'] += len(round_impacts1)
+            h2h_stats1['impact'] += total1
+            h2h_stats2['events'] += len(round_impacts2)
+            h2h_stats2['impact'] += total2
+            
+            winner = player1_name if total1 > total2 else player2_name if total2 > total1 else "Tie"
+            print(f"Round {round_num}: {player1_name} {total1:+.1f} vs {player2_name} {total2:+.1f} → {winner}")
+        
+        print(f"\nHead-to-Head Summary:")
+        print(f"{player1_name}: {h2h_stats1['impact']:+.1f} impact ({h2h_stats1['events']} events)")
+        print(f"{player2_name}: {h2h_stats2['impact']:+.1f} impact ({h2h_stats2['events']} events)")
+        
+        h2h_winner = player1_name if h2h_stats1['impact'] > h2h_stats2['impact'] else player2_name
+        print(f"Head-to-Head Winner: {h2h_winner}")
+    
+    return stats1, stats2
+
+
+def get_individual_impacts_data(dem, player_name):
+    """
+    Extract individual impact data for a player without plotting.
+    Helper function for comparison analysis.
+    """
+    from analysis import get_win_probability, calculate_impact_score
+    from collections import defaultdict
+    
+    kills_df = dem.kills
+    bomb_events = dem.bomb
+    
+    if kills_df is None or len(kills_df) == 0:
+        return []
+    
+    # Convert to pandas if needed
+    if hasattr(kills_df, 'to_pandas'):
+        kills_df = kills_df.to_pandas()
+    if bomb_events is not None and hasattr(bomb_events, 'to_pandas'):
+        bomb_events = bomb_events.to_pandas()
+    
+    # Get bomb plant information
+    bomb_plants = {}
+    if bomb_events is not None and len(bomb_events) > 0:
+        for _, bomb_event in bomb_events.iterrows():
+            round_num = bomb_event.get('round_num', 0)
+            event_columns = bomb_event.index.tolist()
+            event_values = bomb_event.values
+            
+            # Check for plant events
+            is_plant = False
+            plant_tick = None
+            
+            if 'event_type' in event_columns:
+                event_type = str(bomb_event['event_type']).lower()
+                if event_type == 'plant' or event_type == 'bomb_plant':
+                    is_plant = True
+                    plant_tick = bomb_event.get('tick', 0)
+            
+            if is_plant:
+                bomb_plants[round_num] = plant_tick
+    
+    # Extract individual impacts
+    individual_impacts = []
+    event_counter = 0
+    
+    # Get all rounds with activity
+    all_rounds = sorted(set(kills_df['round_num'].unique()))
+    
+    for round_num in all_rounds:
+        if round_num == 0:
+            continue
+            
+        round_kills = kills_df[kills_df['round_num'] == round_num].sort_values('tick')
+        
+        # Track alive players for this round
+        ct_alive = 5
+        t_alive = 5
+        
+        # Check if bomb was planted in this round
+        plant_tick = bomb_plants.get(round_num, None)
+        
+        for _, kill in round_kills.iterrows():
+            killer = kill.get('attacker_name', '')
+            victim = kill.get('victim_name', '')
+            weapon = kill.get('weapon', 'Unknown')
+            victim_side = kill.get('victim_side', '')
+            kill_tick = kill.get('tick', 0)
+            
+            # Check if this kill happened after bomb plant
+            is_post_plant = (plant_tick is not None and kill_tick > plant_tick)
+            
+            # Determine weapon category
+            weapon_category = "rifle"
+            if weapon in ['glock', 'usp_silencer', 'p2000', 'deagle', 'elite', 'fiveseven', 'cz75a', 'tec9', 'p250', 'revolver']:
+                weapon_category = "pistol"
+            elif weapon in ['ak47', 'm4a1', 'm4a1_s', 'aug', 'sg556', 'famas', 'galilar']:
+                weapon_category = "rifle"
+            elif weapon in ['awp', 'ssg08', 'scar20', 'g3sg1']:
+                weapon_category = "sniper"
+            
+            # Current game state before this kill
+            game_state = f"{ct_alive}v{t_alive}"
+            if is_post_plant:
+                game_state += " post-plant"
+            
+            # Calculate impact score for this kill
+            ct_after = ct_alive - 1 if victim_side == 'ct' else ct_alive
+            t_after = t_alive - 1 if victim_side == 't' else t_alive
+            impact = calculate_impact_score(ct_alive, t_alive, ct_after, t_after, is_post_plant)
+            
+            # Record events for our target player
+            if killer == player_name:
+                individual_impacts.append({
+                    'event_id': event_counter,
+                    'round': round_num,
+                    'type': 'kill',
+                    'impact': impact,
+                    'game_state': game_state,
+                    'weapon': weapon_category,
+                    'victim': victim,
+                    'post_plant': is_post_plant,
+                    'tick': kill_tick
+                })
+                event_counter += 1
+            
+            if victim == player_name:
+                individual_impacts.append({
+                    'event_id': event_counter,
+                    'round': round_num,
+                    'type': 'death',
+                    'impact': -impact,  # Negative for deaths
+                    'game_state': game_state,
+                    'weapon': weapon_category,
+                    'killer': killer,
+                    'post_plant': is_post_plant,
+                    'tick': kill_tick
+                })
+                event_counter += 1
+            
+            # Update alive counts after the kill
+            if victim_side == 'ct':
+                ct_alive = max(0, ct_alive - 1)
+            elif victim_side == 't':
+                t_alive = max(0, t_alive - 1)
+    
+    return individual_impacts
