@@ -4,13 +4,28 @@ Simplified main file that imports functions from separate modules.
 """
 
 #%%
+# Auto-reload setup for Jupyter/IPython environments
+# In Jupyter, run these commands manually or uncomment them:
+# %load_ext autoreload
+# %autoreload 2
+
+#%%
 from awpy import Demo
 import pandas as pd
 import polars as pl
+import importlib
 
 # Import our custom modules
 from analysis import get_player_kill_death_analysis, create_probability_scenarios_table
-from plotting import plot_kill_death_analysis, plot_positive_negative_impact, compare_players_impact
+from plotting import plot_kill_death_analysis, plot_positive_negative_impact, compare_players_impact, plot_impact_difference_per_round, plot_individual_impacts
+
+#%%
+# Force reload modules (run this cell when you make changes to the modules)
+import analysis
+import plotting
+importlib.reload(analysis)
+importlib.reload(plotting)
+print("✅ Modules reloaded successfully!")
 
 #%%
 # Parse the demo file
@@ -101,6 +116,14 @@ if stats is not None and not stats.empty:
     # Create the positive/negative impact analysis
     print(f"\n📈 Generating positive/negative impact analysis for {player_name}...")
     plot_positive_negative_impact(stats, player_name)
+    
+    # Create the impact difference per round plot
+    print(f"\n🎯 Generating impact difference per round analysis for {player_name}...")
+    plot_impact_difference_per_round(stats, player_name)
+    
+    # Create the individual impacts timeline plot
+    print(f"\n⚡ Generating individual kill/death impacts timeline for {player_name}...")
+    plot_individual_impacts(dem, player_name)
 
 else:
     print(f"❌ No data found for player: {player_name}")
