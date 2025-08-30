@@ -674,6 +674,26 @@ def plot_individual_impacts_by_round(dem, player_name):
             
             event_index += 1
     
+    # Add delta impact labels at the bottom of each round
+    x_pos = 0
+    for round_num in sorted_rounds:
+        impacts = round_impacts[round_num]
+        if impacts:
+            # Calculate total impact for this round
+            round_total = sum(event['impact'] for event in impacts)
+            
+            # Position at the true center of the round's width
+            round_start_x = x_pos
+            round_end_x = x_pos + len(impacts) - 1
+            round_center = (round_start_x + round_end_x) / 2
+            
+            # Add delta label at the bottom
+            ax.text(round_start_x, -60, f'Δ{round_total:+.1f}', 
+                    ha='center', va='center', fontsize=12, fontweight='bold', 
+                    color='darkgreen' if round_total > 0 else 'darkred')
+        
+        x_pos += len(impacts) + 1
+    
     # Add vertical separators between rounds
     separator_positions = []
     x_pos = 0
@@ -840,6 +860,26 @@ def compare_individual_impacts(dem, player1_name, player2_name):
                         fontsize=7, fontweight='bold', color='black')
                 
                 event_index += 1
+        
+        # Add delta impact labels at the bottom of each round
+        x_pos = 0
+        for round_num in sorted_rounds:
+            impacts_in_round = round_impacts[round_num]
+            if impacts_in_round:
+                # Calculate total impact for this round
+                round_total = sum(event['impact'] for event in impacts_in_round)
+                
+                # Position at the true center of the round's width
+                round_start_x = x_pos
+                round_end_x = x_pos + len(impacts_in_round) - 1
+                round_center = (round_start_x + round_end_x) / 2
+                
+                # Add delta label at the bottom
+                ax.text(round_center - 2, -55, f'Δ{round_total:+.1f}', 
+                        ha='center', va='center', fontsize=11, fontweight='bold', 
+                        color='darkgreen' if round_total > 0 else 'darkred')
+            
+            x_pos += len(impacts_in_round) + 1
         
         # Add vertical separators between rounds
         separator_positions = []
@@ -1019,6 +1059,21 @@ def compare_individual_impacts_vertical(dem, player1_name, player2_name):
                             fontsize=6, fontweight='bold', color='black')
                     
                     event_index += 1
+        
+        # Add delta impact labels at the bottom of each round
+        for i, round_num in enumerate(all_rounds):
+            impacts_in_round = round_impacts.get(round_num, [])
+            if impacts_in_round:
+                # Calculate total impact for this round
+                round_total = sum(event['impact'] for event in impacts_in_round)
+                
+                # Position at the center of the round
+                round_center = i * round_spacing + round_spacing / 2
+                
+                # Add delta label at the bottom
+                ax.text(round_center - 2, -55, f'Δ{round_total:+.1f}', 
+                        ha='center', va='center', fontsize=9, fontweight='bold', 
+                        color='darkgreen' if round_total > 0 else 'darkred')
         
         # Add vertical separators between rounds
         separator_x = round_spacing / 2
