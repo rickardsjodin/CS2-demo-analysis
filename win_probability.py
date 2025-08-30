@@ -43,8 +43,8 @@ def get_win_probability(ct_alive, t_alive, post_plant=False):
     # Adjust for post-plant scenarios with more nuanced calculation
     if post_plant:
         # Base post-plant boost + scaling based on player imbalance
-        player_ratio = t_alive / ct_alive if ct_alive > 0 else 5
-        post_plant_boost = 0.15 + (0.10 * player_ratio)
+        player_ratio = t_alive / ct_alive
+        post_plant_boost = 0.08 + (0.10 * player_ratio)
         
         # Cap the boost and apply it
         t_win_prob = min(0.90, t_win_prob + post_plant_boost)
