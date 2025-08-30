@@ -650,10 +650,29 @@ def plot_individual_impacts_by_round(dem, player_name):
     # Create the bar plot
     bars = ax.bar(x_positions, impact_values, color=colors, alpha=0.7, width=0.8)
     
-    # Add value labels on bars
-    for i, (pos, impact) in enumerate(zip(x_positions, impact_values)):
-        ax.text(pos, impact + (0.5 if impact > 0 else -0.5), f'{impact:+.1f}', 
-                ha='center', va='bottom' if impact > 0 else 'top', fontsize=9, rotation=0)
+    # Add impact value and game state labels on bars
+    event_index = 0
+    for round_num in sorted_rounds:
+        impacts = round_impacts[round_num]
+        for event in impacts:
+            pos = x_positions[event_index]
+            impact = impact_values[event_index]
+            game_state = event['game_state']
+            
+            # Simplify post-plant notation
+            if 'post-plant' in game_state:
+                game_state_short = game_state.replace(' post-plant', ' (post)')
+            else:
+                game_state_short = game_state
+            
+            # Combined label: impact value + game state
+            combined_label = f'{impact:+.1f}\n{game_state_short}'
+            
+            ax.text(pos, impact + (2.5 if impact > 0 else -2.5), combined_label, 
+                    ha='center', va='bottom' if impact > 0 else 'top', 
+                    fontsize=8, fontweight='bold', color='black')
+            
+            event_index += 1
     
     # Add vertical separators between rounds
     separator_positions = []
@@ -798,10 +817,29 @@ def compare_individual_impacts(dem, player1_name, player2_name):
         elif set_ylim:
             ax.set_ylim(-70, 70)
         
-        # Add value labels on bars
-        for i, (pos, impact) in enumerate(zip(x_positions, impact_values)):
-            ax.text(pos, impact + (0.5 if impact > 0 else -0.5), f'{impact:+.1f}', 
-                    ha='center', va='bottom' if impact > 0 else 'top', fontsize=8, rotation=0)
+        # Add impact value and game state labels on bars
+        event_index = 0
+        for round_num in sorted_rounds:
+            impacts_in_round = round_impacts[round_num]
+            for event in impacts_in_round:
+                pos = x_positions[event_index]
+                impact = impact_values[event_index]
+                game_state = event['game_state']
+                
+                # Simplify post-plant notation
+                if 'post-plant' in game_state:
+                    game_state_short = game_state.replace(' post-plant', ' (post)')
+                else:
+                    game_state_short = game_state
+                
+                # Combined label: impact value + game state
+                combined_label = f'{impact:+.1f}\n{game_state_short}'
+                
+                ax.text(pos, impact + (2.2 if impact > 0 else -2.2), combined_label, 
+                        ha='center', va='bottom' if impact > 0 else 'top', 
+                        fontsize=7, fontweight='bold', color='black')
+                
+                event_index += 1
         
         # Add vertical separators between rounds
         separator_positions = []
@@ -958,10 +996,29 @@ def compare_individual_impacts_vertical(dem, player1_name, player2_name):
         if x_positions and impact_values:
             bars = ax.bar(x_positions, impact_values, color=colors, alpha=0.7, width=0.8)
             
-            # Add value labels on bars (smaller font for vertical layout)
-            for i, (pos, impact) in enumerate(zip(x_positions, impact_values)):
-                ax.text(pos, impact + (0.5 if impact > 0 else -0.5), f'{impact:+.1f}', 
-                        ha='center', va='bottom' if impact > 0 else 'top', fontsize=7, rotation=0)
+            # Add impact value and game state labels on bars
+            event_index = 0
+            for round_num in all_rounds:
+                impacts_in_round = round_impacts.get(round_num, [])
+                for event in impacts_in_round:
+                    pos = x_positions[event_index]
+                    impact = impact_values[event_index]
+                    game_state = event['game_state']
+                    
+                    # Simplify post-plant notation
+                    if 'post-plant' in game_state:
+                        game_state_short = game_state.replace(' post-plant', ' (post)')
+                    else:
+                        game_state_short = game_state
+                    
+                    # Combined label: impact value + game state
+                    combined_label = f'{impact:+.1f}\n{game_state_short}'
+                    
+                    ax.text(pos, impact + (2.0 if impact > 0 else -2.0), combined_label, 
+                            ha='center', va='bottom' if impact > 0 else 'top', 
+                            fontsize=6, fontweight='bold', color='black')
+                    
+                    event_index += 1
         
         # Add vertical separators between rounds
         separator_x = round_spacing / 2
