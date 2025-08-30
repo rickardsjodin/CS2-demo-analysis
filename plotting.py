@@ -117,7 +117,6 @@ def plot_kill_death_analysis(stats_df, player_name):
                 'T SIDE', ha='center', va='center', bbox=dict(boxstyle="round,pad=0.3", facecolor='orange', alpha=0.7))
     
     plt.tight_layout()
-    plt.show()
     
     # Print summary statistics
     total_kills = sum(kills_count)
@@ -263,7 +262,6 @@ def plot_positive_negative_impact(stats_df, player_name):
                 ax.axvline(x=i+0.5, color='gray', linestyle='--', alpha=0.7)
     
     plt.tight_layout()
-    plt.show()
     
     # Print detailed impact analysis
     total_positive = sum(pos_only) if pos_only else 0
@@ -465,7 +463,6 @@ Avg Per Round: {net_impact/len(rounds):+.1f}"""
     ax3.axvline(x=0, color='black', linestyle='-', alpha=0.8, linewidth=1)
     
     plt.tight_layout()
-    plt.show()
     
     # Print detailed round-by-round analysis
     print(f"\n📊 DETAILED ROUND IMPACT ANALYSIS for {player_name}")
@@ -745,7 +742,6 @@ def plot_individual_impacts(dem, player_name):
     ax3.axvline(x=0, color='black', linestyle='-', alpha=0.8)
     
     plt.tight_layout()
-    plt.show()
     
     # Print detailed statistics
     print(f"\n📊 INDIVIDUAL IMPACT ANALYSIS for {player_name}")
@@ -943,7 +939,6 @@ def compare_individual_impacts(dem, player1_name, player2_name):
     ax4.axvline(x=0, color='black', linestyle='-', alpha=0.8)
     
     plt.tight_layout()
-    plt.show()
     
     # Print detailed comparison
     print(f"\n📊 DETAILED INDIVIDUAL IMPACT COMPARISON")
