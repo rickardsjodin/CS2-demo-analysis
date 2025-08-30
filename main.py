@@ -15,11 +15,11 @@ from cache_utils import load_demo, clear_cache
 # CONFIGURATION - EDIT THESE VALUES
 # ================================
 DEMO_FILE = "vitality-vs-gamer-legion-m1-train.dem"
-PLAYER_TO_ANALYZE = "Kursy"
+PLAYER_TO_ANALYZE = "REZ"
 
 # Optional: Set these for player comparison (leave as None to skip comparison)
-COMPARE_PLAYER1 = "REZ"  # e.g., "REZ"
-COMPARE_PLAYER2 = "Kursy"  # e.g., "Kursy"
+COMPARE_PLAYER1 = "Kursy"  # e.g., "Kursy"
+COMPARE_PLAYER2 = "REZ"  # e.g., "REZ"
 
 # Cache settings
 USE_CACHE = True  # Set to False to disable caching
@@ -64,10 +64,10 @@ def main():
         
         # Generate plots
         print(f"\n📊 Generating visualizations for {PLAYER_TO_ANALYZE}...")
-        plot_kill_death_analysis(stats, PLAYER_TO_ANALYZE)
-        plot_positive_negative_impact(stats, PLAYER_TO_ANALYZE)
-        plot_impact_difference_per_round(stats, PLAYER_TO_ANALYZE)
-        plot_individual_impacts_by_round(dem, PLAYER_TO_ANALYZE)
+        # plot_kill_death_analysis(stats, PLAYER_TO_ANALYZE)
+        # plot_positive_negative_impact(stats, PLAYER_TO_ANALYZE)
+        # plot_impact_difference_per_round(stats, PLAYER_TO_ANALYZE)
+        # plot_individual_impacts_by_round(dem, PLAYER_TO_ANALYZE)
         
     else:
         print(f"❌ No data found for player: {PLAYER_TO_ANALYZE}")
@@ -77,11 +77,11 @@ def main():
     print("\n" + "="*80)
     print("📊 GENERATING ALL PLAYERS STATISTICS TABLE")
     print("="*80)
-    plot_all_players_stats_table(dem)
+    # plot_all_players_stats_table(dem)
     
     # Display probability scenarios table
     print("\n" + "="*80)
-    create_probability_scenarios_table()
+    # create_probability_scenarios_table()
     
     # Optional player comparison
     if COMPARE_PLAYER1 and COMPARE_PLAYER2:

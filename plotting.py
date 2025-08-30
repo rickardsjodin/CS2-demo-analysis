@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from collections import defaultdict
 
+# Configuration - easily adjustable axis limits
+DEFAULT_AXIS_LIMIT = 70  # Default minimum axis limit for impact plots
+
 
 def plot_kill_death_analysis(stats_df, player_name):
     """
@@ -578,9 +581,7 @@ def plot_individual_impacts_by_round(dem, player_name):
             is_post_plant = (plant_tick is not None and kill_tick > plant_tick)
             
             # Current game state before this kill
-            game_state = f"{ct_alive}v{t_alive}"
-            if is_post_plant:
-                game_state += " post-plant"
+            game_state = ""
             
             # Calculate impact score for this kill
             ct_after = ct_alive - 1 if victim_side == 'ct' else ct_alive
@@ -589,6 +590,14 @@ def plot_individual_impacts_by_round(dem, player_name):
             
             # Record events for our target player
             if killer == player_name:
+                attacker_side = kill.get('attacker_side', '')
+                if attacker_side.lower() == 'ct':
+                    game_state = f"{ct_alive}v{t_alive}"
+                else:
+                    game_state = f"{t_alive}v{ct_alive}"
+                if is_post_plant:
+                    game_state += " post-plant"
+
                 round_impacts[round_num].append({
                     'type': 'kill',
                     'impact': impact,
@@ -598,6 +607,13 @@ def plot_individual_impacts_by_round(dem, player_name):
                 })
             
             if victim == player_name:
+                if victim_side.lower() == 'ct':
+                    game_state = f"{ct_alive}v{t_alive}"
+                else:
+                    game_state = f"{t_alive}v{ct_alive}"
+                if is_post_plant:
+                    game_state += " post-plant"
+
                 round_impacts[round_num].append({
                     'type': 'death',
                     'impact': -impact,  # Negative for deaths
@@ -713,20 +729,19 @@ def plot_individual_impacts_by_round(dem, player_name):
     ax.grid(True, alpha=0.3)
     ax.axhline(y=0, color='black', linestyle='-', alpha=0.8)
     
-    # Set symmetric y-axis with minimum span of -70 to +70
+    # Set symmetric y-axis with minimum span of -DEFAULT_AXIS_LIMIT to +DEFAULT_AXIS_LIMIT
     if impact_values:
         max_positive = max([val for val in impact_values if val > 0] + [0])
         max_negative = abs(min([val for val in impact_values if val < 0] + [0]))
-        max_abs = max(max_positive, max_negative, 70)  # Ensure minimum of 70
+        max_abs = max(max_positive, max_negative, DEFAULT_AXIS_LIMIT)  # Ensure minimum of DEFAULT_AXIS_LIMIT
         ax.set_ylim(-max_abs, max_abs)
     else:
-        ax.set_ylim(-70, 70)
+        ax.set_ylim(-DEFAULT_AXIS_LIMIT, DEFAULT_AXIS_LIMIT)
     
     # Add round labels at the top - now that y-limits are set
     for center_x, round_num, event_count in round_x_centers:
         ax.text(center_x, ax.get_ylim()[1] * 0.95, f'{round_num}', 
-                ha='center', va='top', fontsize=11, fontweight='bold',
-                bbox=dict(boxstyle="round,pad=0.3", facecolor='lightblue', alpha=0.7))
+                ha='center', va='top', fontsize=11, fontweight='bold')
     
     # Remove x-axis tick labels since we have round labels
     ax.set_xticks([])
@@ -832,10 +847,10 @@ def compare_individual_impacts(dem, player1_name, player2_name):
         if set_ylim and impact_values:
             max_positive = max([val for val in impact_values if val > 0] + [0])
             max_negative = abs(min([val for val in impact_values if val < 0] + [0]))
-            max_abs = max(max_positive, max_negative, 70)  # Minimum of 70, but allow growth
+            max_abs = max(max_positive, max_negative, DEFAULT_AXIS_LIMIT)  # Minimum of DEFAULT_AXIS_LIMIT, but allow growth
             ax.set_ylim(-max_abs, max_abs)
         elif set_ylim:
-            ax.set_ylim(-70, 70)
+            ax.set_ylim(-DEFAULT_AXIS_LIMIT, DEFAULT_AXIS_LIMIT)
         
         # Add impact value and game state labels on bars
         event_index = 0
@@ -914,7 +929,7 @@ def compare_individual_impacts(dem, player1_name, player2_name):
     if all_impact_values:
         max_positive = max([val for val in all_impact_values if val > 0] + [0])
         max_negative = abs(min([val for val in all_impact_values if val < 0] + [0]))
-        max_abs = max(max_positive, max_negative, 70)  # Ensure minimum of 70, but allow growth
+        max_abs = max(max_positive, max_negative, DEFAULT_AXIS_LIMIT)  # Ensure minimum of DEFAULT_AXIS_LIMIT, but allow growth
         
         print(f"DEBUG: Max positive: {max_positive}, Max negative: {max_negative}, Max abs: {max_abs}")
         
@@ -926,11 +941,10 @@ def compare_individual_impacts(dem, player1_name, player2_name):
         for round_centers, ax in [(round_centers1, ax1), (round_centers2, ax2)]:
             for center_x, round_num, event_count in round_centers:
                 ax.text(center_x, ax.get_ylim()[1] * 0.95, f'{round_num}', 
-                        ha='center', va='top', fontsize=10, fontweight='bold',
-                        bbox=dict(boxstyle="round,pad=0.3", facecolor='lightblue', alpha=0.7))
+                        ha='center', va='top', fontsize=10, fontweight='bold')
     else:
-        ax1.set_ylim(-70, 70)
-        ax2.set_ylim(-70, 70)
+        ax1.set_ylim(-DEFAULT_AXIS_LIMIT, DEFAULT_AXIS_LIMIT)
+        ax2.set_ylim(-DEFAULT_AXIS_LIMIT, DEFAULT_AXIS_LIMIT)
     
     # Adjust layout to accommodate top labels
     plt.subplots_adjust(top=0.88)
@@ -997,7 +1011,7 @@ def compare_individual_impacts_vertical(dem, player1_name, player2_name):
             round_impacts[event['round']].append(event)
         
         # Calculate maximum events per round to determine spacing
-        max_events_per_round = max(len(round_impacts.get(r, [])) for r in all_rounds)
+        max_events_per_round = 4#max(len(round_impacts.get(r, [])) for r in all_rounds)
         if max_events_per_round == 0:
             max_events_per_round = 1
         
@@ -1084,10 +1098,10 @@ def compare_individual_impacts_vertical(dem, player1_name, player2_name):
         if set_ylim and impact_values:
             max_positive = max([val for val in impact_values if val > 0] + [0])
             max_negative = abs(min([val for val in impact_values if val < 0] + [0]))
-            max_abs = max(max_positive, max_negative, 70)  # Minimum of 70, but allow growth
+            max_abs = max(max_positive, max_negative, DEFAULT_AXIS_LIMIT)  # Minimum of DEFAULT_AXIS_LIMIT, but allow growth
             ax.set_ylim(-max_abs, max_abs)
         elif set_ylim:
-            ax.set_ylim(-70, 70)
+            ax.set_ylim(-DEFAULT_AXIS_LIMIT, DEFAULT_AXIS_LIMIT)
         
         ax.set_ylabel('Round swing')
         ax.set_title(f'{player_name}')
@@ -1112,7 +1126,7 @@ def compare_individual_impacts_vertical(dem, player1_name, player2_name):
     if all_impact_values:
         max_positive = max([val for val in all_impact_values if val > 0] + [0])
         max_negative = abs(min([val for val in all_impact_values if val < 0] + [0]))
-        max_abs = max(max_positive, max_negative, 70)  # Ensure minimum of 70, but allow growth
+        max_abs = max(max_positive, max_negative, DEFAULT_AXIS_LIMIT)  # Ensure minimum of DEFAULT_AXIS_LIMIT, but allow growth
         
         print(f"DEBUG: Max positive: {max_positive}, Max negative: {max_negative}, Max abs: {max_abs}")
         
@@ -1124,11 +1138,10 @@ def compare_individual_impacts_vertical(dem, player1_name, player2_name):
         for round_centers, ax in [(round_centers1, ax1), (round_centers2, ax2)]:
             for center_x, round_num, event_count in round_centers:
                 ax.text(center_x, ax.get_ylim()[1] * 0.95, f'{round_num}', 
-                        ha='center', va='top', fontsize=9, fontweight='bold',
-                        bbox=dict(boxstyle="round,pad=0.2", facecolor='lightblue', alpha=0.7))
+                        ha='center', va='top', fontsize=9, fontweight='bold')
     else:
-        ax1.set_ylim(-70, 70)
-        ax2.set_ylim(-70, 70)
+        ax1.set_ylim(-DEFAULT_AXIS_LIMIT, DEFAULT_AXIS_LIMIT)
+        ax2.set_ylim(-DEFAULT_AXIS_LIMIT, DEFAULT_AXIS_LIMIT)
     
     # Adjust layout to accommodate top labels for vertical layout
     plt.subplots_adjust(top=0.93, hspace=0.4)
@@ -1154,7 +1167,6 @@ def compare_individual_impacts_vertical(dem, player1_name, player2_name):
     print(f"\n🏆 Winner: {player1_name if total_impact1 > total_impact2 else player2_name}")
     print(f"Impact Difference: {abs(total_impact1 - total_impact2):.1f}")
     
-    plt.show()
 
 
 
@@ -1240,9 +1252,7 @@ def get_individual_impacts_data(dem, player_name):
                 weapon_category = "sniper"
             
             # Current game state before this kill
-            game_state = f"{ct_alive}v{t_alive}"
-            if is_post_plant:
-                game_state += " post-plant"
+            game_state = ""
             
             # Calculate impact score for this kill
             ct_after = ct_alive - 1 if victim_side == 'ct' else ct_alive
@@ -1251,6 +1261,14 @@ def get_individual_impacts_data(dem, player_name):
             
             # Record events for our target player
             if killer == player_name:
+                attacker_side = kill.get('attacker_side', '')
+                if attacker_side.lower() == 'ct':
+                    game_state = f"{ct_alive}v{t_alive}"
+                else:
+                    game_state = f"{t_alive}v{ct_alive}"
+                if is_post_plant:
+                    game_state += " post-plant"
+
                 individual_impacts.append({
                     'event_id': event_counter,
                     'round': round_num,
@@ -1265,6 +1283,15 @@ def get_individual_impacts_data(dem, player_name):
                 event_counter += 1
             
             if victim == player_name:
+                if round_num == 5:
+                    pass
+                if victim_side.lower() == 'ct':
+                    game_state = f"{ct_alive}v{t_alive}"
+                else:
+                    game_state = f"{t_alive}v{ct_alive}"
+                if is_post_plant:
+                    game_state += " post-plant"
+
                 individual_impacts.append({
                     'event_id': event_counter,
                     'round': round_num,
@@ -1446,4 +1473,3 @@ def plot_all_players_stats_table(dem):
         winner = "Team 1" if team1_impact > team2_impact else "Team 2"
         print(f"🏆 Impact Winner: {winner}")
     
-    plt.show()

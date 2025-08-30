@@ -124,6 +124,7 @@ def get_player_kill_death_analysis(dem, player_name, debug=False):
             victim_name = kill.get('victim_name', '')
             attacker_side = kill.get('attacker_side', '')
             victim_side = kill.get('victim_side', '')
+
             
             # Check if bomb is planted at time of this kill
             is_post_plant = (round_stats[round_num]['bomb_planted'] and 
@@ -144,7 +145,11 @@ def get_player_kill_death_analysis(dem, player_name, debug=False):
             
             # Record kills for our target player
             if attacker_name == player_name:
-                game_state = f"{ct_alive} v {t_alive}"
+                if attacker_side == 'ct':
+                    game_state = f"{ct_alive} v {t_alive}"
+                else:
+                    game_state = f"{t_alive} v {ct_alive}"
+                
                 if is_post_plant:
                     game_state += " post plant"
                 
@@ -156,7 +161,11 @@ def get_player_kill_death_analysis(dem, player_name, debug=False):
             
             # Record deaths for our target player
             if victim_name == player_name:
-                game_state = f"{ct_alive} v {t_alive}"
+                if victim_side == 'ct':
+                    game_state = f"{ct_alive} v {t_alive}"
+                else:
+                    game_state = f"{t_alive} v {ct_alive}"
+
                 if is_post_plant:
                     game_state += " post plant"
                 
