@@ -4,6 +4,7 @@ Plotting functions for CS2 demo analysis visualization.
 
 import matplotlib.pyplot as plt
 import numpy as np
+from collections import defaultdict
 
 
 def plot_kill_death_analysis(stats_df, player_name):
@@ -507,10 +508,10 @@ Avg Per Round: {net_impact/len(rounds):+.1f}"""
         print(f"Late Game:  {sum(late_rounds)/len(late_rounds):+.1f} avg per round")
 
 
-def plot_individual_impacts(dem, player_name):
+def plot_individual_impacts_by_round(dem, player_name):
     """
-    Plot each individual kill/death impact as separate data points.
-    Shows multiple impacts within the same round as separate events.
+    Plot individual impacts grouped by round with clear round numbers.
+    Shows each kill/death as a separate bar within each round.
     """
     from analysis import get_win_probability, calculate_impact_score
     from collections import defaultdict
@@ -534,7 +535,6 @@ def plot_individual_impacts(dem, player_name):
         for _, bomb_event in bomb_events.iterrows():
             round_num = bomb_event.get('round_num', 0)
             event_columns = bomb_event.index.tolist()
-            event_values = bomb_event.values
             
             # Check for plant events
             is_plant = False
@@ -549,9 +549,8 @@ def plot_individual_impacts(dem, player_name):
             if is_plant:
                 bomb_plants[round_num] = plant_tick
     
-    # Extract individual impacts
-    individual_impacts = []
-    event_counter = 0
+    # Extract individual impacts by round
+    round_impacts = defaultdict(list)
     
     # Get all rounds with activity
     all_rounds = sorted(set(kills_df['round_num'].unique()))
@@ -572,21 +571,11 @@ def plot_individual_impacts(dem, player_name):
         for _, kill in round_kills.iterrows():
             killer = kill.get('attacker_name', '')
             victim = kill.get('victim_name', '')
-            weapon = kill.get('weapon', 'Unknown')
             victim_side = kill.get('victim_side', '')
             kill_tick = kill.get('tick', 0)
             
             # Check if this kill happened after bomb plant
             is_post_plant = (plant_tick is not None and kill_tick > plant_tick)
-            
-            # Determine weapon category
-            weapon_category = "rifle"
-            if weapon in ['glock', 'usp_silencer', 'p2000', 'deagle', 'elite', 'fiveseven', 'cz75a', 'tec9', 'p250', 'revolver']:
-                weapon_category = "pistol"
-            elif weapon in ['ak47', 'm4a1', 'm4a1_s', 'aug', 'sg556', 'famas', 'galilar']:
-                weapon_category = "rifle"
-            elif weapon in ['awp', 'ssg08', 'scar20', 'g3sg1']:
-                weapon_category = "sniper"
             
             # Current game state before this kill
             game_state = f"{ct_alive}v{t_alive}"
@@ -600,32 +589,22 @@ def plot_individual_impacts(dem, player_name):
             
             # Record events for our target player
             if killer == player_name:
-                individual_impacts.append({
-                    'event_id': event_counter,
-                    'round': round_num,
+                round_impacts[round_num].append({
                     'type': 'kill',
                     'impact': impact,
                     'game_state': game_state,
-                    'weapon': weapon_category,
-                    'victim': victim,
-                    'post_plant': is_post_plant,
-                    'tick': kill_tick
+                    'opponent': victim,
+                    'post_plant': is_post_plant
                 })
-                event_counter += 1
             
             if victim == player_name:
-                individual_impacts.append({
-                    'event_id': event_counter,
-                    'round': round_num,
+                round_impacts[round_num].append({
                     'type': 'death',
                     'impact': -impact,  # Negative for deaths
                     'game_state': game_state,
-                    'weapon': weapon_category,
-                    'killer': killer,
-                    'post_plant': is_post_plant,
-                    'tick': kill_tick
+                    'opponent': killer,
+                    'post_plant': is_post_plant
                 })
-                event_counter += 1
             
             # Update alive counts after the kill
             if victim_side == 'ct':
@@ -633,184 +612,132 @@ def plot_individual_impacts(dem, player_name):
             elif victim_side == 't':
                 t_alive = max(0, t_alive - 1)
     
-    if not individual_impacts:
+    if not round_impacts:
         print(f"❌ No individual impacts found for player: {player_name}")
         return
     
     # Create the visualization
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(18, 14))
+    fig, ax = plt.subplots(1, 1, figsize=(16, 8))
     
     # Prepare data for plotting
-    event_ids = [event['event_id'] for event in individual_impacts]
-    impacts = [event['impact'] for event in individual_impacts]
-    rounds = [event['round'] for event in individual_impacts]
-    types = [event['type'] for event in individual_impacts]
-    game_states = [event['game_state'] for event in individual_impacts]
-    
-    # Plot 1: Individual Impact Timeline
-    kill_indices = [i for i, t in enumerate(types) if t == 'kill']
-    death_indices = [i for i, t in enumerate(types) if t == 'death']
-    
-    # Plot kills and deaths separately
-    if kill_indices:
-        kill_events = [event_ids[i] for i in kill_indices]
-        kill_impacts = [impacts[i] for i in kill_indices]
-        ax1.scatter(kill_events, kill_impacts, color='green', s=100, alpha=0.8, 
-                   label=f'Kills ({len(kill_indices)})', marker='^', edgecolors='black')
-    
-    if death_indices:
-        death_events = [event_ids[i] for i in death_indices]
-        death_impacts = [impacts[i] for i in death_indices]
-        ax1.scatter(death_events, death_impacts, color='red', s=100, alpha=0.8, 
-                   label=f'Deaths ({len(death_indices)})', marker='v', edgecolors='black')
-    
-    # Add round labels
-    round_changes = []
-    current_round = rounds[0] if rounds else 1
-    for i, round_num in enumerate(rounds):
-        if round_num != current_round:
-            round_changes.append(i)
-            current_round = round_num
-    
-    # Add vertical lines for round changes
-    for change_idx in round_changes:
-        ax1.axvline(x=event_ids[change_idx], color='gray', linestyle='--', alpha=0.7)
-    
-    # Add round number annotations
-    for i in range(0, len(event_ids), max(1, len(event_ids)//15)):  # Show every nth event
-        ax1.annotate(f'R{rounds[i]}', (event_ids[i], impacts[i]), 
-                    xytext=(5, 5), textcoords='offset points', fontsize=8, alpha=0.7)
-    
-    ax1.set_xlabel('Event Sequence')
-    ax1.set_ylabel('Impact Score')
-    ax1.set_title(f'{player_name} - Individual Kill/Death Impacts Timeline')
-    ax1.legend()
-    ax1.grid(True, alpha=0.3)
-    ax1.axhline(y=0, color='black', linestyle='-', alpha=0.8)
-    
-    # Plot 2: Impact by Round (grouped)
-    round_data = defaultdict(list)
-    for event in individual_impacts:
-        round_data[event['round']].append(event['impact'])
-    
-    sorted_rounds = sorted(round_data.keys())
-    round_positions = []
-    round_impacts_flat = []
+    sorted_rounds = sorted(round_impacts.keys())
+    x_positions = []
+    impact_values = []
+    colors = []
     round_labels = []
     
-    pos = 0
-    for round_num in sorted_rounds:
-        round_impacts = round_data[round_num]
-        for i, impact in enumerate(round_impacts):
-            round_positions.append(pos + i * 0.3)
-            round_impacts_flat.append(impact)
-            round_labels.append(round_num)
-        pos += len(round_impacts) + 1
+    x_pos = 0
+    round_x_centers = []
     
-    # Color by positive/negative
-    colors = ['green' if imp > 0 else 'red' for imp in round_impacts_flat]
-    ax2.bar(round_positions, round_impacts_flat, color=colors, alpha=0.7, width=0.25)
+    for round_num in sorted_rounds:
+        impacts = round_impacts[round_num]
+        round_start = x_pos
+        
+        for i, event in enumerate(impacts):
+            x_positions.append(x_pos)
+            impact_values.append(event['impact'])
+            colors.append('green' if event['impact'] > 0 else 'red')
+            round_labels.append(f"R{round_num}")
+            x_pos += 1
+        
+        # Calculate center position for round label
+        round_center = (round_start + x_pos - 1) / 2
+        round_x_centers.append((round_center, round_num, len(impacts)))
+        
+        # Add space between rounds
+        x_pos += 1
+    
+    # Create the bar plot
+    bars = ax.bar(x_positions, impact_values, color=colors, alpha=0.7, width=0.8)
     
     # Add value labels on bars
-    for pos, impact in zip(round_positions, round_impacts_flat):
-        ax2.text(pos, impact + (0.5 if impact > 0 else -0.5), f'{impact:+.1f}', 
-                ha='center', va='bottom' if impact > 0 else 'top', fontsize=8, rotation=90)
+    for i, (pos, impact) in enumerate(zip(x_positions, impact_values)):
+        ax.text(pos, impact + (0.5 if impact > 0 else -0.5), f'{impact:+.1f}', 
+                ha='center', va='bottom' if impact > 0 else 'top', fontsize=9, rotation=0)
     
-    ax2.set_xlabel('Events Grouped by Round')
-    ax2.set_ylabel('Impact Score')
-    ax2.set_title(f'{player_name} - Individual Impacts Grouped by Round')
-    ax2.grid(True, alpha=0.3)
-    ax2.axhline(y=0, color='black', linestyle='-', alpha=0.8)
+    # Add vertical separators between rounds
+    separator_positions = []
+    x_pos = 0
+    for round_num in sorted_rounds:
+        impacts = round_impacts[round_num]
+        x_pos += len(impacts)
+        if round_num != sorted_rounds[-1]:  # Don't add separator after last round
+            separator_positions.append(x_pos + 0.5)
+        x_pos += 1
     
-    # Plot 3: Impact Distribution Analysis
-    positive_impacts = [imp for imp in impacts if imp > 0]
-    negative_impacts = [imp for imp in impacts if imp < 0]
+    for sep_pos in separator_positions:
+        ax.axvline(x=sep_pos, color='gray', linestyle='--', alpha=0.5, linewidth=1)
     
-    # Create histogram
-    if positive_impacts:
-        ax3.hist(positive_impacts, bins=15, alpha=0.7, color='green', 
-                label=f'Positive Impacts ({len(positive_impacts)})', edgecolor='black')
-    if negative_impacts:
-        ax3.hist(negative_impacts, bins=15, alpha=0.7, color='red', 
-                label=f'Negative Impacts ({len(negative_impacts)})', edgecolor='black')
+    ax.set_xlabel('Individual Events by Round')
+    ax.set_ylabel('Impact Score')
+    ax.set_title(f'{player_name} - Individual Kill/Death Impacts by Round')
+    ax.grid(True, alpha=0.3)
+    ax.axhline(y=0, color='black', linestyle='-', alpha=0.8)
     
-    ax3.set_xlabel('Impact Score')
-    ax3.set_ylabel('Frequency')
-    ax3.set_title(f'{player_name} - Individual Impact Distribution')
-    ax3.legend()
-    ax3.grid(True, alpha=0.3)
-    ax3.axvline(x=0, color='black', linestyle='-', alpha=0.8)
+    # Set symmetric y-axis with minimum span of -70 to +70
+    if impact_values:
+        max_positive = max([val for val in impact_values if val > 0] + [0])
+        max_negative = abs(min([val for val in impact_values if val < 0] + [0]))
+        max_abs = max(max_positive, max_negative, 70)  # Ensure minimum of 70
+        ax.set_ylim(-max_abs, max_abs)
+    else:
+        ax.set_ylim(-70, 70)
     
-    plt.tight_layout()
+    # Add round labels at the top - now that y-limits are set
+    for center_x, round_num, event_count in round_x_centers:
+        ax.text(center_x, ax.get_ylim()[1] * 0.95, f'{round_num}', 
+                ha='center', va='top', fontsize=11, fontweight='bold',
+                bbox=dict(boxstyle="round,pad=0.3", facecolor='lightblue', alpha=0.7))
     
-    # Print detailed statistics
-    print(f"\n📊 INDIVIDUAL IMPACT ANALYSIS for {player_name}")
-    print("=" * 70)
+    # Remove x-axis tick labels since we have round labels
+    ax.set_xticks([])
     
-    total_events = len(individual_impacts)
-    kill_events = len([e for e in individual_impacts if e['type'] == 'kill'])
-    death_events = len([e for e in individual_impacts if e['type'] == 'death'])
+    # Adjust layout to accommodate top labels - set top margin and then tight layout
+    plt.subplots_adjust(top=0.88)
+    plt.tight_layout(rect=[0, 0, 1, 0.88])
     
-    print(f"Total Individual Events: {total_events}")
-    print(f"• Kills: {kill_events}")
-    print(f"• Deaths: {death_events}")
+    # Print round-by-round statistics
+    print(f"\n🎯 ROUND-BY-ROUND IMPACT ANALYSIS for {player_name}")
+    print("=" * 80)
     
-    if positive_impacts:
-        print(f"\nPositive Impacts: {len(positive_impacts)}")
-        print(f"• Highest: +{max(positive_impacts):.1f}")
-        print(f"• Average: +{sum(positive_impacts)/len(positive_impacts):.1f}")
-        print(f"• Total: +{sum(positive_impacts):.1f}")
+    total_rounds_with_activity = len(round_impacts)
+    total_events = sum(len(impacts) for impacts in round_impacts.values())
+    total_impact = sum(event['impact'] for impacts in round_impacts.values() for event in impacts)
     
-    if negative_impacts:
-        print(f"\nNegative Impacts: {len(negative_impacts)}")
-        print(f"• Worst: {min(negative_impacts):.1f}")
-        print(f"• Average: {sum(negative_impacts)/len(negative_impacts):.1f}")
-        print(f"• Total: {sum(negative_impacts):.1f}")
+    print(f"Rounds with Activity: {total_rounds_with_activity}")
+    print(f"Total Events: {total_events}")
+    print(f"Net Impact: {total_impact:+.1f}")
+    print(f"Average Impact per Event: {total_impact/total_events:+.1f}")
+    print()
     
-    total_impact = sum(impacts)
-    print(f"\nNet Impact: {total_impact:+.1f}")
-    print(f"Impact per Event: {total_impact/total_events:+.1f}")
-    
-    # Find highest impact events
-    if impacts:
-        max_impact = max(impacts)
-        min_impact = min(impacts)
+    # Show details for each round
+    for round_num in sorted_rounds:
+        impacts = round_impacts[round_num]
+        round_total = sum(event['impact'] for event in impacts)
+        kills = [e for e in impacts if e['type'] == 'kill']
+        deaths = [e for e in impacts if e['type'] == 'death']
         
-        best_event = next(e for e in individual_impacts if e['impact'] == max_impact)
-        worst_event = next(e for e in individual_impacts if e['impact'] == min_impact)
+        print(f"Round {round_num:2d}: {round_total:+6.1f} total "
+              f"({len(kills)} kills, {len(deaths)} deaths)")
         
-        print(f"\n🎯 EXTREME EVENTS:")
-        print(f"Best Event: {best_event['type']} in round {best_event['round']} "
-              f"({best_event['game_state']}) = +{best_event['impact']:.1f}")
-        print(f"Worst Event: {worst_event['type']} in round {worst_event['round']} "
-              f"({worst_event['game_state']}) = {worst_event['impact']:+.1f}")
+        for event in impacts:
+            symbol = "🎯" if event['type'] == 'kill' else "💀"
+            post_plant = " [POST-PLANT]" if event['post_plant'] else ""
+            print(f"  {symbol} {event['type'].upper():5s} vs {event['opponent']:<15s} "
+                  f"({event['game_state']:<12s}){post_plant} = {event['impact']:+5.1f}")
+        print()
     
-    # Analyze by game state
-    game_state_impacts = defaultdict(list)
-    for event in individual_impacts:
-        game_state_impacts[event['game_state']].append(event['impact'])
-    
-    print(f"\n🎮 IMPACT BY GAME STATE:")
-    for state, state_impacts in sorted(game_state_impacts.items()):
-        avg_impact = sum(state_impacts) / len(state_impacts)
-        print(f"• {state}: {avg_impact:+.1f} avg ({len(state_impacts)} events)")
-    
-    return individual_impacts
+    return round_impacts
 
 
 def compare_individual_impacts(dem, player1_name, player2_name):
     """
-    Compare individual kill/death impacts between two players side by side.
-    Shows round-by-round comparison with detailed analysis.
+    Compare individual kill/death impacts between two players using the same plot style.
+    Shows detailed round-by-round comparison with individual events.
     """
     print(f"\n🔍 Comparing Individual Impacts: {player1_name} vs {player2_name}")
     
-    # Get individual impacts for both players (but don't show the plots)
-    print(f"\n📊 Analyzing {player1_name}...")
-    from analysis import get_win_probability, calculate_impact_score
-    from collections import defaultdict
-    
-    # Get impacts for both players without showing individual plots
+    # Get individual impacts for both players 
     impacts1 = get_individual_impacts_data(dem, player1_name)
     impacts2 = get_individual_impacts_data(dem, player2_name)
     
@@ -821,211 +748,304 @@ def compare_individual_impacts(dem, player1_name, player2_name):
     print(f"✅ Found {len(impacts1)} events for {player1_name}")
     print(f"✅ Found {len(impacts2)} events for {player2_name}")
     
-    # Create comparison visualization - now only 2 rows
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(18, 12))
+    # Create side-by-side plots using the same style as plot_individual_impacts_by_round
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 8))
     
-    # Plot 1 & 2: Round-by-round comparison with common y-axis
-    def create_round_comparison(impacts, ax, player_name):
-        """Create round-by-round impact visualization"""
-        round_data = {}
+    def create_individual_impact_plot(impacts, ax, player_name, set_ylim=True):
+        """Create the same individual impact plot as plot_individual_impacts_by_round"""
+        # Group impacts by round
+        round_impacts = defaultdict(list)
         for event in impacts:
-            round_num = event['round']
-            if round_num not in round_data:
-                round_data[round_num] = []
-            round_data[round_num].append(event['impact'])
+            round_impacts[event['round']].append(event)
         
-        rounds = sorted(round_data.keys())
-        round_totals = [sum(round_data[r]) for r in rounds]
-        round_counts = [len(round_data[r]) for r in rounds]
+        # Prepare data for plotting
+        sorted_rounds = sorted(round_impacts.keys())
+        x_positions = []
+        impact_values = []
+        colors = []
+        round_labels = []
         
-        # Create bars with colors based on positive/negative
-        colors = ['green' if total > 0 else 'red' if total < 0 else 'gray' for total in round_totals]
-        bars = ax.bar(rounds, round_totals, color=colors, alpha=0.7)
+        x_pos = 0
+        round_x_centers = []
         
-        # Add event count labels on bars
-        for i, (round_num, total, count) in enumerate(zip(rounds, round_totals, round_counts)):
-            height = total + (1 if total > 0 else -1)
-            ax.text(round_num, height, f'{count}e', ha='center', 
-                   va='bottom' if total > 0 else 'top', fontsize=8)
+        for round_num in sorted_rounds:
+            impacts_in_round = round_impacts[round_num]
+            round_start = x_pos
+            
+            for i, event in enumerate(impacts_in_round):
+                x_positions.append(x_pos)
+                impact_values.append(event['impact'])
+                colors.append('green' if event['impact'] > 0 else 'red')
+                round_labels.append(f"R{round_num}")
+                x_pos += 1
+            
+            # Calculate center position for round label
+            round_center = (round_start + x_pos - 1) / 2
+            round_x_centers.append((round_center, round_num, len(impacts_in_round)))
+            
+            # Add space between rounds
+            x_pos += 1
         
-        ax.set_title(f'{player_name} - Impact by Round (with event counts)')
-        ax.set_xlabel('Round')
-        ax.set_ylabel('Total Round Impact')
+        # Create the bar plot
+        bars = ax.bar(x_positions, impact_values, color=colors, alpha=0.7, width=0.8)
+        
+        # Only set y-limits if requested (for single player mode)
+        if set_ylim and impact_values:
+            max_positive = max([val for val in impact_values if val > 0] + [0])
+            max_negative = abs(min([val for val in impact_values if val < 0] + [0]))
+            max_abs = max(max_positive, max_negative, 70)  # Minimum of 70, but allow growth
+            ax.set_ylim(-max_abs, max_abs)
+        elif set_ylim:
+            ax.set_ylim(-70, 70)
+        
+        # Add value labels on bars
+        for i, (pos, impact) in enumerate(zip(x_positions, impact_values)):
+            ax.text(pos, impact + (0.5 if impact > 0 else -0.5), f'{impact:+.1f}', 
+                    ha='center', va='bottom' if impact > 0 else 'top', fontsize=8, rotation=0)
+        
+        # Add vertical separators between rounds
+        separator_positions = []
+        x_pos = 0
+        for round_num in sorted_rounds:
+            impacts_in_round = round_impacts[round_num]
+            x_pos += len(impacts_in_round)
+            if round_num != sorted_rounds[-1]:  # Don't add separator after last round
+                separator_positions.append(x_pos + 0.5)
+            x_pos += 1
+        
+        for sep_pos in separator_positions:
+            ax.axvline(x=sep_pos, color='gray', linestyle='--', alpha=0.5, linewidth=1)
+        
+        ax.set_xlabel('Individual Events by Round')
+        ax.set_ylabel('Impact Score')
+        ax.set_title(f'{player_name} - Individual Kill/Death Impacts by Round')
         ax.grid(True, alpha=0.3)
         ax.axhline(y=0, color='black', linestyle='-', alpha=0.8)
         
-        return round_data, rounds, round_totals
+        # Remove x-axis tick labels since we have round labels
+        ax.set_xticks([])
+        
+        return impact_values, round_x_centers
     
-    round_data1, rounds1, totals1 = create_round_comparison(impacts1, ax1, player1_name)
-    round_data2, rounds2, totals2 = create_round_comparison(impacts2, ax2, player2_name)
+    # Create plots for both players (don't set y-limits yet)
+    impact_values1, round_centers1 = create_individual_impact_plot(impacts1, ax1, player1_name, set_ylim=False)
+    impact_values2, round_centers2 = create_individual_impact_plot(impacts2, ax2, player2_name, set_ylim=False)
     
-    # Set common y-axis for both round plots
-    all_totals = totals1 + totals2
-    if all_totals:
-        y_min = min(all_totals) - 5
-        y_max = max(all_totals) + 5
-        ax1.set_ylim(y_min, y_max)
-        ax2.set_ylim(y_min, y_max)
+    # Now set common symmetric y-axis for both plots based on all data
+    all_impact_values = impact_values1 + impact_values2
+    if all_impact_values:
+        max_positive = max([val for val in all_impact_values if val > 0] + [0])
+        max_negative = abs(min([val for val in all_impact_values if val < 0] + [0]))
+        max_abs = max(max_positive, max_negative, 70)  # Ensure minimum of 70, but allow growth
+        
+        print(f"DEBUG: Max positive: {max_positive}, Max negative: {max_negative}, Max abs: {max_abs}")
+        
+        # Apply the same scale to both plots
+        ax1.set_ylim(-max_abs, max_abs)
+        ax2.set_ylim(-max_abs, max_abs)
+        
+        # Now add round labels at the top with the correct y-limits
+        for round_centers, ax in [(round_centers1, ax1), (round_centers2, ax2)]:
+            for center_x, round_num, event_count in round_centers:
+                ax.text(center_x, ax.get_ylim()[1] * 0.95, f'{round_num}', 
+                        ha='center', va='top', fontsize=10, fontweight='bold',
+                        bbox=dict(boxstyle="round,pad=0.3", facecolor='lightblue', alpha=0.7))
+    else:
+        ax1.set_ylim(-70, 70)
+        ax2.set_ylim(-70, 70)
     
-    # Plot 3: Direct statistical comparison
-    def create_stats_comparison(impacts1, impacts2, ax):
-        """Create side-by-side statistical comparison"""
-        # Extract data
-        pos1 = [imp['impact'] for imp in impacts1 if imp['impact'] > 0]
-        neg1 = [imp['impact'] for imp in impacts1 if imp['impact'] < 0]
-        pos2 = [imp['impact'] for imp in impacts2 if imp['impact'] > 0]
-        neg2 = [imp['impact'] for imp in impacts2 if imp['impact'] < 0]
+    # Adjust layout to accommodate top labels
+    plt.subplots_adjust(top=0.88)
+    plt.tight_layout(rect=[0, 0, 1, 0.88])
+    
+    # Print comparison statistics
+    print(f"\n📊 COMPARISON STATISTICS")
+    print("=" * 60)
+    
+    total_impact1 = sum(event['impact'] for event in impacts1)
+    total_impact2 = sum(event['impact'] for event in impacts2)
+    
+    print(f"{player1_name}:")
+    print(f"  Total Events: {len(impacts1)}")
+    print(f"  Net Impact: {total_impact1:+.1f}")
+    print(f"  Avg Impact/Event: {total_impact1/len(impacts1):+.1f}")
+    
+    print(f"\n{player2_name}:")
+    print(f"  Total Events: {len(impacts2)}")
+    print(f"  Net Impact: {total_impact2:+.1f}")
+    print(f"  Avg Impact/Event: {total_impact2/len(impacts2):+.1f}")
+    
+    print(f"\n🏆 Winner: {player1_name if total_impact1 > total_impact2 else player2_name}")
+    print(f"Impact Difference: {abs(total_impact1 - total_impact2):.1f}")
+    
+
+def compare_individual_impacts_vertical(dem, player1_name, player2_name):
+    """
+    Compare individual kill/death impacts between two players using vertical layout.
+    Shows detailed round-by-round comparison with individual events stacked vertically.
+    Rounds are aligned between both players for easy comparison.
+    """
+    print(f"\n🔍 Comparing Individual Impacts (Vertical): {player1_name} vs {player2_name}")
+    
+    # Get individual impacts for both players 
+    impacts1 = get_individual_impacts_data(dem, player1_name)
+    impacts2 = get_individual_impacts_data(dem, player2_name)
+    
+    if not impacts1 or not impacts2:
+        print("❌ Could not get individual impact data for one or both players")
+        return
+    
+    print(f"✅ Found {len(impacts1)} events for {player1_name}")
+    print(f"✅ Found {len(impacts2)} events for {player2_name}")
+    
+    # Get all rounds present in both players' data for alignment
+    all_rounds = set()
+    for event in impacts1:
+        all_rounds.add(event['round'])
+    for event in impacts2:
+        all_rounds.add(event['round'])
+    all_rounds = sorted(list(all_rounds))
+    
+    print(f"🎯 Aligning {len(all_rounds)} rounds: {all_rounds}")
+    
+    # Create vertically stacked plots
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(16, 12))
+    
+    def create_aligned_impact_plot(impacts, ax, player_name, all_rounds, set_ylim=True):
+        """Create impact plot with aligned round positions"""
+        # Group impacts by round
+        round_impacts = defaultdict(list)
+        for event in impacts:
+            round_impacts[event['round']].append(event)
         
-        # Create comparison bars
-        categories = ['Positive\nEvents', 'Negative\nEvents', 'Total\nEvents', 'Net\nImpact']
+        # Calculate maximum events per round to determine spacing
+        max_events_per_round = max(len(round_impacts.get(r, [])) for r in all_rounds)
+        if max_events_per_round == 0:
+            max_events_per_round = 1
         
-        player1_stats = [
-            len(pos1),
-            len(neg1), 
-            len(impacts1),
-            sum(imp['impact'] for imp in impacts1)
-        ]
+        # Prepare data for plotting with aligned positions
+        x_positions = []
+        impact_values = []
+        colors = []
+        round_x_centers = []
         
-        player2_stats = [
-            len(pos2),
-            len(neg2),
-            len(impacts2), 
-            sum(imp['impact'] for imp in impacts2)
-        ]
+        x_pos = 0
+        round_spacing = max_events_per_round + 2  # Fixed spacing per round
         
-        x = np.arange(len(categories))
-        width = 0.35
+        for round_num in all_rounds:
+            impacts_in_round = round_impacts.get(round_num, [])
+            round_start = x_pos
+            
+            # Position events within the round's allocated space
+            if impacts_in_round:
+                event_spacing = max_events_per_round / len(impacts_in_round)
+                for i, event in enumerate(impacts_in_round):
+                    event_x_pos = x_pos + i * event_spacing
+                    x_positions.append(event_x_pos)
+                    impact_values.append(event['impact'])
+                    colors.append('green' if event['impact'] > 0 else 'red')
+                
+                # Center position for round label
+                round_center = x_pos + (len(impacts_in_round) - 1) * event_spacing / 2
+            else:
+                # No events for this round, still reserve space
+                round_center = x_pos + max_events_per_round / 2
+            
+            round_x_centers.append((round_center, round_num, len(impacts_in_round)))
+            x_pos += round_spacing
         
-        bars1 = ax.bar(x - width/2, player1_stats, width, label=player1_name, 
-                      color='steelblue', alpha=0.8)
-        bars2 = ax.bar(x + width/2, player2_stats, width, label=player2_name, 
-                      color='orangered', alpha=0.8)
+        # Create the bar plot
+        if x_positions and impact_values:
+            bars = ax.bar(x_positions, impact_values, color=colors, alpha=0.7, width=0.8)
+            
+            # Add value labels on bars (smaller font for vertical layout)
+            for i, (pos, impact) in enumerate(zip(x_positions, impact_values)):
+                ax.text(pos, impact + (0.5 if impact > 0 else -0.5), f'{impact:+.1f}', 
+                        ha='center', va='bottom' if impact > 0 else 'top', fontsize=7, rotation=0)
         
-        # Add value labels on bars
-        for bars in [bars1, bars2]:
-            for bar in bars:
-                height = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2., height + 0.5,
-                       f'{height:.1f}' if isinstance(height, float) else f'{int(height)}',
-                       ha='center', va='bottom', fontsize=9)
+        # Add vertical separators between rounds
+        separator_x = round_spacing / 2
+        for i in range(len(all_rounds) - 1):
+            ax.axvline(x=separator_x + i * round_spacing, color='gray', linestyle='--', alpha=0.5, linewidth=1)
         
-        ax.set_title('Statistical Comparison')
-        ax.set_ylabel('Count / Impact Value')
-        ax.set_xticks(x)
-        ax.set_xticklabels(categories)
-        ax.legend()
+        # Only set y-limits if requested (for single player mode)
+        if set_ylim and impact_values:
+            max_positive = max([val for val in impact_values if val > 0] + [0])
+            max_negative = abs(min([val for val in impact_values if val < 0] + [0]))
+            max_abs = max(max_positive, max_negative, 70)  # Minimum of 70, but allow growth
+            ax.set_ylim(-max_abs, max_abs)
+        elif set_ylim:
+            ax.set_ylim(-70, 70)
+        
+        ax.set_xlabel('Individual Events by Round (Aligned)')
+        ax.set_ylabel('Impact Score')
+        ax.set_title(f'{player_name} - Individual Kill/Death Impacts by Round')
         ax.grid(True, alpha=0.3)
-    
-    create_stats_comparison(impacts1, impacts2, ax3)
-    
-    # Plot 4: Head-to-head impact distribution
-    all_impacts1 = [imp['impact'] for imp in impacts1]
-    all_impacts2 = [imp['impact'] for imp in impacts2]
-    
-    # Create overlapping histograms
-    bins = np.linspace(min(min(all_impacts1), min(all_impacts2)), 
-                      max(max(all_impacts1), max(all_impacts2)), 20)
-    
-    ax4.hist(all_impacts1, bins=bins, alpha=0.6, color='steelblue', 
-            label=f'{player1_name} ({len(all_impacts1)} events)', edgecolor='black')
-    ax4.hist(all_impacts2, bins=bins, alpha=0.6, color='orangered', 
-            label=f'{player2_name} ({len(all_impacts2)} events)', edgecolor='black')
-    
-    ax4.set_title('Impact Distribution Comparison')
-    ax4.set_xlabel('Impact Score')
-    ax4.set_ylabel('Frequency')
-    ax4.legend()
-    ax4.grid(True, alpha=0.3)
-    ax4.axvline(x=0, color='black', linestyle='-', alpha=0.8)
-    
-    plt.tight_layout()
-    
-    # Print detailed comparison
-    print(f"\n📊 DETAILED INDIVIDUAL IMPACT COMPARISON")
-    print("=" * 80)
-    
-    # Calculate comprehensive stats
-    def calculate_player_stats(impacts, player_name):
-        all_impacts = [imp['impact'] for imp in impacts]
-        positive_impacts = [imp for imp in all_impacts if imp > 0]
-        negative_impacts = [imp for imp in all_impacts if imp < 0]
-        kill_impacts = [imp['impact'] for imp in impacts if imp['type'] == 'kill']
-        death_impacts = [imp['impact'] for imp in impacts if imp['type'] == 'death']
+        ax.axhline(y=0, color='black', linestyle='-', alpha=0.8)
         
-        return {
-            'name': player_name,
-            'total_events': len(impacts),
-            'kill_events': len(kill_impacts),
-            'death_events': len(death_impacts),
-            'positive_events': len(positive_impacts),
-            'negative_events': len(negative_impacts),
-            'total_impact': sum(all_impacts),
-            'total_positive': sum(positive_impacts) if positive_impacts else 0,
-            'total_negative': sum(negative_impacts) if negative_impacts else 0,
-            'avg_impact': sum(all_impacts) / len(all_impacts) if all_impacts else 0,
-            'avg_positive': sum(positive_impacts) / len(positive_impacts) if positive_impacts else 0,
-            'avg_negative': sum(negative_impacts) / len(negative_impacts) if negative_impacts else 0,
-            'max_impact': max(all_impacts) if all_impacts else 0,
-            'min_impact': min(all_impacts) if all_impacts else 0,
-        }
-    
-    stats1 = calculate_player_stats(impacts1, player1_name)
-    stats2 = calculate_player_stats(impacts2, player2_name)
-    
-    # Print comparison table
-    print(f"{'Metric':<25} {player1_name:<15} {player2_name:<15} {'Difference':<15}")
-    print("─" * 75)
-    print(f"{'Total Events:':<25} {stats1['total_events']:<15} {stats2['total_events']:<15} {stats1['total_events']-stats2['total_events']:+<15}")
-    print(f"{'Kill Events:':<25} {stats1['kill_events']:<15} {stats2['kill_events']:<15} {stats1['kill_events']-stats2['kill_events']:+<15}")
-    print(f"{'Death Events:':<25} {stats1['death_events']:<15} {stats2['death_events']:<15} {stats1['death_events']-stats2['death_events']:+<15}")
-    print(f"{'Positive Events:':<25} {stats1['positive_events']:<15} {stats2['positive_events']:<15} {stats1['positive_events']-stats2['positive_events']:+<15}")
-    print(f"{'Negative Events:':<25} {stats1['negative_events']:<15} {stats2['negative_events']:<15} {stats1['negative_events']-stats2['negative_events']:+<15}")
-    print()
-    print(f"{'Total Impact:':<25} {stats1['total_impact']:+<15.1f} {stats2['total_impact']:+<15.1f} {stats1['total_impact']-stats2['total_impact']:+<15.1f}")
-    print(f"{'Total Positive:':<25} {stats1['total_positive']:+<15.1f} {stats2['total_positive']:+<15.1f} {stats1['total_positive']-stats2['total_positive']:+<15.1f}")
-    print(f"{'Total Negative:':<25} {stats1['total_negative']:+<15.1f} {stats2['total_negative']:+<15.1f} {stats1['total_negative']-stats2['total_negative']:+<15.1f}")
-    print()
-    print(f"{'Avg Impact/Event:':<25} {stats1['avg_impact']:+<15.1f} {stats2['avg_impact']:+<15.1f} {stats1['avg_impact']-stats2['avg_impact']:+<15.1f}")
-    print(f"{'Avg Positive Impact:':<25} {stats1['avg_positive']:+<15.1f} {stats2['avg_positive']:+<15.1f} {stats1['avg_positive']-stats2['avg_positive']:+<15.1f}")
-    print(f"{'Avg Negative Impact:':<25} {stats1['avg_negative']:+<15.1f} {stats2['avg_negative']:+<15.1f} {stats1['avg_negative']-stats2['avg_negative']:+<15.1f}")
-    print()
-    print(f"{'Highest Impact:':<25} {stats1['max_impact']:+<15.1f} {stats2['max_impact']:+<15.1f} {stats1['max_impact']-stats2['max_impact']:+<15.1f}")
-    print(f"{'Lowest Impact:':<25} {stats1['min_impact']:+<15.1f} {stats2['min_impact']:+<15.1f} {stats1['min_impact']-stats2['min_impact']:+<15.1f}")
-    
-    # Find head-to-head moments (same rounds)
-    rounds1_set = set(imp['round'] for imp in impacts1)
-    rounds2_set = set(imp['round'] for imp in impacts2)
-    common_rounds = rounds1_set.intersection(rounds2_set)
-    
-    if common_rounds:
-        print(f"\n⚔️ HEAD-TO-HEAD ROUNDS ({len(common_rounds)} rounds with both players active):")
+        # Set x-axis limits to show all rounds
+        if all_rounds:
+            ax.set_xlim(-1, len(all_rounds) * round_spacing - round_spacing/2)
         
-        h2h_stats1 = {'events': 0, 'impact': 0}
-        h2h_stats2 = {'events': 0, 'impact': 0}
+        # Remove x-axis tick labels since we have round labels
+        ax.set_xticks([])
         
-        for round_num in sorted(common_rounds):
-            round_impacts1 = [imp for imp in impacts1 if imp['round'] == round_num]
-            round_impacts2 = [imp for imp in impacts2 if imp['round'] == round_num]
-            
-            total1 = sum(imp['impact'] for imp in round_impacts1)
-            total2 = sum(imp['impact'] for imp in round_impacts2)
-            
-            h2h_stats1['events'] += len(round_impacts1)
-            h2h_stats1['impact'] += total1
-            h2h_stats2['events'] += len(round_impacts2)
-            h2h_stats2['impact'] += total2
-            
-            winner = player1_name if total1 > total2 else player2_name if total2 > total1 else "Tie"
-            print(f"Round {round_num}: {player1_name} {total1:+.1f} vs {player2_name} {total2:+.1f} → {winner}")
-        
-        print(f"\nHead-to-Head Summary:")
-        print(f"{player1_name}: {h2h_stats1['impact']:+.1f} impact ({h2h_stats1['events']} events)")
-        print(f"{player2_name}: {h2h_stats2['impact']:+.1f} impact ({h2h_stats2['events']} events)")
-        
-        h2h_winner = player1_name if h2h_stats1['impact'] > h2h_stats2['impact'] else player2_name
-        print(f"Head-to-Head Winner: {h2h_winner}")
+        return impact_values, round_x_centers
     
-    return stats1, stats2
+    # Create plots for both players with aligned rounds (don't set y-limits yet)
+    impact_values1, round_centers1 = create_aligned_impact_plot(impacts1, ax1, player1_name, all_rounds, set_ylim=False)
+    impact_values2, round_centers2 = create_aligned_impact_plot(impacts2, ax2, player2_name, all_rounds, set_ylim=False)
+    
+    # Now set common symmetric y-axis for both plots based on all data
+    all_impact_values = impact_values1 + impact_values2
+    if all_impact_values:
+        max_positive = max([val for val in all_impact_values if val > 0] + [0])
+        max_negative = abs(min([val for val in all_impact_values if val < 0] + [0]))
+        max_abs = max(max_positive, max_negative, 70)  # Ensure minimum of 70, but allow growth
+        
+        print(f"DEBUG: Max positive: {max_positive}, Max negative: {max_negative}, Max abs: {max_abs}")
+        
+        # Apply the same scale to both plots
+        ax1.set_ylim(-max_abs, max_abs)
+        ax2.set_ylim(-max_abs, max_abs)
+        
+        # Now add round labels at the top with the correct y-limits
+        for round_centers, ax in [(round_centers1, ax1), (round_centers2, ax2)]:
+            for center_x, round_num, event_count in round_centers:
+                ax.text(center_x, ax.get_ylim()[1] * 0.95, f'{round_num}', 
+                        ha='center', va='top', fontsize=9, fontweight='bold',
+                        bbox=dict(boxstyle="round,pad=0.2", facecolor='lightblue', alpha=0.7))
+    else:
+        ax1.set_ylim(-70, 70)
+        ax2.set_ylim(-70, 70)
+    
+    # Adjust layout to accommodate top labels for vertical layout
+    plt.subplots_adjust(top=0.93, hspace=0.4)
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
+    
+    # Print comparison statistics
+    print(f"\n📊 COMPARISON STATISTICS (Vertical Layout - Aligned)")
+    print("=" * 60)
+    
+    total_impact1 = sum(event['impact'] for event in impacts1)
+    total_impact2 = sum(event['impact'] for event in impacts2)
+    
+    print(f"{player1_name}:")
+    print(f"  Total Events: {len(impacts1)}")
+    print(f"  Net Impact: {total_impact1:+.1f}")
+    print(f"  Avg Impact/Event: {total_impact1/len(impacts1):+.1f}")
+    
+    print(f"\n{player2_name}:")
+    print(f"  Total Events: {len(impacts2)}")
+    print(f"  Net Impact: {total_impact2:+.1f}")
+    print(f"  Avg Impact/Event: {total_impact2/len(impacts2):+.1f}")
+    
+    print(f"\n🏆 Winner: {player1_name if total_impact1 > total_impact2 else player2_name}")
+    print(f"Impact Difference: {abs(total_impact1 - total_impact2):.1f}")
+    
+    plt.show()
+
+
 
 
 def get_individual_impacts_data(dem, player_name):
@@ -1033,7 +1053,7 @@ def get_individual_impacts_data(dem, player_name):
     Extract individual impact data for a player without plotting.
     Helper function for comparison analysis.
     """
-    from analysis import get_win_probability, calculate_impact_score
+    from win_probability import get_win_probability, calculate_impact_score
     from collections import defaultdict
     
     kills_df = dem.kills

@@ -2,14 +2,11 @@
 Simple and clean main script for CS2 demo analysis
 """
 
-from awpy import Demo
 from matplotlib import pyplot as plt
-import pandas as pd
-import polars as pl
 
 # Import our custom modules
 from analysis import get_player_kill_death_analysis, create_probability_scenarios_table
-from plotting import plot_kill_death_analysis, plot_positive_negative_impact, plot_impact_difference_per_round, plot_individual_impacts, compare_individual_impacts
+from plotting import compare_individual_impacts_vertical, plot_kill_death_analysis, plot_positive_negative_impact, plot_impact_difference_per_round, plot_individual_impacts_by_round, compare_individual_impacts
 from formatting import display_available_players, display_player_header, format_player_analysis, display_summary_stats
 from cache_utils import load_demo, clear_cache
 
@@ -70,7 +67,7 @@ def main():
         plot_kill_death_analysis(stats, PLAYER_TO_ANALYZE)
         plot_positive_negative_impact(stats, PLAYER_TO_ANALYZE)
         plot_impact_difference_per_round(stats, PLAYER_TO_ANALYZE)
-        plot_individual_impacts(dem, PLAYER_TO_ANALYZE)
+        plot_individual_impacts_by_round(dem, PLAYER_TO_ANALYZE)
         
     else:
         print(f"❌ No data found for player: {PLAYER_TO_ANALYZE}")
@@ -92,7 +89,7 @@ def compare_players(dem, player1, player2):
     print(f"INDIVIDUAL IMPACT COMPARISON: {player1.upper()} vs {player2.upper()}")
     print("="*80)
     
-    compare_individual_impacts(dem, player1, player2)
+    compare_individual_impacts_vertical(dem, player1, player2)
 
 
 if __name__ == "__main__":
