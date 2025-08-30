@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 
 # Import our custom modules
 from analysis import get_player_kill_death_analysis, create_probability_scenarios_table
-from plotting import compare_individual_impacts_vertical, plot_kill_death_analysis, plot_positive_negative_impact, plot_impact_difference_per_round, plot_individual_impacts_by_round, compare_individual_impacts
+from plotting import compare_individual_impacts_vertical, plot_kill_death_analysis, plot_positive_negative_impact, plot_impact_difference_per_round, plot_individual_impacts_by_round, compare_individual_impacts, plot_all_players_stats_table
 from formatting import display_available_players, display_player_header, format_player_analysis, display_summary_stats
 from cache_utils import load_demo, clear_cache
 
@@ -72,6 +72,12 @@ def main():
     else:
         print(f"❌ No data found for player: {PLAYER_TO_ANALYZE}")
         print("Available players listed above ↑")
+    
+    # Display all players stats table
+    print("\n" + "="*80)
+    print("📊 GENERATING ALL PLAYERS STATISTICS TABLE")
+    print("="*80)
+    plot_all_players_stats_table(dem)
     
     # Display probability scenarios table
     print("\n" + "="*80)

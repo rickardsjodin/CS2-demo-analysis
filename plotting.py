@@ -94,7 +94,7 @@ def plot_kill_death_analysis(stats_df, player_name):
                     color='red', weight='bold', bbox=dict(boxstyle="round,pad=0.2", facecolor='yellow', alpha=0.8))
     
     ax2.set_xlabel('Round')
-    ax2.set_ylabel('Impact Score')
+    ax2.set_ylabel('Round swing')
     ax2.set_title(f'{player_name} - Impact Score per Round')
     ax2.set_xticks(x)
     ax2.set_xticklabels(rounds)
@@ -190,7 +190,7 @@ def plot_positive_negative_impact(stats_df, player_name):
                     color='red', weight='bold', bbox=dict(boxstyle="round,pad=0.2", facecolor='yellow', alpha=0.8))
     
     ax1.set_xlabel('Round')
-    ax1.set_ylabel('Impact Score')
+    ax1.set_ylabel('Round swing')
     ax1.set_title(f'{player_name} - Positive vs Negative Impact per Round')
     ax1.set_xticks(x)
     ax1.set_xticklabels(rounds)
@@ -205,7 +205,7 @@ def plot_positive_negative_impact(stats_df, player_name):
     
     ax2.hist(pos_only, bins=10, alpha=0.7, color='green', label=f'Positive ({len(pos_only)} rounds)', edgecolor='black')
     ax2.hist(neg_only, bins=10, alpha=0.7, color='red', label=f'Negative ({len(neg_only)} rounds)', edgecolor='black')
-    ax2.set_xlabel('Impact Score')
+    ax2.set_xlabel('Round swing')
     ax2.set_ylabel('Frequency')
     ax2.set_title(f'{player_name} - Impact Score Distribution')
     ax2.legend()
@@ -249,7 +249,7 @@ def plot_positive_negative_impact(stats_df, player_name):
         ax4.scatter(neutral_kd, [0]*len(neutral_kd), color='gray', alpha=0.7, s=50, label='Neutral Rounds')
     
     ax4.set_xlabel('Kill-Death Difference')
-    ax4.set_ylabel('Impact Score')
+    ax4.set_ylabel('Round swing')
     ax4.set_title(f'{player_name} - K-D vs Impact Correlation')
     ax4.legend()
     ax4.grid(True, alpha=0.3)
@@ -376,7 +376,7 @@ def plot_impact_difference_per_round(stats_df, player_name):
         ax1.axvspan(min(t_indices)-0.5, max(t_indices)+0.5, alpha=0.1, color='orange', label='T Side')
     
     ax1.set_xlabel('Round')
-    ax1.set_ylabel('Impact Score')
+    ax1.set_ylabel('Round swing')
     ax1.set_title(f'{player_name} - Impact Difference per Round (Positive vs Negative)')
     ax1.set_xticks(x)
     ax1.set_xticklabels(rounds)
@@ -456,7 +456,7 @@ Avg Per Round: {net_impact/len(rounds):+.1f}"""
     ax3.text(0.02, 0.98, stats_text, transform=ax3.transAxes, fontsize=10,
             verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
     
-    ax3.set_xlabel('Impact Score')
+    ax3.set_xlabel('Round swing')
     ax3.set_ylabel('Frequency')
     ax3.set_title(f'{player_name} - Impact Score Distribution')
     ax3.legend()
@@ -708,7 +708,7 @@ def plot_individual_impacts_by_round(dem, player_name):
         ax.axvline(x=sep_pos, color='gray', linestyle='--', alpha=0.5, linewidth=1)
     
     ax.set_xlabel('Individual Events by Round')
-    ax.set_ylabel('Impact Score')
+    ax.set_ylabel('Round swing')
     ax.set_title(f'{player_name} - Individual Kill/Death Impacts by Round')
     ax.grid(True, alpha=0.3)
     ax.axhline(y=0, color='black', linestyle='-', alpha=0.8)
@@ -895,7 +895,7 @@ def compare_individual_impacts(dem, player1_name, player2_name):
             ax.axvline(x=sep_pos, color='gray', linestyle='--', alpha=0.5, linewidth=1)
         
         ax.set_xlabel('Individual Events by Round')
-        ax.set_ylabel('Impact Score')
+        ax.set_ylabel('Round swing')
         ax.set_title(f'{player_name} - Individual Kill/Death Impacts by Round')
         ax.grid(True, alpha=0.3)
         ax.axhline(y=0, color='black', linestyle='-', alpha=0.8)
@@ -1089,9 +1089,8 @@ def compare_individual_impacts_vertical(dem, player1_name, player2_name):
         elif set_ylim:
             ax.set_ylim(-70, 70)
         
-        ax.set_xlabel('Individual Events by Round (Aligned)')
-        ax.set_ylabel('Impact Score')
-        ax.set_title(f'{player_name} - Individual Kill/Death Impacts by Round')
+        ax.set_ylabel('Round swing')
+        ax.set_title(f'{player_name}')
         ax.grid(True, alpha=0.3)
         ax.axhline(y=0, color='black', linestyle='-', alpha=0.8)
         
@@ -1286,3 +1285,165 @@ def get_individual_impacts_data(dem, player_name):
                 t_alive = max(0, t_alive - 1)
     
     return individual_impacts
+
+
+def plot_all_players_stats_table(dem):
+    """
+    Create a table showing kills, deaths, and impact for all players in the match.
+    """
+    from analysis import get_player_kill_death_analysis
+    from formatting import display_available_players
+    import matplotlib.pyplot as plt
+    
+    # Get list of all players
+    print("📊 Generating stats table for all players...")
+    all_players = display_available_players(dem)
+    
+    if not all_players:
+        print("❌ No players found in demo")
+        return
+    
+    # Collect stats for all players
+    player_stats = []
+    
+    for player in all_players:
+        print(f"Processing {player}...")
+        stats_df = get_player_kill_death_analysis(dem, player)
+        
+        if stats_df is not None and len(stats_df) > 0:
+            # Calculate totals
+            total_kills = 0
+            total_deaths = 0
+            total_impact = 0.0
+            
+            for _, row in stats_df.iterrows():
+                # Count kills
+                kills_raw = str(row['Kills'])
+                if kills_raw != '-':
+                    kills = [k for k in kills_raw.split(' | ') if k.strip() and k != '-']
+                    total_kills += len(kills)
+                
+                # Count deaths  
+                deaths_raw = str(row['Deaths'])
+                if deaths_raw != '-':
+                    deaths = [d for d in deaths_raw.split(' | ') if d.strip() and d != '-']
+                    total_deaths += len(deaths)
+                
+                # Sum impact
+                impact_str = str(row['Impact']).replace('+', '').strip()
+                try:
+                    total_impact += float(impact_str)
+                except:
+                    pass
+            
+            # Calculate K/D ratio
+            kd_ratio = total_kills / max(total_deaths, 1)
+            
+            player_stats.append({
+                'Player': player,
+                'Kills': total_kills,
+                'Deaths': total_deaths,
+                'K/D': kd_ratio,
+                'Impact': total_impact
+            })
+    
+    if not player_stats:
+        print("❌ No valid player stats found")
+        return
+    
+    # Sort by impact (highest first)
+    player_stats.sort(key=lambda x: x['Impact'], reverse=True)
+    
+    # Create table plot
+    fig, ax = plt.subplots(figsize=(12, 8))
+    ax.axis('tight')
+    ax.axis('off')
+    
+    # Prepare table data
+    headers = ['Rank', 'Player', 'Kills', 'Deaths', 'K/D', 'Impact']
+    table_data = []
+    
+    for i, stats in enumerate(player_stats, 1):
+        table_data.append([
+            f"{i}",
+            stats['Player'],
+            f"{stats['Kills']}",
+            f"{stats['Deaths']}",
+            f"{stats['K/D']:.2f}",
+            f"{stats['Impact']:+.1f}"
+        ])
+    
+    # Create the table
+    table = ax.table(cellText=table_data,
+                     colLabels=headers,
+                     cellLoc='center',
+                     loc='center',
+                     bbox=[0, 0, 1, 1])
+    
+    # Style the table
+    table.auto_set_font_size(False)
+    table.set_fontsize(11)
+    table.scale(1, 2)
+    
+    # Color header row
+    for i in range(len(headers)):
+        table[(0, i)].set_facecolor('#4CAF50')
+        table[(0, i)].set_text_props(weight='bold', color='white')
+    
+    # Color rows based on performance
+    for i, stats in enumerate(player_stats, 1):
+        impact = stats['Impact']
+        if impact > 0:
+            color = '#E8F5E8'  # Light green for positive impact
+        elif impact < 0:
+            color = '#FFE8E8'  # Light red for negative impact
+        else:
+            color = '#F0F0F0'  # Light gray for neutral
+            
+        for j in range(len(headers)):
+            table[(i, j)].set_facecolor(color)
+    
+    # Highlight best performer
+    if len(player_stats) > 0:
+        for j in range(len(headers)):
+            table[(1, j)].set_facecolor('#FFD700')  # Gold for #1
+            
+    # Add title
+    plt.suptitle('🏆 CS2 Match Statistics - All Players', 
+                 fontsize=16, fontweight='bold', y=0.95)
+    
+    # Add subtitle with match summary
+    total_rounds = max([int(str(row['Round']).replace('💣', '').strip()) 
+                       for player in all_players[:1]  # Just check first player
+                       for _, row in get_player_kill_death_analysis(dem, player).iterrows()
+                       if get_player_kill_death_analysis(dem, player) is not None] or [0])
+    
+    plt.figtext(0.5, 0.02, 
+                f"Match Summary: {len(player_stats)} players • {total_rounds} rounds",
+                ha='center', fontsize=10, style='italic')
+    
+    plt.tight_layout()
+    
+    # Print text summary as well
+    print("\n" + "="*80)
+    print("🏆 MATCH STATISTICS - ALL PLAYERS")
+    print("="*80)
+    print(f"{'Rank':<4} {'Player':<20} {'Kills':<6} {'Deaths':<6} {'K/D':<6} {'Impact':<8}")
+    print("-" * 80)
+    
+    for i, stats in enumerate(player_stats, 1):
+        rank_emoji = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
+        print(f"{rank_emoji:<4} {stats['Player']:<20} {stats['Kills']:<6} {stats['Deaths']:<6} {stats['K/D']:<6.2f} {stats['Impact']:<+8.1f}")
+    
+    print("-" * 80)
+    
+    # Calculate team stats if possible (assume first 5 vs last 5 for now)
+    if len(player_stats) >= 10:
+        team1_impact = sum(p['Impact'] for p in player_stats[:5])
+        team2_impact = sum(p['Impact'] for p in player_stats[5:10])
+        print(f"\n🔵 Team 1 Total Impact: {team1_impact:+.1f}")
+        print(f"🟠 Team 2 Total Impact: {team2_impact:+.1f}")
+        winner = "Team 1" if team1_impact > team2_impact else "Team 2"
+        print(f"🏆 Impact Winner: {winner}")
+    
+    plt.show()
