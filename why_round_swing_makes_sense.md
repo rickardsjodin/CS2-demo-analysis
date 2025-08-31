@@ -1,7 +1,5 @@
 ### Round Swing (and thus Rating 3.0) is Misunderstood – Let's Analyze It More Deeply
 
-##### The Argument for Round Swing
-
 At the start of the round, there's a roughly 50/50 win probability, given equal equipment value. If you single-handedly get the first kill, you shift the probability to your team's advantage – let's say, up to 65%. Therefore, you get credited with that 15% difference. This is intuitive, and everyone is happy.
 
 But let's take a more counter-intuitive example. Say you are in a 1v5 situation and have only a 1% probability of winning the round. Then, you make an awesome 200 IQ play and manage to bring it to a 1v1. Now, we are roughly back to 50/50. This means that so far in the round, you have earned a whopping +49% round swing. But then you die to the last opponent. That means -50%, and you end the round with -1%, exactly the same as if you would have died without any kill. This feels unfair, right? You might have had **400+ damage** output this round, yet you still end with a negative swing rating. Does this really make sense?
@@ -28,7 +26,7 @@ Looking at Kursy, in every round where he made a big positive contribution, he a
 
 Contrast this with REZ. While having significantly fewer kills overall, his kills had more impact on the ultimate outcome, and he had less impactful deaths. Most notably, a 13% conversion into a round win in round 15 (giving him +87%), and a 1v1 clutch in round 18 (+55.1%). These two rounds gave Gamer Legion two rounds on the board, contributing heavily to the ultimate goal of Counter-Strike: winning rounds.
 
-So the results from Round Swing can be brutal. **But not because the metric itself is brutal – but because the objective of Counter-Strike can be brutal.**
+**The results from Round Swing may sometimes seem harsh, but this isn't a flaw in the metric. Rather, it's a testament to the unforgiving, objective-focused nature of the game itself.**
 
 #### Addressing the Underlying Difficulty with Round Swing and Future Potential
 
