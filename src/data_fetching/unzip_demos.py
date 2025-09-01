@@ -28,8 +28,35 @@ def get_archive_type(file_path: Path) -> str:
         return 'rar'
     return 'unknown'
 
-def extract_with_7zip(archive_path: Path) -> list[tuple[str, bytes]]:
+def extract_with_7zip(archive_path: Path, output_dir: Path = None, overwrite: bool = False) -> list[tuple[str, bytes]]:
     """Extract all .dem files from archive using 7-Zip command-line tool."""
+    # Check if archive file exists and is accessible
+    if not archive_path.exists():
+        raise RuntimeError(f"Archive file not found: {archive_path}")
+    
+    if not archive_path.is_file():
+        raise RuntimeError(f"Path is not a file: {archive_path}")
+    
+    try:
+        # Test if file is readable
+        with open(archive_path, 'rb') as f:
+            f.read(1)
+    except (PermissionError, OSError) as e:
+        raise RuntimeError(f"Cannot read archive file {archive_path}: {e}")
+    
+    # Check if content already exists (if output_dir is provided)
+    if output_dir and not overwrite:
+        archive_basename = archive_path.stem
+        # Check for potential output files
+        potential_outputs = [
+            output_dir / f"{archive_basename}.dem",  # Single file case
+            *list(output_dir.glob(f"{archive_basename}_*.dem"))  # Multiple files case
+        ]
+        
+        if any(p.exists() for p in potential_outputs):
+            # Return empty list to indicate nothing needs to be extracted
+            return []
+    
     # Common 7-Zip installation paths
     possible_7z_paths = [
         r"C:\Program Files\7-Zip\7z.exe",
@@ -112,8 +139,23 @@ def main():
 
     print(f"\nUnzipping {len(archive_files)} demos from {event_in_dir.resolve()} to {event_out_dir.resolve()}")
 
+    processed = 0
+    skipped = 0
+    errors = 0
+
     for archive_path, archive_type in tqdm(file_types.items(), desc="Unzipping demos"):
         archive_basename = archive_path.stem  # filename without extension
+        
+        # Check if this archive has already been processed (quick check)
+        # Look for any .dem files that might have come from this archive
+        potential_outputs = [
+            event_out_dir / f"{archive_basename}.dem",  # Single file case
+            *list(event_out_dir.glob(f"{archive_basename}_*.dem"))  # Multiple files case
+        ]
+        
+        if not args.overwrite and any(p.exists() for p in potential_outputs):
+            skipped += 1
+            continue
         
         dem_files_data = []
         try:
@@ -137,7 +179,7 @@ def main():
             
             elif archive_type == 'rar':
                 try:
-                    dem_files_data = extract_with_7zip(archive_path)
+                    dem_files_data = extract_with_7zip(archive_path, event_out_dir, args.overwrite)
                 except RuntimeError as e:
                     tqdm.write(f"Error extracting RAR file {archive_path.name}: {e}")
                     continue
@@ -157,17 +199,21 @@ def main():
                         output_dem_path = event_out_dir / f"{archive_basename}_{clean_dem_name}.dem"
                     
                     if output_dem_path.exists() and not args.overwrite:
+                        tqdm.write(f"Skipping existing file: {output_dem_path.name}")
                         continue
                     
                     with open(output_dem_path, 'wb') as target:
                         target.write(dem_content)
             else:
                 tqdm.write(f"Warning: No .dem files found in {archive_path.name}")
+            
+            processed += 1
 
         except Exception as e:
             tqdm.write(f"An error occurred with {archive_path.name}: {e}")
+            errors += 1
 
-    print("Done.")
+    print(f"Done. Processed: {processed}, Skipped: {skipped}, Errors: {errors}")
 
 if __name__ == "__main__":
     main()

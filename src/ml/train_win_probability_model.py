@@ -89,9 +89,17 @@ def train_models(X, y):
     
     models = {}
     
-    # 1. Base Random Forest (for comparison)
-    print("\n🌲 Training Standard Random Forest...")
-    rf_model = RandomForestClassifier(n_estimators=100, random_state=42, max_depth=10, class_weight='balanced')
+    # 1. Base Random Forest (for comparison) - TUNED TO OVERFIT
+    print("\n🌲 Training Standard Random Forest (Tuned for Overfitting)...")
+    # By removing max_depth and using smaller min_samples_leaf, the model will 
+    # fit the training data much more closely, becoming less generalized.
+    rf_model = RandomForestClassifier(
+        n_estimators=100, 
+        random_state=42, 
+        max_depth=None, # Allow trees to grow as deep as possible
+        min_samples_leaf=1, # Allow leaves with only one sample
+        class_weight='balanced'
+    )
     rf_model.fit(X_train, y_train)
     rf_pred = rf_model.predict(X_test)
     rf_pred_proba = rf_model.predict_proba(X_test)[:, 1]
@@ -104,10 +112,16 @@ def train_models(X, y):
         'accuracy': accuracy_score(y_test, rf_pred)
     }
 
-    # 2. Calibrated Random Forest
-    print("\n🌲 Calibrating Random Forest with Isotonic Regression...")
+    # 2. Calibrated Random Forest - TUNED TO OVERFIT
+    print("\n🌲 Calibrating Random Forest with Isotonic Regression (Tuned for Overfitting)...")
     # The base estimator for calibration
-    base_rf = RandomForestClassifier(n_estimators=100, random_state=42, max_depth=10, class_weight='balanced')
+    base_rf = RandomForestClassifier(
+        n_estimators=100, 
+        random_state=42, 
+        max_depth=None, # Allow trees to grow as deep as possible
+        min_samples_leaf=1, # Allow leaves with only one sample
+        class_weight='balanced'
+    )
     
     # The calibration wrapper
     calibrated_rf = CalibratedClassifierCV(

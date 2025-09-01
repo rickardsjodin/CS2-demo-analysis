@@ -9,8 +9,14 @@ from pathlib import Path
 from awpy import Demo
 
 
-# Cache settings
-CACHE_DIR = "cache"
+# Cache settings - always use project root cache directory
+def get_project_root():
+    """Get the project root directory"""
+    current_file = Path(__file__).resolve()
+    # Navigate up from src/utils/cache_utils.py to project root
+    return current_file.parent.parent.parent
+
+CACHE_DIR = get_project_root() / "cache"
 
 
 def get_cache_filename(demo_file):
@@ -20,7 +26,7 @@ def get_cache_filename(demo_file):
         return None
     
     # Create cache directory if it doesn't exist
-    os.makedirs(CACHE_DIR, exist_ok=True)
+    CACHE_DIR.mkdir(exist_ok=True)
     
     # Get file modification time and size for uniqueness
     mtime = demo_path.stat().st_mtime
@@ -30,13 +36,13 @@ def get_cache_filename(demo_file):
     cache_key = f"{demo_path.name}_{mtime}_{size}"
     cache_hash = hashlib.md5(cache_key.encode()).hexdigest()[:8]
     
-    return os.path.join(CACHE_DIR, f"{demo_path.stem}_{cache_hash}.pkl")
+    return CACHE_DIR / f"{demo_path.stem}_{cache_hash}.pkl"
 
 
 def load_cached_demo(demo_file):
     """Load demo data from cache if available and valid"""
     cache_file = get_cache_filename(demo_file)
-    if cache_file and os.path.exists(cache_file):
+    if cache_file and cache_file.exists():
         try:
             print(f"📦 Loading cached demo data from {cache_file}...")
             with open(cache_file, 'rb') as f:
@@ -63,7 +69,7 @@ def load_cached_demo(demo_file):
             print(f"⚠️ Cache file is corrupted: {e}")
             print("🗑️ Removing corrupted cache file...")
             try:
-                os.remove(cache_file)
+                cache_file.unlink()
                 print("✅ Corrupted cache file removed")
             except Exception as remove_error:
                 print(f"❌ Could not remove cache file: {remove_error}")
@@ -71,7 +77,7 @@ def load_cached_demo(demo_file):
             print(f"⚠️ Unexpected error loading cache: {e}")
             print("🗑️ Removing problematic cache file...")
             try:
-                os.remove(cache_file)
+                cache_file.unlink()
             except:
                 pass
     
@@ -98,21 +104,21 @@ def save_demo_to_cache(demo, demo_file):
             }
             
             # Write to a temporary file first, then rename to avoid corruption
-            temp_file = cache_file + ".tmp"
+            temp_file = cache_file.with_suffix('.tmp')
             with open(temp_file, 'wb') as f:
                 pickle.dump(cache_data, f, protocol=pickle.HIGHEST_PROTOCOL)
             
             # Only replace the real cache file if the temp file was written successfully
-            os.rename(temp_file, cache_file)
+            temp_file.rename(cache_file)
             print("✅ Demo data cached successfully!")
             
         except Exception as e:
             print(f"⚠️ Error saving to cache: {e}")
             # Clean up temporary file if it exists
-            temp_file = cache_file + ".tmp"
-            if os.path.exists(temp_file):
+            temp_file = cache_file.with_suffix('.tmp')
+            if temp_file.exists():
                 try:
-                    os.remove(temp_file)
+                    temp_file.unlink()
                 except:
                     pass
 
@@ -145,7 +151,7 @@ def load_demo(demo_file, use_cache=True):
 
 def clear_cache():
     """Clear all cached demo files"""
-    if os.path.exists(CACHE_DIR):
+    if CACHE_DIR.exists():
         import shutil
         shutil.rmtree(CACHE_DIR)
         print("🗑️ Cache cleared successfully!")
@@ -155,11 +161,11 @@ def clear_cache():
 
 def list_cache():
     """List all cached demo files"""
-    if not os.path.exists(CACHE_DIR):
+    if not CACHE_DIR.exists():
         print("ℹ️ No cache directory found")
         return
     
-    cache_files = [f for f in os.listdir(CACHE_DIR) if f.endswith('.pkl')]
+    cache_files = [f for f in CACHE_DIR.iterdir() if f.suffix == '.pkl']
     if not cache_files:
         print("ℹ️ No cached files found")
         return
@@ -167,9 +173,8 @@ def list_cache():
     print("📦 Cached demo files:")
     total_size = 0
     for cache_file in cache_files:
-        file_path = os.path.join(CACHE_DIR, cache_file)
-        size = os.path.getsize(file_path)
+        size = cache_file.stat().st_size
         total_size += size
-        print(f"  • {cache_file} ({size / 1024 / 1024:.1f} MB)")
+        print(f"  • {cache_file.name} ({size / 1024 / 1024:.1f} MB)")
     
     print(f"Total cache size: {total_size / 1024 / 1024:.1f} MB")

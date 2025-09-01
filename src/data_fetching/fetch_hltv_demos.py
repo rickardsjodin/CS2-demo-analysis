@@ -198,8 +198,8 @@ def download_demo(session: requests.Session, demo: DemoRef, out_dir: Path, overw
 def main():
     ap = argparse.ArgumentParser(description="Download HLTV demos for a given event ID.")
     ap.add_argument("--event", type=int, required=True, help="HLTV event id (see /events/<id>/...)")
-    ap.add_argument("--out", type=Path, default=Path("F://CS2/demos"), help="Output directory")
-    ap.add_argument("--concurrency", type=int, default=4, help="Parallel downloads (be polite; 2–6 is fine)")
+    ap.add_argument("--out", type=Path, default=Path("F://CS2/demos_zipped"), help="Output directory")
+    ap.add_argument("--concurrency", type=int, default=1, help="Parallel downloads (be polite; 2–6 is fine)")
     ap.add_argument("--max", type=int, default=None, help="Max matches to process (useful for testing)")
     ap.add_argument("--overwrite", action="store_true", help="Overwrite files if they exist")
     args = ap.parse_args()
