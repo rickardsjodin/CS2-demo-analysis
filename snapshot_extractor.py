@@ -45,6 +45,7 @@ def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json
         round_num = round_row['round_num']
         freeze_end = round_row['freeze_end']
         end_tick = round_row['end']
+        winner = round_row['winner']
         
         # Get kills for this round
         round_kills = kills[kills['round_num'] == round_num]
@@ -63,6 +64,10 @@ def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json
             else:
                 ticks_left = round_ticks_left
                 bomb_planted = False
+
+            if ticks_left <= 0:
+                current_tick += tick_interval
+                continue
             
             # Count deaths up to current tick
             deaths_so_far = round_kills[round_kills['tick'] <= current_tick]
@@ -77,7 +82,8 @@ def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json
                 "time_left": ticks_left / tick_rate, 
                 "cts_alive": cts_alive,
                 "ts_alive": ts_alive,
-                "bomb_planted": bomb_planted
+                "bomb_planted": bomb_planted,
+                "winner": winner
             }
             
             snapshots.append(snapshot)
