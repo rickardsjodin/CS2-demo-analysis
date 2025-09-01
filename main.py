@@ -14,7 +14,7 @@ from cache_utils import load_demo, clear_cache
 # ================================
 # CONFIGURATION - EDIT THESE VALUES
 # ================================
-DEMO_FILE = "F://CS2/parsed_demos/8039/Aurora_vs._Falcons_at_Esports_World_Cup_2025__Inferno_Mirage_Train__demo_99388_aurora-vs-falcons-m1-inferno.dem"
+DEMO_FILE = "F://CS2/demos/8039/Aurora_vs._Falcons_at_Esports_World_Cup_2025__Inferno_Mirage_Train__demo_99388_aurora-vs-falcons-m1-inferno.dem"
 PLAYER_TO_ANALYZE = "NiKo"
 
 # Optional: Set these for player comparison (leave as None to skip comparison)

@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import joblib
 
-def load_and_prepare_data(json_file="snapshots.json"):
+def load_and_prepare_data(json_file="all_snapshots.json"):
     """Load snapshots and prepare features for ML training"""
     
     print(f"📊 Loading data from {json_file}...")
@@ -36,7 +36,6 @@ def load_and_prepare_data(json_file="snapshots.json"):
     
     # Feature engineering
     df['player_advantage'] = df['cts_alive'] - df['ts_alive']
-    df['total_alive'] = df['cts_alive'] + df['ts_alive']
     df['ct_alive_ratio'] = df['cts_alive'] / (df['cts_alive'] + df['ts_alive'] + 1e-8)  # Avoid division by zero
     
     # Select features for training
@@ -46,7 +45,6 @@ def load_and_prepare_data(json_file="snapshots.json"):
         'ts_alive',
         'bomb_planted',
         'player_advantage',
-        'total_alive',
         'ct_alive_ratio',
     ]
     
@@ -72,7 +70,9 @@ def train_models(X, y):
     
     # Scale features for logistic regression
     scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
+    # Fit with DataFrame to preserve feature names, then transform
+    scaler.fit(X_train)
+    X_train_scaled = scaler.transform(X_train)
     X_test_scaled = scaler.transform(X_test)
     
     models = {}
@@ -130,12 +130,8 @@ def analyze_feature_importance(models, feature_columns):
         'feature': feature_columns,
         'importance': rf_importance
     }).sort_values('importance', ascending=True)
-
-    feature_val = feature_df['feature'].to_numpy()
-    feature_imp = feature_df['importance'].to_numpy()
-
     
-    plt.barh(feature_df['feature'].to_numpy(), feature_df['importance'].to_numpy())
+    plt.barh(feature_df['feature'], feature_df['importance'])
     plt.title('Random Forest - Feature Importance')
     plt.xlabel('Importance')
     
@@ -218,20 +214,19 @@ def predict_win_probability(time_left, cts_alive, ts_alive, bomb_planted, model_
     
     # Create feature vector
     player_advantage = cts_alive - ts_alive
-    total_alive = cts_alive + ts_alive
     ct_alive_ratio = cts_alive / (cts_alive + ts_alive + 1e-8)
     
-    features = [
-        time_left,
-        cts_alive, 
-        ts_alive, 
-        bomb_planted,
-        player_advantage, 
-        total_alive, 
-        ct_alive_ratio, 
-    ]
+    # Create DataFrame with proper feature names to avoid sklearn warning
+    feature_data = {
+        'time_left': time_left,
+        'cts_alive': cts_alive, 
+        'ts_alive': ts_alive, 
+        'bomb_planted': bomb_planted,
+        'player_advantage': player_advantage, 
+        'ct_alive_ratio': ct_alive_ratio, 
+    }
     
-    X = np.array(features).reshape(1, -1)
+    X = pd.DataFrame([feature_data], columns=feature_columns)
     
     # Scale if needed
     if scaler is not None:
@@ -270,7 +265,18 @@ def main():
             (60, 5, 5, False, "Equal teams, mid-round"),
             (30, 3, 5, False, "CT disadvantage"),
             (20, 5, 2, True, "CT advantage with bomb planted"),
-            (5, 1, 1, True, "1v1 clutch with bomb planted")
+            (5, 1, 1, True, "1v1 clutch with bomb planted"),
+            (45, 4, 4, False, "Equal teams, early round"),
+            (10, 2, 3, True, "CT slight disadvantage, bomb planted"),
+            (90, 5, 3, False, "CT advantage, plenty of time"),
+            (15, 1, 3, False, "CT major disadvantage, no bomb"),
+            (3, 2, 1, True, "CT advantage, very low time, bomb planted"),
+            (75, 5, 1, False, "CT major advantage, early round"),
+            (25, 3, 3, True, "Equal teams, bomb planted, mid-time"),
+            (8, 1, 2, False, "1v2 clutch for CT, no bomb"),
+            (35, 4, 5, False, "T slight advantage, mid-round"),
+            (12, 3, 1, True, "CT advantage, bomb planted, low time"),
+            (50, 2, 4, False, "T major advantage, no bomb")
         ]
         
         for time_left, cts, ts, bomb, description in test_scenarios:

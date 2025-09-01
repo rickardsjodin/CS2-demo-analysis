@@ -8,7 +8,7 @@
       "name": "Python Debugger",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/snapshot_extractor.py",
+      "program": "${workspaceFolder}/train_win_probability_model.py", //snapshot_extractor.py", //
       "console": "integratedTerminal",
       "args": ""
     }

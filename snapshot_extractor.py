@@ -4,6 +4,7 @@ Minimal, concise code for extracting tick-based snapshots for ML training
 """
 
 import json
+import os
 import pandas as pd
 import polars as pl
 from cache_utils import load_demo
@@ -11,8 +12,16 @@ from cache_utils import load_demo
 ROUND_TIME = 115  
 BOMB_TIME = 40   
 
-def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json", tick_interval=200, tick_rate=64):
-    """Extract snapshots with time_left and alive counts from kills data"""
+def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json", tick_interval=200, tick_rate=64, append_mode=False):
+    """Extract snapshots with time_left and alive counts from kills data
+    
+    Args:
+        demo_file: Path to the demo file
+        output_file: Output JSON file path
+        tick_interval: Tick interval for snapshots
+        tick_rate: Game tick rate  
+        append_mode: If True, append to existing file instead of overwriting
+    """
     
     # Load demo
     demo = load_demo(demo_file, use_cache=True)
@@ -90,6 +99,16 @@ def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json
             current_tick += tick_interval
     
     # Save to JSON
+    if append_mode and os.path.exists(output_file):
+        # Load existing snapshots
+        try:
+            with open(output_file, 'r') as f:
+                existing_snapshots = json.load(f)
+            snapshots = existing_snapshots + snapshots
+        except (json.JSONDecodeError, FileNotFoundError):
+            # If file doesn't exist or is invalid, just use new snapshots
+            pass
+    
     with open(output_file, 'w') as f:
         json.dump(snapshots, f, indent=2)
     

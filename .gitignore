@@ -1,5 +1,8 @@
 *.dem
-__pycache__
-cache/
-snapshots.json 
+*snapshots.json 
 *.pkl
+
+__pycache__
+cache
+feature_importance.png
+model_performance.png

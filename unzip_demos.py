@@ -4,7 +4,7 @@ Unzip HLTV demo archives for a given event.
 
 - Finds all .zip files in `demos/<event_id>/`
 - For each zip, extracts the .dem file
-- Saves it to `parsed_demos/<event_id>/<zip_basename>.dem`
+- Saves it to `demos/<event_id>/<zip_basename>.dem`
 """
 import argparse
 import py7zr
@@ -83,8 +83,8 @@ def extract_with_7zip(archive_path: Path) -> list[tuple[str, bytes]]:
 def main():
     ap = argparse.ArgumentParser(description="Unzip HLTV demos for a given event ID.")
     ap.add_argument("--event", type=int, required=True, help="HLTV event id")
-    ap.add_argument("--in-dir", type=Path, default=Path("F://CS2/demos"), help="Input directory for zipped demos")
-    ap.add_argument("--out-dir", type=Path, default=Path("F://CS2/parsed_demos"), help="Output directory for extracted .dem files")
+    ap.add_argument("--in-dir", type=Path, default=Path("F://CS2/demos_zipped"), help="Input directory for zipped demos")
+    ap.add_argument("--out-dir", type=Path, default=Path("F://CS2/demos"), help="Output directory for extracted .dem files")
     ap.add_argument("--overwrite", action="store_true", help="Overwrite .dem files if they exist")
     args = ap.parse_args()
 
