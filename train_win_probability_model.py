@@ -34,18 +34,31 @@ def load_and_prepare_data(json_file="all_snapshots.json"):
     # Create target variable (1 if CT wins, 0 if T wins)
     df['ct_wins'] = (df['winner'] == 'ct').astype(int)
     
-    # Feature engineering
+    # Feature engineering - Fix the time_left ambiguity
     df['player_advantage'] = df['cts_alive'] - df['ts_alive']
     df['ct_alive_ratio'] = df['cts_alive'] / (df['cts_alive'] + df['ts_alive'] + 1e-8)  # Avoid division by zero
     
+    # Create separate, unambiguous time features
+    df['round_time_left'] = df.apply(lambda row: row['time_left'] if not row['bomb_planted'] else 0, axis=1)
+    df['bomb_time_left'] = df.apply(lambda row: row['time_left'] if row['bomb_planted'] else 0, axis=1)
+    
+    # Create contextual time features that always have consistent meaning
+    df['time_pressure_ct'] = df.apply(lambda row: 
+        0 if not row['bomb_planted'] else (40.0 - row['time_left']) / 40.0, axis=1)
+    df['time_pressure_t'] = df.apply(lambda row: 
+        (115.0 - row['time_left']) / 115.0 if not row['bomb_planted'] else 0, axis=1)
+    
     # Select features for training
     feature_columns = [
-        'time_left',
+        # 'round_time_left',      # Time left in round (0 if bomb planted)
+        # 'bomb_time_left',       # Time left on bomb (0 if not planted)
+        'time_pressure_ct',     # Higher = more pressure on CT (0-1 scale)
+        'time_pressure_t',      # Higher = more pressure on T (0-1 scale)
         'cts_alive', 
         'ts_alive',
-        'bomb_planted',
+        # 'bomb_planted',
         'player_advantage',
-        'ct_alive_ratio',
+        # 'ct_alive_ratio',
     ]
     
     X = df[feature_columns]
@@ -212,18 +225,33 @@ def predict_win_probability(time_left, cts_alive, ts_alive, bomb_planted, model_
     scaler = model_data['scaler']
     feature_columns = model_data['feature_columns']
     
-    # Create feature vector
+    # Create feature vector with unambiguous time features
     player_advantage = cts_alive - ts_alive
     ct_alive_ratio = cts_alive / (cts_alive + ts_alive + 1e-8)
     
+    # Separate time features - no more ambiguity!
+    round_time_left = time_left if not bomb_planted else 0
+    bomb_time_left = time_left if bomb_planted else 0
+    
+    # Contextual time pressure features (0-1 scale, consistent meaning)
+    if not bomb_planted:
+        time_pressure_ct = 0#time_left / 115.0  # Higher = more time for CT
+        time_pressure_t = (115.0 - time_left) / 115.0  # Higher = more pressure on T
+    else:
+        time_pressure_ct = (40.0 - time_left) / 40.0  # Higher = bomb about to explode (bad for CT)
+        time_pressure_t = 0#time_left / 40.0  # Higher = more time for T to defend bomb
+    
     # Create DataFrame with proper feature names to avoid sklearn warning
     feature_data = {
-        'time_left': time_left,
+        # 'round_time_left': round_time_left,
+        # 'bomb_time_left': bomb_time_left,
+        'time_pressure_ct': time_pressure_ct,
+        'time_pressure_t': time_pressure_t,
         'cts_alive': cts_alive, 
         'ts_alive': ts_alive, 
-        'bomb_planted': bomb_planted,
+        # 'bomb_planted': bomb_planted,
         'player_advantage': player_advantage, 
-        'ct_alive_ratio': ct_alive_ratio, 
+        # 'ct_alive_ratio': ct_alive_ratio, 
     }
     
     X = pd.DataFrame([feature_data], columns=feature_columns)

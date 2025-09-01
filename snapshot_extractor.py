@@ -43,11 +43,6 @@ def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json
     
     
     snapshots = []
-    bomb_plants = {}
-    # Get bomb plant tick for this round (if any)
-    if bomb_events is not None and len(bomb_events) > 0:        
-        for _, bomb_event in bomb_events.iterrows():
-            bomb_plants[bomb_event['round_num']] = bomb_event['tick']
     
     # Process each round
     for _, round_row in rounds.iterrows():
@@ -55,6 +50,7 @@ def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json
         freeze_end = round_row['freeze_end']
         end_tick = round_row['end']
         winner = round_row['winner']
+        plant_tick = round_row['bomb_plant']
         
         # Get kills for this round
         round_kills = kills[kills['round_num'] == round_num]
@@ -63,8 +59,6 @@ def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json
         while current_tick < end_tick:
             # Calculate time remaining based on game timers 
             round_ticks_left = max(0, (freeze_end + ROUND_TIME * tick_rate) - current_tick)
-
-            plant_tick = bomb_plants[round_num]
             
             # If bomb is planted, calculate bomb timer
             if plant_tick is not None and current_tick >= plant_tick:
@@ -88,6 +82,7 @@ def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json
             ts_alive = 5 - t_deaths
             
             snapshot = {
+                "source": f"Round {round_num} in {demo_file}",
                 "time_left": ticks_left / tick_rate, 
                 "cts_alive": cts_alive,
                 "ts_alive": ts_alive,
@@ -116,4 +111,4 @@ def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json
     
 
 if __name__ == "__main__":
-    extract_snapshots_to_json("the-mongolz-vs-vitality-m1-mirage.dem")
+    extract_snapshots_to_json("F:\\CS2\\demos\\8039\\TYLOO_vs._Vitality_at_Esports_World_Cup_2025__Inferno_Nuke_Overpass__demo_99354_tyloo-vs-vitality-m2-nuke.dem")

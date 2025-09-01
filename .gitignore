@@ -6,3 +6,4 @@ __pycache__
 cache
 feature_importance.png
 model_performance.png
+t_win*.png
