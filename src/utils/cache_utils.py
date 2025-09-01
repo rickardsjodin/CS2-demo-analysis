@@ -53,6 +53,7 @@ def load_cached_demo(demo_file):
                     self.grenades = data.get('grenades')
                     self.bomb = data.get('bomb')
                     self.frames = data.get('frames')
+                    self.ticks = data.get('ticks')
             
             cached_demo = CachedDemo(cache_data)
             print("✅ Cached demo loaded successfully!")
@@ -93,7 +94,7 @@ def save_demo_to_cache(demo, demo_file):
                 'flashes': demo.flashes if hasattr(demo, 'flashes') else None,
                 'grenades': demo.grenades if hasattr(demo, 'grenades') else None,
                 'bomb': demo.bomb if hasattr(demo, 'bomb') else None,
-                'frames': demo.frames if hasattr(demo, 'frames') else None
+                'ticks': demo.ticks 
             }
             
             # Write to a temporary file first, then rename to avoid corruption

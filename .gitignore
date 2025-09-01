@@ -1,9 +1,12 @@
 *.dem
 *snapshots.json 
 *.pkl
+*.csv
 
 __pycache__
 cache
+data/datasets/*
+
 feature_importance.png
 model_performance.png
 t_win*.png

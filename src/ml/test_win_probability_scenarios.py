@@ -3,15 +3,23 @@ Test scenarios for CS2 win probability model validation
 Creates a comprehensive table to sanity check model results against expected outcomes
 """
 
+import sys
+import os
+from pathlib import Path
+
+# Add the project root to the Python path
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
 import joblib
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
-from win_probability import get_win_probability
+from src.core.win_probability import get_win_probability
 from train_win_probability_model import predict_win_probability
 
-def load_trained_model(model_file='ct_win_probability_model.pkl'):
+def load_trained_model(model_file='../../data/models/ct_win_probability_model.pkl'):
     """Load the trained model for predictions"""
     try:
         return joblib.load(model_file)
@@ -175,7 +183,7 @@ def create_heatmap_table(df, prediction_type='ml_prediction'):
     
     plt.tight_layout()
     
-    filename = f't_win_probability_heatmap_{prediction_type}.png'
+    filename = f'../../outputs/visualizations/t_win_probability_heatmap_{prediction_type}.png'
     plt.savefig(filename, dpi=300, bbox_inches='tight')
     plt.close()
     
@@ -238,10 +246,10 @@ def create_bomb_scenario_heatmap(df):
     plt.gca().set_yticklabels([f'{i} T' for i in range(5, 0, -1)], fontweight='bold')
     
     plt.tight_layout()
-    plt.savefig('t_win_probability_heatmap_bomb.png', dpi=300, bbox_inches='tight')
+    plt.savefig('../../outputs/visualizations/t_win_probability_heatmap_bomb.png', dpi=300, bbox_inches='tight')
     plt.close()
     
-    print("📊 Bomb scenario heatmap saved as 't_win_probability_heatmap_bomb.png'")
+    print("📊 Bomb scenario heatmap saved as '../../outputs/visualizations/t_win_probability_heatmap_bomb.png'")
 
 def create_reference_table(df, prediction_type='ml_prediction'):
     """Create a table that exactly matches the reference image format"""
@@ -472,8 +480,8 @@ def main():
     df = create_comparison_table(scenarios, ml_predictions, baseline_predictions)
     
     # Save detailed results
-    df.to_csv('test_scenario_results.csv', index=False)
-    print("💾 Detailed results saved to 'test_scenario_results.csv'")
+    df.to_csv('../../outputs/reports/test_scenario_results.csv', index=False)
+    print("💾 Detailed results saved to '../../outputs/reports/test_scenario_results.csv'")
     
     # Analyze differences
     analyze_prediction_differences(df)
@@ -485,8 +493,8 @@ def main():
     
     # Create summary statistics
     summary_df = create_summary_statistics_table(df)
-    summary_df.to_csv('summary_statistics.csv', index=False)
-    print("💾 Summary statistics saved to 'summary_statistics.csv'")
+    summary_df.to_csv('../../outputs/reports/summary_statistics.csv', index=False)
+    print("💾 Summary statistics saved to '../../outputs/reports/summary_statistics.csv'")
     
     # Create heatmaps
     print("\n🎨 Creating visualization heatmaps...")

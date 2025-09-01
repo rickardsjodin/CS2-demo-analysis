@@ -516,7 +516,7 @@ def plot_individual_impacts_by_round(dem, player_name):
     Plot individual impacts grouped by round with clear round numbers.
     Shows each kill/death as a separate bar within each round.
     """
-    from analysis import get_win_probability, calculate_impact_score
+    from ..core.analysis import get_win_probability, calculate_impact_score
     from collections import defaultdict
     
     kills_df = dem.kills
@@ -1176,7 +1176,7 @@ def get_individual_impacts_data(dem, player_name):
     Extract individual impact data for a player without plotting.
     Helper function for comparison analysis.
     """
-    from win_probability import get_win_probability, calculate_impact_score
+    from ..core.win_probability import get_win_probability, calculate_impact_score
     from collections import defaultdict
     
     kills_df = dem.kills
@@ -1318,8 +1318,8 @@ def plot_all_players_stats_table(dem):
     """
     Create a table showing kills, deaths, and impact for all players in the match.
     """
-    from analysis import get_player_kill_death_analysis
-    from formatting import display_available_players
+    from ..core.analysis import get_player_kill_death_analysis
+    from .formatting import display_available_players
     import matplotlib.pyplot as plt
     
     # Get list of all players

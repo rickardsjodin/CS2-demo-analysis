@@ -11,13 +11,14 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.preprocessing import StandardScaler
+from sklearn.calibration import CalibratedClassifierCV
 import matplotlib
 # matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 import seaborn as sns
 import joblib
 
-def load_and_prepare_data(json_file="all_snapshots.json"):
+def load_and_prepare_data(json_file="../../data/datasets/all_snapshots.json"):
     """Load snapshots and prepare features for ML training"""
     
     print(f"📊 Loading data from {json_file}...")
@@ -50,15 +51,15 @@ def load_and_prepare_data(json_file="all_snapshots.json"):
     
     # Select features for training
     feature_columns = [
-        # 'round_time_left',      # Time left in round (0 if bomb planted)
-        # 'bomb_time_left',       # Time left on bomb (0 if not planted)
+        'round_time_left',      # Time left in round (0 if bomb planted)
+        'bomb_time_left',       # Time left on bomb (0 if not planted)
         'time_pressure_ct',     # Higher = more pressure on CT (0-1 scale)
         'time_pressure_t',      # Higher = more pressure on T (0-1 scale)
         'cts_alive', 
         'ts_alive',
-        # 'bomb_planted',
+        'bomb_planted',
         'player_advantage',
-        # 'ct_alive_ratio',
+        'ct_alive_ratio',
     ]
     
     X = df[feature_columns]
@@ -81,43 +82,49 @@ def train_models(X, y):
     print(f"🔄 Training set: {len(X_train)} samples")
     print(f"🧪 Test set: {len(X_test)} samples")
     
-    # Scale features for logistic regression
+    # Scale features
     scaler = StandardScaler()
-    # Fit with DataFrame to preserve feature names, then transform
-    scaler.fit(X_train)
-    X_train_scaled = scaler.transform(X_train)
+    X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
     
     models = {}
     
-    # 1. Logistic Regression
-    print("\n🔮 Training Logistic Regression...")
-    lr_model = LogisticRegression(random_state=42, max_iter=2000, solver='liblinear')
-    lr_model.fit(X_train_scaled, y_train)
-    lr_pred = lr_model.predict(X_test_scaled)
-    lr_pred_proba = lr_model.predict_proba(X_test_scaled)[:, 1]
-    
-    models['logistic_regression'] = {
-        'model': lr_model,
-        'scaler': scaler,
-        'predictions': lr_pred,
-        'probabilities': lr_pred_proba,
-        'accuracy': accuracy_score(y_test, lr_pred)
-    }
-    
-    # 2. Random Forest
-    print("🌲 Training Random Forest...")
-    rf_model = RandomForestClassifier(n_estimators=100, random_state=42, max_depth=10)
+    # 1. Base Random Forest (for comparison)
+    print("\n🌲 Training Standard Random Forest...")
+    rf_model = RandomForestClassifier(n_estimators=100, random_state=42, max_depth=10, class_weight='balanced')
     rf_model.fit(X_train, y_train)
     rf_pred = rf_model.predict(X_test)
     rf_pred_proba = rf_model.predict_proba(X_test)[:, 1]
     
     models['random_forest'] = {
         'model': rf_model,
-        'scaler': None,
+        'scaler': None, # RF doesn't strictly need scaling
         'predictions': rf_pred,
         'probabilities': rf_pred_proba,
         'accuracy': accuracy_score(y_test, rf_pred)
+    }
+
+    # 2. Calibrated Random Forest
+    print("\n🌲 Calibrating Random Forest with Isotonic Regression...")
+    # The base estimator for calibration
+    base_rf = RandomForestClassifier(n_estimators=100, random_state=42, max_depth=10, class_weight='balanced')
+    
+    # The calibration wrapper
+    calibrated_rf = CalibratedClassifierCV(
+        estimator=base_rf,
+        method='isotonic', # Isotonic regression is powerful but needs more data
+        cv=3 # 3-fold cross-validation for calibration
+    )
+    calibrated_rf.fit(X_train_scaled, y_train)
+    cal_rf_pred = calibrated_rf.predict(X_test_scaled)
+    cal_rf_pred_proba = calibrated_rf.predict_proba(X_test_scaled)[:, 1]
+
+    models['calibrated_random_forest'] = {
+        'model': calibrated_rf,
+        'scaler': scaler, # Scaler is needed for the calibrated model
+        'predictions': cal_rf_pred,
+        'probabilities': cal_rf_pred_proba,
+        'accuracy': accuracy_score(y_test, cal_rf_pred)
     }
     
     # Print results
@@ -133,38 +140,35 @@ def train_models(X, y):
 def analyze_feature_importance(models, feature_columns):
     """Analyze and visualize feature importance"""
     
-    plt.figure(figsize=(12, 8))
+    # Check if a calibrated model is present to get the base estimator
+    if 'calibrated_random_forest' in models:
+        # The feature importances come from the base estimator of the first CV fold
+        # The attribute is 'estimator' in newer scikit-learn versions
+        base_model = models['calibrated_random_forest']['model'].calibrated_classifiers_[0].estimator
+        rf_importance = base_model.feature_importances_
+        model_name_for_title = 'Calibrated Random Forest'
+    elif 'random_forest' in models:
+        rf_importance = models['random_forest']['model'].feature_importances_
+        model_name_for_title = 'Random Forest'
+    else:
+        print("No Random Forest model found for feature importance analysis.")
+        return
+
+    plt.figure(figsize=(12, 6))
     
-    # Random Forest feature importance
-    rf_importance = models['random_forest']['model'].feature_importances_
-    
-    plt.subplot(2, 1, 1)
     feature_df = pd.DataFrame({
         'feature': feature_columns,
         'importance': rf_importance
     }).sort_values('importance', ascending=True)
     
     plt.barh(feature_df['feature'], feature_df['importance'])
-    plt.title('Random Forest - Feature Importance')
+    plt.title(f'{model_name_for_title} - Feature Importance')
     plt.xlabel('Importance')
     
-    # Logistic Regression coefficients
-    lr_coef = models['logistic_regression']['model'].coef_[0]
-    
-    plt.subplot(2, 1, 2)
-    coef_df = pd.DataFrame({
-        'feature': feature_columns,
-        'coefficient': np.abs(lr_coef)
-    }).sort_values('coefficient', ascending=True)
-    
-    plt.barh(coef_df['feature'], coef_df['coefficient'])
-    plt.title('Logistic Regression - Feature Coefficients (Absolute)')
-    plt.xlabel('|Coefficient|')
-    
     plt.tight_layout()
-    plt.savefig('feature_importance.png', dpi=300, bbox_inches='tight')
-    plt.close()  # Close the figure to free memory
-    print("📊 Feature importance plot saved as 'feature_importance.png'")
+    plt.savefig('../../outputs/visualizations/feature_importance.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    print("📊 Feature importance plot saved as '../../outputs/visualizations/feature_importance.png'")
     
     print("\n🎯 Top 3 Most Important Features (Random Forest):")
     for i, (feature, importance) in enumerate(feature_df.tail(3)[['feature', 'importance']].values):
@@ -189,15 +193,20 @@ def visualize_predictions(models, X_test, y_test):
         axes[row, col].set_xlabel('Predicted Label')
     
     plt.tight_layout()
-    plt.savefig('model_performance.png', dpi=300, bbox_inches='tight')
+    plt.savefig('../../outputs/visualizations/model_performance.png', dpi=300, bbox_inches='tight')
     plt.close()  # Close the figure to free memory
-    print("📊 Model performance plot saved as 'model_performance.png'")
+    print("📊 Model performance plot saved as '../../outputs/visualizations/model_performance.png'")
 
 def save_best_model(models, feature_columns):
-    """Save the best performing model"""
+    """Save the best performing model, prioritizing calibrated models"""
     
-    # Find best model by accuracy
-    best_model_name = max(models.keys(), key=lambda k: models[k]['accuracy'])
+    # Prioritize the calibrated model if it exists
+    if 'calibrated_random_forest' in models:
+        best_model_name = 'calibrated_random_forest'
+    else:
+        # Fallback to best accuracy if no calibrated model
+        best_model_name = max(models.keys(), key=lambda k: models[k]['accuracy'])
+        
     best_model_info = models[best_model_name]
     
     print(f"\n💾 Saving best model: {best_model_name} (Accuracy: {best_model_info['accuracy']:.3f})")
@@ -211,12 +220,12 @@ def save_best_model(models, feature_columns):
         'accuracy': best_model_info['accuracy']
     }
     
-    joblib.dump(model_data, 'ct_win_probability_model.pkl')
-    print("✅ Model saved as 'ct_win_probability_model.pkl'")
+    joblib.dump(model_data, '../../data/models/ct_win_probability_model.pkl')
+    print("✅ Model saved as '../../data/models/ct_win_probability_model.pkl'")
     
     return best_model_name, best_model_info
 
-def predict_win_probability(time_left, cts_alive, ts_alive, bomb_planted, model_file='ct_win_probability_model.pkl'):
+def predict_win_probability(time_left, cts_alive, ts_alive, bomb_planted, model_file='../../data/models/ct_win_probability_model.pkl'):
     """Use trained model to predict CT win probability for a given game state"""
     
     # Load model
@@ -243,15 +252,15 @@ def predict_win_probability(time_left, cts_alive, ts_alive, bomb_planted, model_
     
     # Create DataFrame with proper feature names to avoid sklearn warning
     feature_data = {
-        # 'round_time_left': round_time_left,
-        # 'bomb_time_left': bomb_time_left,
+        'round_time_left': round_time_left,
+        'bomb_time_left': bomb_time_left,
         'time_pressure_ct': time_pressure_ct,
         'time_pressure_t': time_pressure_t,
         'cts_alive': cts_alive, 
         'ts_alive': ts_alive, 
-        # 'bomb_planted': bomb_planted,
+        'bomb_planted': bomb_planted,
         'player_advantage': player_advantage, 
-        # 'ct_alive_ratio': ct_alive_ratio, 
+        'ct_alive_ratio': ct_alive_ratio, 
     }
     
     X = pd.DataFrame([feature_data], columns=feature_columns)

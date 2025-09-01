@@ -7,18 +7,17 @@ import json
 import os
 import pandas as pd
 import polars as pl
-from cache_utils import load_demo
+from ..utils.cache_utils import load_demo
 
 ROUND_TIME = 115  
 BOMB_TIME = 40   
 
-def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json", tick_interval=200, tick_rate=64, append_mode=False):
-    """Extract snapshots with time_left and alive counts from kills data
+def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json", tick_rate=64, append_mode=False):
+    """Extract snapshots with time_left and alive counts at every kill event
     
     Args:
         demo_file: Path to the demo file
         output_file: Output JSON file path
-        tick_interval: Tick interval for snapshots
         tick_rate: Game tick rate  
         append_mode: If True, append to existing file instead of overwriting
     """
@@ -54,9 +53,23 @@ def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json
         
         # Get kills for this round
         round_kills = kills[kills['round_num'] == round_num]
-
-        current_tick = freeze_end
-        while current_tick < end_tick:
+        
+        # Take snapshot at round start (freeze end)
+        snapshot_ticks = [freeze_end]
+        
+        # Add all kill event ticks for this round
+        kill_ticks = round_kills['tick'].tolist()
+        snapshot_ticks.extend(kill_ticks)
+        
+        # Remove duplicates and sort
+        snapshot_ticks = sorted(set(snapshot_ticks))
+        
+        # Process each snapshot tick
+        for current_tick in snapshot_ticks:
+            # Skip if tick is after round end
+            if current_tick >= end_tick:
+                continue
+                
             # Calculate time remaining based on game timers 
             round_ticks_left = max(0, (freeze_end + ROUND_TIME * tick_rate) - current_tick)
             
@@ -69,7 +82,6 @@ def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json
                 bomb_planted = False
 
             if ticks_left <= 0:
-                current_tick += tick_interval
                 continue
             
             # Count deaths up to current tick
@@ -91,7 +103,6 @@ def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json
             }
             
             snapshots.append(snapshot)
-            current_tick += tick_interval
     
     # Save to JSON
     if append_mode and os.path.exists(output_file):

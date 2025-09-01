@@ -5,7 +5,7 @@ Core analysis functions for CS2 demo processing.
 import pandas as pd
 import polars as pl
 from collections import defaultdict
-from win_probability import get_win_probability, calculate_impact_score
+from .win_probability import get_win_probability, calculate_impact_score
 
 
 def get_player_kill_death_analysis(dem, player_name, debug=False):

@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CS2 Win Probability Model - Test Scenario Results</title>
+    <style>
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        min-height: 100vh;
+      }
+
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        overflow: hidden;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        text-align: center;
+      }
+
+      .header h1 {
+        margin: 0;
+        font-size: 2.5em;
+        font-weight: 300;
+      }
+
+      .header p {
+        margin: 10px 0 0 0;
+        font-size: 1.1em;
+        opacity: 0.9;
+      }
+
+      .content {
+        padding: 30px;
+      }
+
+      .section {
+        margin-bottom: 40px;
+      }
+
+      .section h2 {
+        color: #333;
+        border-bottom: 3px solid #667eea;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+        font-size: 1.8em;
+      }
+
+      .scenario-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+      }
+
+      .scenario-card {
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 20px;
+        background: #fafafa;
+        transition: all 0.3s ease;
+      }
+
+      .scenario-card:hover {
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+      }
+
+      .scenario-title {
+        font-weight: bold;
+        font-size: 1.2em;
+        margin-bottom: 10px;
+        color: #333;
+      }
+
+      .scenario-details {
+        color: #666;
+        margin-bottom: 15px;
+        line-height: 1.4;
+      }
+
+      .prediction-bars {
+        margin: 15px 0;
+      }
+
+      .prediction-bar {
+        display: flex;
+        align-items: center;
+        margin: 8px 0;
+      }
+
+      .prediction-label {
+        width: 120px;
+        font-size: 0.9em;
+        color: #555;
+      }
+
+      .bar-container {
+        flex: 1;
+        height: 20px;
+        background: #e0e0e0;
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 0 10px;
+        position: relative;
+      }
+
+      .bar-fill {
+        height: 100%;
+        border-radius: 10px;
+        transition: width 0.3s ease;
+      }
+
+      .ml-bar {
+        background: linear-gradient(90deg, #4caf50, #8bc34a);
+      }
+
+      .baseline-bar {
+        background: linear-gradient(90deg, #ff9800, #ffc107);
+      }
+
+      .prediction-value {
+        width: 60px;
+        text-align: right;
+        font-weight: bold;
+        font-size: 0.9em;
+      }
+
+      .difference {
+        margin-top: 10px;
+        padding: 8px 12px;
+        border-radius: 5px;
+        font-weight: bold;
+        text-align: center;
+      }
+
+      .difference.positive {
+        background: #e8f5e8;
+        color: #2e7d32;
+        border: 1px solid #c8e6c9;
+      }
+
+      .difference.negative {
+        background: #ffebee;
+        color: #c62828;
+        border: 1px solid #ffcdd2;
+      }
+
+      .stats-summary {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 30px;
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+      }
+
+      .stat-item {
+        text-align: center;
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+
+      .stat-value {
+        font-size: 1.5em;
+        font-weight: bold;
+        color: #333;
+      }
+
+      .stat-label {
+        color: #666;
+        font-size: 0.9em;
+        margin-top: 5px;
+      }
+
+      .filter-section {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 30px;
+      }
+
+      .filter-controls {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .filter-group label {
+        font-weight: 500;
+        color: #555;
+      }
+
+      .filter-group select {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        background: white;
+      }
+
+      .bomb-indicator {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 3px;
+        font-size: 0.8em;
+        font-weight: bold;
+        margin-left: 10px;
+      }
+
+      .bomb-planted {
+        background: #ff5722;
+        color: white;
+      }
+
+      .no-bomb {
+        background: #4caf50;
+        color: white;
+      }
+
+      .toggle-section {
+        margin-bottom: 20px;
+      }
+
+      .toggle-button {
+        background: #667eea;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: bold;
+        margin-right: 10px;
+      }
+
+      .toggle-button:hover {
+        background: #5a6fd8;
+      }
+
+      .toggle-button.active {
+        background: #4caf50;
+      }
+
+      .error-message {
+        background: #ffebee;
+        color: #c62828;
+        padding: 20px;
+        border-radius: 10px;
+        margin: 20px 0;
+        border: 1px solid #ffcdd2;
+        text-align: center;
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #666;
+      }
+
+      .empty-state h3 {
+        color: #333;
+        margin-bottom: 10px;
+      }
+
+      .empty-state code {
+        background: #f5f5f5;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🎯 CS2 Win Probability Model</h1>
+        <p>Comprehensive Test Scenario Analysis - ML vs Baseline Predictions</p>
+      </div>
+
+      <div class="content">
+        <div class="stats-summary">
+          <h2>📊 Model Performance Summary</h2>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <div class="stat-value" id="totalScenarios">0</div>
+              <div class="stat-label">Total Scenarios</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value" id="avgDifference">0%</div>
+              <div class="stat-label">Avg ML vs Baseline</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value" id="mlBetter">0</div>
+              <div class="stat-label">ML Performs Better</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value" id="baselineBetter">0</div>
+              <div class="stat-label">Baseline Performs Better</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value" id="maxDifference">0%</div>
+              <div class="stat-label">Max Improvement</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value" id="avgAccuracy">0%</div>
+              <div class="stat-label">Avg ML Confidence</div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="data-info-section"
+          style="
+            background: #e8f5e8;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border: 1px solid #c8e6c9;
+          "
+        >
+          <h3 style="color: #2e7d32; margin-top: 0">📊 Data Source</h3>
+          <div style="color: #2e7d32; margin-bottom: 15px">
+            This report dynamically loads data from
+            <code>test_scenario_results.csv</code> generated by the test script.
+          </div>
+          <div
+            style="
+              display: flex;
+              gap: 15px;
+              align-items: center;
+              flex-wrap: wrap;
+            "
+          >
+            <button
+              onclick="refreshData()"
+              id="refreshButton"
+              style="
+                background: #4caf50;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 5px;
+                cursor: pointer;
+                font-weight: bold;
+              "
+            >
+              🔄 Refresh Data
+            </button>
+            <div style="color: #555">
+              <strong>To generate fresh data:</strong> Run
+              <code>python test_win_probability_scenarios.py</code>
+            </div>
+            <div id="lastUpdated" style="color: #666; font-size: 0.9em"></div>
+          </div>
+        </div>
+
+        <div class="filter-section">
+          <h3>🔍 Filter Scenarios</h3>
+          <div class="filter-controls">
+            <div class="filter-group">
+              <label for="timeFilter">Time Left:</label>
+              <select id="timeFilter">
+                <option value="all">All Times</option>
+                <option value="115">115 seconds</option>
+                <option value="90">90 seconds</option>
+                <option value="60">60 seconds</option>
+                <option value="30">30 seconds</option>
+                <option value="15">15 seconds</option>
+                <option value="5">5 seconds</option>
+                <option value="2">2 seconds</option>
+                <option value="40">40 seconds (bomb)</option>
+                <option value="20">20 seconds (bomb)</option>
+                <option value="10">10 seconds (bomb)</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label for="bombFilter">Bomb Status:</label>
+              <select id="bombFilter">
+                <option value="all">All</option>
+                <option value="planted">Bomb Planted</option>
+                <option value="not-planted">No Bomb</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label for="ctFilter">CT Players:</label>
+              <select id="ctFilter">
+                <option value="all">All</option>
+                <option value="1">1 CT</option>
+                <option value="2">2 CTs</option>
+                <option value="3">3 CTs</option>
+                <option value="4">4 CTs</option>
+                <option value="5">5 CTs</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label for="tFilter">T Players:</label>
+              <select id="tFilter">
+                <option value="all">All</option>
+                <option value="1">1 T</option>
+                <option value="2">2 Ts</option>
+                <option value="3">3 Ts</option>
+                <option value="4">4 Ts</option>
+                <option value="5">5 Ts</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="toggle-section">
+          <button class="toggle-button active" id="toggleAll">Show All</button>
+          <button class="toggle-button" id="toggleImproved">
+            ML Better Only
+          </button>
+          <button class="toggle-button" id="toggleWorse">
+            Baseline Better Only
+          </button>
+        </div>
+
+        <div class="section">
+          <h2>🎮 Scenario Analysis</h2>
+          <div class="scenario-grid" id="scenarioGrid">
+            <!-- Scenarios will be populated by JavaScript -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Scenario data will be loaded dynamically from CSV
+      let scenarios = [];
+
+      // Function to parse CSV data
+      function parseCSV(text) {
+        const lines = text.trim().split('\n');
+        const headers = lines[0].split(',');
+        const data = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g);
+          if (!values) continue;
+
+          const row = {};
+
+          for (let j = 0; j < headers.length; j++) {
+            const header = headers[j].trim();
+            let value = values[j]?.trim() || '';
+
+            // Remove quotes if present
+            if (value.startsWith('"') && value.endsWith('"')) {
+              value = value.slice(1, -1);
+            }
+
+            // Convert to appropriate data types
+            if (
+              header === 'time_left' ||
+              header === 'ct_alive' ||
+              header === 't_alive'
+            ) {
+              row[header] = parseInt(value);
+            } else if (header === 'bomb_planted') {
+              row[header] = value.toLowerCase() === 'true';
+            } else if (
+              header === 'ml_prediction' ||
+              header === 'baseline_prediction' ||
+              header === 'difference'
+            ) {
+              const parsed = parseFloat(value);
+              if (isNaN(parsed)) {
+                console.warn(`Invalid numeric value for ${header}: "${value}"`);
+                row[header] = 0;
+              } else {
+                row[header] = parsed;
+              }
+            } else {
+              row[header] = value;
+            }
+          }
+
+          data.push(row);
+        }
+
+        return data;
+      }
+
+      // Function to load CSV data
+      async function loadScenarios() {
+        try {
+          const response = await fetch('test_scenario_results.csv');
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const csvText = await response.text();
+          scenarios = parseCSV(csvText);
+
+          console.log(`✅ Loaded ${scenarios.length} scenarios from CSV`);
+
+          // Initialize the dashboard
+          renderScenarios(scenarios);
+          updateStats(scenarios);
+          updateLastUpdatedTime();
+
+          // Hide loading message
+          showLoadingMessage(false);
+        } catch (error) {
+          console.error('Error loading CSV data:', error);
+          showLoadingMessage(
+            false,
+            'Error loading data. Please ensure test_scenario_results.csv exists and run test_win_probability_scenarios.py first.'
+          );
+
+          // Show empty state instead of fallback data
+          scenarios = [];
+          renderEmptyState();
+          updateStats(scenarios);
+        }
+      }
+
+      // Function to show empty state when no data is available
+      function renderEmptyState() {
+        const grid = document.getElementById('scenarioGrid');
+        grid.innerHTML = `
+                <div class="empty-state" style="grid-column: 1 / -1;">
+                    <h3>📋 No Data Available</h3>
+                    <p>To generate test scenario data, run:</p>
+                    <p><code>python test_win_probability_scenarios.py</code></p>
+                    <p>This will create <code>test_scenario_results.csv</code> with model predictions.</p>
+                    <button onclick="refreshData()" style="margin-top: 20px; background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">
+                        🔄 Try Again
+                    </button>
+                </div>
+            `;
+      }
+
+      // Function to show/hide loading message
+      function showLoadingMessage(show, message = 'Loading scenario data...') {
+        let loadingDiv = document.getElementById('loadingMessage');
+
+        if (show) {
+          if (!loadingDiv) {
+            loadingDiv = document.createElement('div');
+            loadingDiv.id = 'loadingMessage';
+            loadingDiv.style.cssText = `
+                        position: fixed;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        background: white;
+                        padding: 20px;
+                        border-radius: 10px;
+                        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+                        z-index: 1000;
+                        text-align: center;
+                        font-size: 18px;
+                        font-weight: bold;
+                    `;
+            document.body.appendChild(loadingDiv);
+          }
+          loadingDiv.innerHTML = `
+                    <div style="color: #667eea; margin-bottom: 10px;">🔄</div>
+                    <div>${message}</div>
+                `;
+          loadingDiv.style.display = 'block';
+        } else {
+          if (loadingDiv) {
+            if (message && message.includes('Error')) {
+              loadingDiv.innerHTML = `
+                            <div style="color: #ff5722; margin-bottom: 10px;">⚠️</div>
+                            <div style="color: #666;">${message}</div>
+                            <button onclick="this.parentElement.style.display='none'" 
+                                    style="margin-top: 10px; padding: 8px 16px; border: none; 
+                                           background: #667eea; color: white; border-radius: 5px; cursor: pointer;">
+                                Close
+                            </button>
+                        `;
+              setTimeout(() => {
+                loadingDiv.style.display = 'none';
+              }, 8000);
+            } else {
+              loadingDiv.style.display = 'none';
+            }
+          }
+        }
+      }
+
+      // Function to refresh data
+      async function refreshData() {
+        const button = document.getElementById('refreshButton');
+        const originalText = button.innerHTML;
+
+        button.innerHTML = '🔄 Loading...';
+        button.disabled = true;
+
+        showLoadingMessage(true, 'Refreshing scenario data...');
+
+        try {
+          await loadScenarios();
+          button.innerHTML = '✅ Refreshed';
+          setTimeout(() => {
+            button.innerHTML = originalText;
+            button.disabled = false;
+          }, 2000);
+        } catch (error) {
+          button.innerHTML = '❌ Error';
+          setTimeout(() => {
+            button.innerHTML = originalText;
+            button.disabled = false;
+          }, 2000);
+        }
+      }
+
+      // Function to update last updated time
+      function updateLastUpdatedTime() {
+        const now = new Date();
+        const timeString = now.toLocaleString();
+        const lastUpdatedDiv = document.getElementById('lastUpdated');
+        if (lastUpdatedDiv) {
+          lastUpdatedDiv.textContent = `Last updated: ${timeString}`;
+        }
+      }
+
+      let currentFilter = 'all';
+
+      function renderScenarios(filteredScenarios) {
+        const grid = document.getElementById('scenarioGrid');
+
+        if (filteredScenarios.length === 0) {
+          if (scenarios.length === 0) {
+            renderEmptyState();
+          } else {
+            grid.innerHTML = `
+                        <div class="empty-state" style="grid-column: 1 / -1;">
+                            <h3>🔍 No Scenarios Match Current Filters</h3>
+                            <p>Try adjusting your filter settings to see more results.</p>
+                        </div>
+                    `;
+          }
+          return;
+        }
+
+        grid.innerHTML = '';
+
+        filteredScenarios.forEach((scenario) => {
+          const card = document.createElement('div');
+          card.className = 'scenario-card';
+
+          const mlPercentage = (scenario.ml_prediction * 100).toFixed(1);
+          const baselinePercentage = (
+            scenario.baseline_prediction * 100
+          ).toFixed(1);
+          const differencePercentage = (
+            Math.abs(scenario.difference) * 100
+          ).toFixed(1);
+          const differenceClass =
+            scenario.difference >= 0 ? 'positive' : 'negative';
+          const differenceText =
+            scenario.difference >= 0
+              ? `+${differencePercentage}%`
+              : `-${differencePercentage}%`;
+
+          card.innerHTML = `
+                    <div class="scenario-title">
+                        ${scenario.ct_alive} CT vs ${scenario.t_alive} T
+                        <span class="bomb-indicator ${
+                          scenario.bomb_planted ? 'bomb-planted' : 'no-bomb'
+                        }">
+                            ${scenario.bomb_planted ? '💣 BOMB' : '⏱️ TIME'}
+                        </span>
+                    </div>
+                    <div class="scenario-details">
+                        ${scenario.description}
+                    </div>
+                    <div class="prediction-bars">
+                        <div class="prediction-bar">
+                            <div class="prediction-label">ML Model</div>
+                            <div class="bar-container">
+                                <div class="bar-fill ml-bar" style="width: ${
+                                  scenario.ml_prediction * 100
+                                }%"></div>
+                            </div>
+                            <div class="prediction-value">${mlPercentage}%</div>
+                        </div>
+                        <div class="prediction-bar">
+                            <div class="prediction-label">Baseline</div>
+                            <div class="bar-container">
+                                <div class="bar-fill baseline-bar" style="width: ${
+                                  scenario.baseline_prediction * 100
+                                }%"></div>
+                            </div>
+                            <div class="prediction-value">${baselinePercentage}%</div>
+                        </div>
+                    </div>
+                    <div class="difference ${differenceClass}">
+                        ML Model: ${differenceText} vs Baseline
+                    </div>
+                `;
+
+          grid.appendChild(card);
+        });
+      }
+
+      function filterScenarios() {
+        const timeFilter = document.getElementById('timeFilter').value;
+        const bombFilter = document.getElementById('bombFilter').value;
+        const ctFilter = document.getElementById('ctFilter').value;
+        const tFilter = document.getElementById('tFilter').value;
+
+        let filtered = scenarios.filter((scenario) => {
+          if (
+            timeFilter !== 'all' &&
+            scenario.time_left !== parseInt(timeFilter)
+          )
+            return false;
+          if (bombFilter === 'planted' && !scenario.bomb_planted) return false;
+          if (bombFilter === 'not-planted' && scenario.bomb_planted)
+            return false;
+          if (ctFilter !== 'all' && scenario.ct_alive !== parseInt(ctFilter))
+            return false;
+          if (tFilter !== 'all' && scenario.t_alive !== parseInt(tFilter))
+            return false;
+
+          // Apply toggle filter
+          if (currentFilter === 'improved' && scenario.difference <= 0)
+            return false;
+          if (currentFilter === 'worse' && scenario.difference >= 0)
+            return false;
+
+          return true;
+        });
+
+        renderScenarios(filtered);
+        updateStats(filtered);
+      }
+
+      function updateStats(filteredScenarios) {
+        const total = filteredScenarios.length;
+        const avgDiff =
+          total > 0
+            ? filteredScenarios.reduce((sum, s) => sum + s.difference, 0) /
+              total
+            : 0;
+        const mlBetter = filteredScenarios.filter(
+          (s) => s.difference > 0
+        ).length;
+        const baselineBetter = filteredScenarios.filter(
+          (s) => s.difference < 0
+        ).length;
+        const maxDiff =
+          total > 0
+            ? Math.max(...filteredScenarios.map((s) => Math.abs(s.difference)))
+            : 0;
+        const avgML =
+          total > 0
+            ? filteredScenarios.reduce((sum, s) => sum + s.ml_prediction, 0) /
+              total
+            : 0;
+
+        document.getElementById('totalScenarios').textContent = total;
+        document.getElementById('avgDifference').textContent =
+          (avgDiff >= 0 ? '+' : '') + (avgDiff * 100).toFixed(1) + '%';
+        document.getElementById('mlBetter').textContent = mlBetter;
+        document.getElementById('baselineBetter').textContent = baselineBetter;
+        document.getElementById('maxDifference').textContent =
+          (maxDiff * 100).toFixed(1) + '%';
+        document.getElementById('avgAccuracy').textContent =
+          (avgML * 100).toFixed(1) + '%';
+      }
+
+      function setToggleFilter(filter) {
+        currentFilter = filter;
+
+        // Update button states
+        document
+          .querySelectorAll('.toggle-button')
+          .forEach((btn) => btn.classList.remove('active'));
+        document
+          .getElementById(
+            'toggle' + filter.charAt(0).toUpperCase() + filter.slice(1)
+          )
+          .classList.add('active');
+
+        filterScenarios();
+      }
+
+      // Set up event listeners
+      document
+        .getElementById('timeFilter')
+        .addEventListener('change', filterScenarios);
+      document
+        .getElementById('bombFilter')
+        .addEventListener('change', filterScenarios);
+      document
+        .getElementById('ctFilter')
+        .addEventListener('change', filterScenarios);
+      document
+        .getElementById('tFilter')
+        .addEventListener('change', filterScenarios);
+
+      document
+        .getElementById('toggleAll')
+        .addEventListener('click', () => setToggleFilter('all'));
+      document
+        .getElementById('toggleImproved')
+        .addEventListener('click', () => setToggleFilter('improved'));
+      document
+        .getElementById('toggleWorse')
+        .addEventListener('click', () => setToggleFilter('worse'));
+
+      // Load scenarios on page load
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+          showLoadingMessage(true);
+          loadScenarios();
+        });
+      } else {
+        showLoadingMessage(true);
+        loadScenarios();
+      }
+    </script>
+  </body>
+</html>

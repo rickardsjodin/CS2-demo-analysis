@@ -6,7 +6,7 @@ Processes all demo files in a directory and extracts snapshots
 import os
 import json
 from pathlib import Path
-from snapshot_extractor import extract_snapshots_to_json
+from ..core.snapshot_extractor import extract_snapshots_to_json
 
 
 def process_all_demos_in_directory(demo_directory, output_file="all_snapshots.json"):

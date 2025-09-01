@@ -3,27 +3,30 @@ Simple and clean main script for CS2 demo analysis
 """
 
 from matplotlib import pyplot as plt
+import config
 
 # Import our custom modules
-from analysis import get_player_kill_death_analysis, create_probability_scenarios_table
-from plotting import compare_individual_impacts_vertical, plot_kill_death_analysis, plot_positive_negative_impact, plot_impact_difference_per_round, plot_individual_impacts_by_round, compare_individual_impacts, plot_all_players_stats_table
-from formatting import display_available_players, display_player_header, format_player_analysis, display_summary_stats
-from cache_utils import load_demo, clear_cache
+from src.core.analysis import get_player_kill_death_analysis, create_probability_scenarios_table
+from src.utils.plotting import compare_individual_impacts_vertical, plot_kill_death_analysis, plot_positive_negative_impact, plot_impact_difference_per_round, plot_individual_impacts_by_round, compare_individual_impacts, plot_all_players_stats_table
+from src.utils.formatting import display_available_players, display_player_header, format_player_analysis, display_summary_stats
+from src.utils.cache_utils import load_demo, clear_cache
 
 
 # ================================
-# CONFIGURATION - EDIT THESE VALUES
+# CONFIGURATION - EDIT config.py OR THESE VALUES
 # ================================
-DEMO_FILE = "F://CS2/demos/8039/Aurora_vs._Falcons_at_Esports_World_Cup_2025__Inferno_Mirage_Train__demo_99388_aurora-vs-falcons-m1-inferno.dem"
-PLAYER_TO_ANALYZE = "NiKo"
+# You can edit config.py for project-wide settings, or override them here:
+
+DEMO_FILE = str(config.DEFAULT_DEMO_FILE)  # or set your own path
+PLAYER_TO_ANALYZE = config.DEFAULT_PLAYER  # or set your own player name
 
 # Optional: Set these for player comparison (leave as None to skip comparison)
-COMPARE_PLAYER1 = "NiKo"  # e.g., "Kursy"
-COMPARE_PLAYER2 = "m0NESY"  # e.g., "REZ"
+COMPARE_PLAYER1 = "REZ"  # e.g., "Kursy"
+COMPARE_PLAYER2 = "Kursy"  # e.g., "REZ"
 
 # Cache settings
-USE_CACHE = True  # Set to False to disable caching
-CLEAR_CACHE_ON_START = False  # Set to True to clear cache before running
+USE_CACHE = config.USE_CACHE
+CLEAR_CACHE_ON_START = config.CLEAR_CACHE_ON_START
 
 
 def main():
