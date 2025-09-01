@@ -1,3 +1,4 @@
 *.dem
 __pycache__
 cache/
+snapshots.json 

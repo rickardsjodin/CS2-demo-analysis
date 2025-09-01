@@ -8,9 +8,9 @@
       "name": "Python Debugger",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/main.py",
+      "program": "${workspaceFolder}/snapshot_extractor.py",
       "console": "integratedTerminal",
-      "args": "${command:pickArgs}"
+      "args": ""
     }
   ]
 }

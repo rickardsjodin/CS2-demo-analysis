@@ -8,36 +8,78 @@ import pandas as pd
 import polars as pl
 from cache_utils import load_demo
 
+ROUND_TIME = 115  
+BOMB_TIME = 40   
 
-def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json", tick_interval=200):
-    """Extract snapshots with ticks_left and save to JSON"""
+def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json", tick_interval=200, tick_rate=64):
+    """Extract snapshots with time_left and alive counts from kills data"""
     
     # Load demo
-    demo = load_demo(demo_file)
+    demo = load_demo(demo_file, use_cache=True)
     
     # Get rounds data
     rounds = demo.rounds
     if isinstance(rounds, pl.DataFrame):
         rounds = rounds.to_pandas()
     
-    # Get kills data
+    # Get kills data to calculate alive counts
     kills = demo.kills
     if isinstance(kills, pl.DataFrame):
         kills = kills.to_pandas()
     
+    # Get bomb events to track plants
+    bomb_events = demo.bomb
+    if isinstance(bomb_events, pl.DataFrame):
+        bomb_events = bomb_events.to_pandas()
+    
+    
     snapshots = []
+    bomb_plants = {}
+    # Get bomb plant tick for this round (if any)
+    if bomb_events is not None and len(bomb_events) > 0:        
+        for _, bomb_event in bomb_events.iterrows():
+                event_values = bomb_event.values
+                bomb_plants[event_values[-1]] = event_values[0]
     
     # Process each round
     for _, round_row in rounds.iterrows():
+        round_num = round_row['round_num']
         freeze_end = round_row['freeze_end']
         end_tick = round_row['end']
         
+        # Get kills for this round
+        round_kills = kills[kills['round_num'] == round_num]
+        
+
         current_tick = freeze_end
         while current_tick < end_tick:
-            ticks_left = end_tick - current_tick
+            # Calculate time remaining based on game timers 
+            round_time_left = max(0, (freeze_end + ROUND_TIME * tick_rate) - current_tick)
+
+            plant_tick = bomb_plants[round_num]
+            
+            # If bomb is planted, calculate bomb timer
+            if plant_tick is not None and current_tick >= plant_tick:
+                time_left = max(0, (plant_tick + BOMB_TIME * tick_rate) - current_tick)
+                bomb_planted = True
+            else:
+                time_left = round_time_left
+                bomb_planted = False
+            
+            # Count deaths up to current tick
+            deaths_so_far = round_kills[round_kills['tick'] <= current_tick]
+            ct_deaths = len(deaths_so_far[deaths_so_far['victim_side'] == 'ct'])
+            t_deaths = len(deaths_so_far[deaths_so_far['victim_side'] == 't'])
+            
+            # Calculate alive players (start with 5 per team)
+            cts_alive = 5 - ct_deaths
+            ts_alive = 5 - t_deaths
             
             snapshot = {
-                "ticks_left": ticks_left
+                "time_left": time_left / tick_rate, 
+                "cts_alive": cts_alive,
+                "ts_alive": ts_alive,
+                "bomb_planted": bomb_planted
             }
             
             snapshots.append(snapshot)
@@ -48,8 +90,7 @@ def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json
         json.dump(snapshots, f, indent=2)
     
     print(f"✅ Saved {len(snapshots)} snapshots to {output_file}")
-
-
+    
 
 if __name__ == "__main__":
     extract_snapshots_to_json("the-mongolz-vs-vitality-m1-mirage.dem")
