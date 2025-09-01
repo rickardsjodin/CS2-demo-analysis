@@ -38,8 +38,7 @@ def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json
     # Get bomb plant tick for this round (if any)
     if bomb_events is not None and len(bomb_events) > 0:        
         for _, bomb_event in bomb_events.iterrows():
-                event_values = bomb_event.values
-                bomb_plants[event_values[-1]] = event_values[0]
+            bomb_plants[bomb_event['round_num']] = bomb_event['tick']
     
     # Process each round
     for _, round_row in rounds.iterrows():
@@ -49,21 +48,20 @@ def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json
         
         # Get kills for this round
         round_kills = kills[kills['round_num'] == round_num]
-        
 
         current_tick = freeze_end
         while current_tick < end_tick:
             # Calculate time remaining based on game timers 
-            round_time_left = max(0, (freeze_end + ROUND_TIME * tick_rate) - current_tick)
+            round_ticks_left = max(0, (freeze_end + ROUND_TIME * tick_rate) - current_tick)
 
             plant_tick = bomb_plants[round_num]
             
             # If bomb is planted, calculate bomb timer
             if plant_tick is not None and current_tick >= plant_tick:
-                time_left = max(0, (plant_tick + BOMB_TIME * tick_rate) - current_tick)
+                ticks_left = max(0, (plant_tick + BOMB_TIME * tick_rate) - current_tick)
                 bomb_planted = True
             else:
-                time_left = round_time_left
+                ticks_left = round_ticks_left
                 bomb_planted = False
             
             # Count deaths up to current tick
@@ -76,7 +74,7 @@ def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json
             ts_alive = 5 - t_deaths
             
             snapshot = {
-                "time_left": time_left / tick_rate, 
+                "time_left": ticks_left / tick_rate, 
                 "cts_alive": cts_alive,
                 "ts_alive": ts_alive,
                 "bomb_planted": bomb_planted
