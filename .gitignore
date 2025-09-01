@@ -7,6 +7,7 @@ __pycache__
 cache
 data/datasets/*
 
+outputs
 feature_importance.png
 model_performance.png
 t_win*.png
