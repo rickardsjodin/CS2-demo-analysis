@@ -46,10 +46,12 @@ def load_dataset_baseline(dataset_path='../../data/datasets/all_snapshots.json')
         print(f"🗑️  Removed {removed_count} invalid entries ({removed_count/initial_count*100:.1f}%)")
         print(f"✅ Clean dataset: {len(df):,} valid snapshots")
         
-        # Add time phase categorization
+        # Add time phase categorization with time ranges for better matching
         def categorize_time_phase(time_left):
             if time_left > 75:
                 return "early"
+            elif time_left >= 50 and time_left <= 70:  # Range for 60-second scenarios
+                return "middle_60s"
             elif time_left > 35:
                 return "middle"
             else:
@@ -102,9 +104,13 @@ def compute_dataset_probabilities(dataset_df):
 def get_dataset_baseline_prediction(time_left, ct_alive, t_alive, bomb_planted, dataset_probs):
     """Get baseline prediction from dataset statistics"""
     
-    # Categorize time phase
+    # Categorize time phase with specific handling for 60-second scenarios
     if time_left > 75:
         time_phase = "early"
+    elif time_left == 60:  # Exact match for our test scenarios
+        time_phase = "middle_60s"
+    elif time_left >= 50 and time_left <= 70:
+        time_phase = "middle_60s"
     elif time_left > 35:
         time_phase = "middle"
     else:
@@ -115,6 +121,12 @@ def get_dataset_baseline_prediction(time_left, ct_alive, t_alive, bomb_planted, 
     
     if scenario_key in dataset_probs:
         return dataset_probs[scenario_key]['ct_win_rate']
+    
+    # If no exact match for middle_60s, try regular middle
+    if time_phase == "middle_60s":
+        fallback_key = ("middle", ct_alive, t_alive, bomb_planted)
+        if fallback_key in dataset_probs:
+            return dataset_probs[fallback_key]['ct_win_rate']
     
     # If no exact match, try without bomb status
     for bomb_status in [not bomb_planted, bomb_planted]:
@@ -131,7 +143,10 @@ def get_dataset_baseline_prediction(time_left, ct_alive, t_alive, bomb_planted, 
             return base_prob
     
     # If still no match, try different time phases
-    for phase in ["early", "middle", "late"]:
+    phase_fallbacks = ["middle_60s", "middle", "early", "late"] if time_phase == "middle_60s" else ["early", "middle", "middle_60s", "late"]
+    for phase in phase_fallbacks:
+        if phase == time_phase:  # Skip the original phase we already tried
+            continue
         fallback_key = (phase, ct_alive, t_alive, bomb_planted)
         if fallback_key in dataset_probs:
             return dataset_probs[fallback_key]['ct_win_rate']
@@ -139,13 +154,72 @@ def get_dataset_baseline_prediction(time_left, ct_alive, t_alive, bomb_planted, 
     # Final fallback - use theoretical baseline
     return get_win_probability(ct_alive, t_alive, bomb_planted)
 
-def load_trained_model(model_file='../../data/models/ct_win_probability_model.pkl'):
-    """Load the trained model for predictions"""
+def load_single_trained_model(model_file='../../data/models/ct_win_probability_model.pkl'):
+    """Load a single trained model for predictions"""
     try:
         return joblib.load(model_file)
     except FileNotFoundError:
         print(f"❌ Model file {model_file} not found. Please train the model first.")
         return None
+
+def load_all_trained_models():
+    """Load all trained models for comparison"""
+    
+    print("📦 Loading all trained models for comparison...")
+    
+    # Load model summary
+    try:
+        with open('../../data/models/model_summary.json', 'r') as f:
+            model_summary = json.load(f)
+        print(f"✅ Found {model_summary['total_models']} models")
+    except FileNotFoundError:
+        print("❌ Model summary not found. Using default model only.")
+        return {'default': load_single_trained_model()}
+    
+    models = {}
+    
+    # Load individual models
+    for model_name, model_info in model_summary['models'].items():
+        # Skip XGBoost for now due to calibration issues
+        if model_name == 'xgboost':
+            print(f"⚠️  Skipping {model_name} due to calibration issues")
+            continue
+            
+        try:
+            model_path = model_info['filename']
+            model_data = joblib.load(model_path)
+            models[model_name] = {
+                'data': model_data,
+                'performance': {
+                    'accuracy': model_info['accuracy'],
+                    'auc': model_info['auc'],
+                    'log_loss': model_info['log_loss'],
+                    'rank': model_info['rank']
+                }
+            }
+            print(f"✅ Loaded {model_name} (Rank #{model_info['rank']}, AUC: {model_info['auc']:.3f})")
+        except Exception as e:
+            print(f"❌ Failed to load {model_name}: {e}")
+    
+    # Load ensemble model if available
+    try:
+        ensemble_data = joblib.load('../../data/models/ct_win_probability_ensemble.pkl')
+        models['ensemble'] = {
+            'data': ensemble_data,
+            'performance': {
+                'accuracy': ensemble_data['accuracy'],
+                'auc': ensemble_data['auc'],
+                'log_loss': ensemble_data['log_loss'],
+                'rank': 0  # Special rank for ensemble
+            }
+        }
+        print(f"✅ Loaded ensemble model (AUC: {ensemble_data['auc']:.3f})")
+    except FileNotFoundError:
+        print("ℹ️  No ensemble model found")
+    except Exception as e:
+        print(f"❌ Failed to load ensemble: {e}")
+    
+    return models
 
 def create_test_scenarios():
     """Create comprehensive test scenarios covering various game states"""
@@ -184,28 +258,109 @@ def create_test_scenarios():
     
     return scenarios
 
-def run_model_predictions(scenarios, model_data):
-    """Run predictions using the trained ML model"""
+def predict_with_model(model_data, time_left, cts_alive, ts_alive, bomb_planted):
+    """Make prediction with a specific model"""
     
-    if model_data is None:
-        return [0.5] * len(scenarios)  # Default if no model
+    # Create feature vector
+    round_time_left = time_left if not bomb_planted else 0
+    bomb_time_left = time_left if bomb_planted else 0
+    
+    feature_data = {
+        'round_time_left': round_time_left,
+        'bomb_time_left': bomb_time_left,
+        'cts_alive': cts_alive, 
+        'ts_alive': ts_alive, 
+        'bomb_planted': bomb_planted,
+    }
+    
+    # Create DataFrame with proper feature names
+    feature_columns = model_data['feature_columns']
+    X = pd.DataFrame([feature_data], columns=feature_columns)
+    
+    # Scale if needed
+    scaler = model_data.get('scaler')
+    if scaler is not None:
+        X = scaler.transform(X)
+    
+    # Predict probability - handle both calibrated and original models
+    model = model_data['model']
+    if model is not None:
+        ct_win_prob = model.predict_proba(X)[0, 1]
+    else:
+        # Fallback to original model if calibrated model is None
+        original_model = model_data.get('original_model')
+        if original_model is not None:
+            ct_win_prob = original_model.predict_proba(X)[0, 1]
+        else:
+            raise ValueError("Both model and original_model are None")
+    
+    return ct_win_prob
+
+def predict_with_ensemble(models, time_left, cts_alive, ts_alive, bomb_planted):
+    """Make prediction with ensemble of all models"""
     
     predictions = []
     
-    for scenario in scenarios:
+    for model_name, model_info in models.items():
+        if model_name == 'ensemble':  # Skip ensemble to avoid recursion
+            continue
+        if model_name == 'xgboost':  # Skip XGBoost due to issues
+            continue
+        
         try:
-            prob = predict_win_probability(
-                scenario['time_left'],
-                scenario['ct_alive'],
-                scenario['t_alive'],
-                scenario['bomb_planted']
-            )
-            predictions.append(prob)
+            pred = predict_with_model(model_info['data'], time_left, cts_alive, ts_alive, bomb_planted)
+            predictions.append(pred)
         except Exception as e:
-            print(f"Error predicting {scenario['scenario']}: {e}")
-            predictions.append(0.5)  # Default value
+            print(f"⚠️ Error with {model_name}: {e}")
     
-    return predictions
+    if predictions:
+        return np.mean(predictions)
+    else:
+        return 0.5  # Default fallback
+
+def run_all_model_predictions(scenarios, models):
+    """Run predictions using all loaded models"""
+    
+    results = {}
+    model_names = list(models.keys())
+    
+    print(f"🔮 Running predictions with {len(models)} models...")
+    
+    for model_name, model_info in models.items():
+        # Skip XGBoost due to calibration issues
+        if model_name == 'xgboost':
+            print(f"   Skipping {model_name} (calibration issues)")
+            continue
+            
+        print(f"   Running {model_name}...")
+        predictions = []
+        
+        for scenario in scenarios:
+            try:
+                if model_name == 'ensemble':
+                    # Use ensemble prediction
+                    pred = predict_with_ensemble(models, 
+                                               scenario['time_left'],
+                                               scenario['ct_alive'], 
+                                               scenario['t_alive'],
+                                               scenario['bomb_planted'])
+                else:
+                    # Use individual model
+                    pred = predict_with_model(model_info['data'],
+                                            scenario['time_left'],
+                                            scenario['ct_alive'],
+                                            scenario['t_alive'], 
+                                            scenario['bomb_planted'])
+                
+                predictions.append(pred)
+                
+            except Exception as e:
+                print(f"❌ Error predicting {scenario['scenario']} with {model_name}: {e}")
+                predictions.append(0.5)  # Default value
+        
+        results[model_name] = predictions
+    
+    return results
 
 def run_baseline_predictions(scenarios, dataset_probs=None):
     """Run predictions using dataset-based baseline or theoretical fallback"""
@@ -234,25 +389,38 @@ def run_baseline_predictions(scenarios, dataset_probs=None):
     
     return predictions
 
-def create_comparison_table(scenarios, ml_predictions, baseline_predictions, baseline_type="Dataset"):
-    """Create a comprehensive comparison table"""
+def create_multi_model_comparison_table(scenarios, all_model_predictions, baseline_predictions, baseline_type="Dataset"):
+    """Create a comprehensive comparison table with all models"""
     
-    df = pd.DataFrame({
+    # Base scenario information
+    base_data = {
         'scenario': [s['scenario'] for s in scenarios],
         'time_left': [s['time_left'] for s in scenarios],
         'ct_alive': [s['ct_alive'] for s in scenarios],
         't_alive': [s['t_alive'] for s in scenarios],
         'bomb_planted': [s['bomb_planted'] for s in scenarios],
         'description': [s['description'] for s in scenarios],
-        'ml_prediction': ml_predictions,
         'baseline_prediction': baseline_predictions,
-        'baseline_type': baseline_type,
-        'difference': [abs(ml - bl) for ml, bl in zip(ml_predictions, baseline_predictions)]
-    })
+        'baseline_type': baseline_type
+    }
+    
+    # Add predictions for each model
+    for model_name, predictions in all_model_predictions.items():
+        base_data[f'{model_name}_prediction'] = predictions
+        base_data[f'{model_name}_diff_from_baseline'] = [abs(ml - bl) for ml, bl in zip(predictions, baseline_predictions)]
+    
+    df = pd.DataFrame(base_data)
+    
+    # Add ensemble statistics
+    model_columns = [f'{name}_prediction' for name in all_model_predictions.keys() if name != 'ensemble']
+    if len(model_columns) > 1:
+        df['model_avg'] = df[model_columns].mean(axis=1)
+        df['model_std'] = df[model_columns].std(axis=1)
+        df['model_range'] = df[model_columns].max(axis=1) - df[model_columns].min(axis=1)
     
     return df
 
-def create_heatmap_table(df, prediction_type='ml_prediction'):
+def create_heatmap_table(df, prediction_type='ml_prediction', model_name='ML Model'):
     """Create a heatmap table similar to the one in the attachment"""
     
     # Filter for no bomb scenarios first (like the original table)
@@ -305,7 +473,7 @@ def create_heatmap_table(df, prediction_type='ml_prediction'):
         linecolor='white'
     )
     
-    plt.title(f'T Win Probability Heatmap - {prediction_type.replace("_", " ").title()}\n(60 seconds remaining, no bomb planted)', 
+    plt.title(f'T Win Probability Heatmap - {model_name.replace("_", " ").title()}\n(60 seconds remaining, no bomb planted)', 
               fontsize=14, fontweight='bold')
     plt.xlabel('CT Players Alive', fontsize=12, fontweight='bold')
     plt.ylabel('T Players Alive', fontsize=12, fontweight='bold')
@@ -316,15 +484,15 @@ def create_heatmap_table(df, prediction_type='ml_prediction'):
     
     plt.tight_layout()
     
-    filename = f'../../outputs/visualizations/t_win_probability_heatmap_{prediction_type}.png'
+    filename = f'../../outputs/visualizations/t_win_probability_heatmap_{model_name}.png'
     plt.savefig(filename, dpi=300, bbox_inches='tight')
     plt.close()
     
-    print(f"📊 Heatmap saved as '{filename}'")
+    print(f"📊 Heatmap for {model_name} saved as '{filename}'")
     
     return heatmap_data
 
-def create_bomb_scenario_heatmap(df):
+def create_bomb_scenario_heatmap(df, prediction_type='ml_prediction', model_name='ML Model'):
     """Create heatmap for post-plant scenarios"""
     
     bomb_df = df[df['bomb_planted'] == True].copy()
@@ -337,12 +505,12 @@ def create_bomb_scenario_heatmap(df):
     ].copy()
     
     if len(bomb_scenarios) == 0:
-        print("❌ No valid bomb scenarios found")
+        print(f"❌ No valid bomb scenarios found for {model_name}")
         return
     
     # Create pivot table
     heatmap_data = bomb_scenarios.pivot_table(
-        values='ml_prediction',
+        values=prediction_type,
         index='t_alive',
         columns='ct_alive',
         aggfunc='mean'
@@ -370,7 +538,7 @@ def create_bomb_scenario_heatmap(df):
         linecolor='white'
     )
     
-    plt.title('T Win Probability - Post-Plant Scenarios\n(10 seconds on bomb timer)', 
+    plt.title(f'T Win Probability - Post-Plant Scenarios - {model_name.replace("_", " ").title()}\n(10 seconds on bomb timer)', 
               fontsize=14, fontweight='bold')
     plt.xlabel('CT Players Alive', fontsize=12, fontweight='bold')
     plt.ylabel('T Players Alive', fontsize=12, fontweight='bold')
@@ -379,12 +547,90 @@ def create_bomb_scenario_heatmap(df):
     plt.gca().set_yticklabels([f'{i} T' for i in range(5, 0, -1)], fontweight='bold')
     
     plt.tight_layout()
-    plt.savefig('../../outputs/visualizations/t_win_probability_heatmap_bomb.png', dpi=300, bbox_inches='tight')
+    filename = f'../../outputs/visualizations/t_win_probability_heatmap_bomb_{model_name}.png'
+    plt.savefig(filename, dpi=300, bbox_inches='tight')
     plt.close()
     
-    print("📊 Bomb scenario heatmap saved as '../../outputs/visualizations/t_win_probability_heatmap_bomb.png'")
+    print(f"📊 Bomb scenario heatmap for {model_name} saved as '{filename}'")
 
-def create_reference_table(df, prediction_type='ml_prediction'):
+def create_difference_heatmap(df, prediction_type='ml_prediction', model_name='ML Model'):
+    """Create a heatmap showing differences from baseline"""
+    
+    # Filter for no bomb scenarios first
+    no_bomb_df = df[df['bomb_planted'] == False].copy()
+    
+    # Create pivot table for 5x5 player scenarios
+    player_scenarios = no_bomb_df[
+        (no_bomb_df['ct_alive'] <= 5) & 
+        (no_bomb_df['t_alive'] <= 5) &
+        (no_bomb_df['time_left'] == 60)  # Use mid-round timing
+    ].copy()
+    
+    if len(player_scenarios) == 0:
+        print(f"❌ No valid scenarios found for difference heatmap for {model_name}")
+        return
+    
+    # Calculate differences (T win perspective)
+    player_scenarios['model_t_win'] = (1 - player_scenarios[prediction_type]) * 100
+    player_scenarios['baseline_t_win'] = (1 - player_scenarios['baseline_prediction']) * 100
+    player_scenarios['difference'] = player_scenarios['model_t_win'] - player_scenarios['baseline_t_win']
+    
+    # Create pivot table for differences
+    heatmap_data = player_scenarios.pivot_table(
+        values='difference',
+        index='t_alive',
+        columns='ct_alive',
+        aggfunc='mean'
+    )
+    
+    # Reverse both axes to have 5v5 at top left and 1v1 at bottom right
+    heatmap_data = heatmap_data.iloc[::-1, ::-1]
+    
+    # Create the plot
+    plt.figure(figsize=(12, 8))
+    
+    # Create custom diverging colormap (red for negative, blue for positive)
+    colors = ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#e0f3f8', '#abd9e9', '#74add1', '#4575b4']
+    n_bins = 100
+    cmap = plt.cm.colors.LinearSegmentedColormap.from_list('custom_diverging', colors, N=n_bins)
+    
+    # Use consistent scale from -50 to +50 for all models
+    vmin, vmax = -50, 50
+    
+    # Create heatmap
+    sns.heatmap(
+        heatmap_data,
+        annot=True,
+        fmt='.1f',
+        cmap=cmap,
+        center=0,
+        vmin=vmin,
+        vmax=vmax,
+        cbar_kws={'label': 'Difference in T Win Probability (%)'},
+        linewidths=0.5,
+        linecolor='white'
+    )
+    
+    plt.title(f'Difference from Baseline - {model_name.replace("_", " ").title()}\n(60 seconds remaining, no bomb planted)\nScale: -50% to +50% | Red = Model lower, Blue = Model higher', 
+              fontsize=14, fontweight='bold')
+    plt.xlabel('CT Players Alive', fontsize=12, fontweight='bold')
+    plt.ylabel('T Players Alive', fontsize=12, fontweight='bold')
+    
+    # Customize the labels - reverse order for both axes to match 5v5 top-left layout
+    plt.gca().set_xticklabels([f'{i} CT' for i in range(5, 0, -1)], fontweight='bold')
+    plt.gca().set_yticklabels([f'{i} T' for i in range(5, 0, -1)], fontweight='bold')
+    
+    plt.tight_layout()
+    
+    filename = f'../../outputs/visualizations/difference_from_baseline_heatmap_{model_name}.png'
+    plt.savefig(filename, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"📊 Difference heatmap for {model_name} saved as '{filename}'")
+    
+    return heatmap_data
+
+def create_reference_table(df, prediction_type='ml_prediction', model_name=None):
     """Create a table that exactly matches the reference image format"""
     
     # Filter for no bomb scenarios with 60 seconds remaining
@@ -393,9 +639,12 @@ def create_reference_table(df, prediction_type='ml_prediction'):
         (df['time_left'] == 60)
     ].copy()
     
+    # Use model_name if provided, otherwise derive from prediction_type
+    display_name = model_name.replace('_', ' ').title() if model_name else prediction_type.replace('_', ' ').title()
+    
     # Create the exact table structure from the reference image
-    print(f"\n📊 T Win % Table - {prediction_type.replace('_', ' ').title()}")
-    print("=" * 50)
+    print(f"\n📊 T Win % Table - {display_name}")
+    print("=" * 60)
     
     # Header
     header = "T Win%".ljust(8) + "".join([f"{i} CT".rjust(10) for i in range(5, 0, -1)])
@@ -415,10 +664,7 @@ def create_reference_table(df, prediction_type='ml_prediction'):
             
             if len(scenario_data) > 0:
                 # Convert to T win percentage
-                if prediction_type == 'ml_prediction':
-                    t_win_prob = (1 - scenario_data[prediction_type].iloc[0]) * 100
-                else:
-                    t_win_prob = (1 - scenario_data[prediction_type].iloc[0]) * 100
+                t_win_prob = (1 - scenario_data[prediction_type].iloc[0]) * 100
                 row += f"{t_win_prob:.1f}%".rjust(10)
             else:
                 row += "N/A".rjust(10)
@@ -427,8 +673,8 @@ def create_reference_table(df, prediction_type='ml_prediction'):
     
     print("\n")
 
-def create_reference_table(df, prediction_type='ml_prediction'):
-    """Create a table that exactly matches the reference image format"""
+def create_difference_table(df, prediction_type='ml_prediction', model_name=None):
+    """Create a table showing the difference from baseline predictions"""
     
     # Filter for no bomb scenarios with 60 seconds remaining
     no_bomb_df = df[
@@ -436,12 +682,18 @@ def create_reference_table(df, prediction_type='ml_prediction'):
         (df['time_left'] == 60)
     ].copy()
     
-    # Create the exact table structure from the reference image
-    print(f"\n📊 T Win % Table - {prediction_type.replace('_', ' ').title()}")
-    print("=" * 50)
+    # Use model_name if provided, otherwise derive from prediction_type
+    display_name = model_name.replace('_', ' ').title() if model_name else prediction_type.replace('_', ' ').title()
+    
+    # Create the difference table
+    print(f"\n📊 Difference from Baseline Table - {display_name}")
+    print("=" * 70)
+    print("(Positive values = Model predicts higher T win rate than baseline)")
+    print("(Negative values = Model predicts lower T win rate than baseline)")
+    print("=" * 70)
     
     # Header
-    header = "T Win%".ljust(8) + "".join([f"{i} CT".rjust(10) for i in range(5, 0, -1)])
+    header = "Diff%".ljust(8) + "".join([f"{i} CT".rjust(10) for i in range(5, 0, -1)])
     print(header)
     print("-" * 58)
     
@@ -457,12 +709,16 @@ def create_reference_table(df, prediction_type='ml_prediction'):
             ]
             
             if len(scenario_data) > 0:
-                # Convert to T win percentage
-                if prediction_type == 'ml_prediction':
-                    t_win_prob = (1 - scenario_data[prediction_type].iloc[0]) * 100
+                # Calculate difference (T win perspective)
+                model_t_win = (1 - scenario_data[prediction_type].iloc[0]) * 100
+                baseline_t_win = (1 - scenario_data['baseline_prediction'].iloc[0]) * 100
+                diff = model_t_win - baseline_t_win
+                
+                # Format with sign
+                if diff >= 0:
+                    row += f"+{diff:.1f}%".rjust(10)
                 else:
-                    t_win_prob = (1 - scenario_data[prediction_type].iloc[0]) * 100
-                row += f"{t_win_prob:.1f}%".rjust(10)
+                    row += f"{diff:.1f}%".rjust(10)
             else:
                 row += "N/A".rjust(10)
         
@@ -621,8 +877,8 @@ def create_detailed_test_report(scenarios, ml_predictions, baseline_predictions)
 def main():
     """Main function to run all tests and create visualizations"""
     
-    print("🧪 CS2 Win Probability Model Test Scenarios")
-    print("=" * 60)
+    print("🧪 CS2 Win Probability Model Test Scenarios - All Models Comparison")
+    print("=" * 80)
     
     # Load the dataset for baseline comparison
     print("📊 Loading dataset for baseline comparison...")
@@ -632,83 +888,192 @@ def main():
     baseline_type = "Dataset-based" if dataset_probs else "Theoretical"
     print(f"✅ Using {baseline_type} baseline for comparison")
     
-    # Load the trained model
-    print("\n📦 Loading trained model...")
-    model_data = load_trained_model()
+    # Load all trained models
+    print("\n📦 Loading all trained models...")
+    all_models = load_all_trained_models()
+    
+    if not all_models:
+        print("❌ No models found. Please train models first.")
+        return
+    
+    # Create model performance summary
+    print(f"\n📋 Model Performance Summary:")
+    print("=" * 70)
+    print(f"{'Model':<20} {'Rank':<6} {'AUC':<8} {'Accuracy':<10} {'Log Loss':<10}")
+    print("=" * 70)
+    
+    # Sort by rank
+    sorted_models = sorted(all_models.items(), 
+                          key=lambda x: x[1]['performance']['rank'] if x[1]['performance']['rank'] > 0 else 999)
+    
+    for model_name, model_info in sorted_models:
+        perf = model_info['performance']
+        rank_str = str(perf['rank']) if perf['rank'] > 0 else 'Ens'
+        
+        print(f"{model_name.replace('_', ' ').title():<20} "
+              f"{rank_str:<6} "
+              f"{perf['auc']:.3f}    "
+              f"{perf['accuracy']:.3f}    "
+              f"{perf['log_loss']:.3f}")
     
     # Create test scenarios
-    print("🔧 Creating test scenarios...")
+    print("\n🔧 Creating test scenarios...")
     scenarios = create_test_scenarios()
     print(f"✅ Created {len(scenarios)} test scenarios")
     
-    # Run predictions
-    print("🔮 Running ML model predictions...")
-    ml_predictions = run_model_predictions(scenarios, model_data)
+    # Run predictions with all models
+    all_model_predictions = run_all_model_predictions(scenarios, all_models)
     
     print(f"📊 Running {baseline_type.lower()} baseline predictions...")
     baseline_predictions = run_baseline_predictions(scenarios, dataset_probs)
     
     # Create comparison table
-    print("📋 Creating comparison table...")
-    df = create_comparison_table(scenarios, ml_predictions, baseline_predictions, baseline_type)
+    print("📋 Creating comprehensive comparison table...")
+    df = create_multi_model_comparison_table(scenarios, all_model_predictions, baseline_predictions, baseline_type)
     
     # Save detailed results
-    df.to_csv('../../outputs/reports/test_scenario_results.csv', index=False, encoding='utf-8')
-    print("💾 Detailed results saved to '../../outputs/reports/test_scenario_results.csv'")
+    df.to_csv('../../outputs/reports/all_models_test_scenario_results.csv', index=False, encoding='utf-8')
+    print("💾 Detailed results saved to '../../outputs/reports/all_models_test_scenario_results.csv'")
     
-    # Analyze differences
-    analysis_results = analyze_prediction_differences(df, dataset_probs)
+    # Analyze differences for each model
+    model_names = list(all_models.keys())
+    print(f"\n🔍 Model Performance Analysis (vs {baseline_type} Baseline):")
+    print("=" * 80)
     
-    # Create reference tables that match the original format
-    print("\n🎯 Creating reference tables...")
-    create_reference_table(df, 'ml_prediction')
-    create_reference_table(df, 'baseline_prediction')
+    model_stats = {}
+    for model_name in model_names:
+        pred_col = f'{model_name}_prediction'
+        diff_col = f'{model_name}_diff_from_baseline'
+        
+        if pred_col in df.columns:
+            model_predictions = df[pred_col]
+            differences = df[diff_col]
+            correlation = model_predictions.corr(df['baseline_prediction'])
+            
+            model_stats[model_name] = {
+                'avg_prediction': model_predictions.mean(),
+                'avg_difference': differences.mean(),
+                'max_difference': differences.max(),
+                'correlation': correlation
+            }
+            
+            print(f"\n📊 {model_name.replace('_', ' ').title()}:")
+            print(f"   Average prediction: {model_predictions.mean():.1%}")
+            print(f"   Average difference from baseline: {differences.mean():.3f}")
+            print(f"   Max difference: {differences.max():.3f}")
+            print(f"   Correlation with baseline: {correlation:.3f}")
     
-    # Create summary statistics
-    summary_df = create_summary_statistics_table(df)
-    summary_df.to_csv('../../outputs/reports/summary_statistics.csv', index=False, encoding='utf-8')
-    print("💾 Summary statistics saved to '../../outputs/reports/summary_statistics.csv'")
+    # Model agreement analysis
+    print(f"\n🤝 Model Agreement Analysis:")
+    print("=" * 50)
     
-    # Create heatmaps
-    print("\n🎨 Creating visualization heatmaps...")
+    model_pred_columns = [f'{name}_prediction' for name in model_names]
+    if len(model_pred_columns) > 1:
+        # Calculate correlations between models
+        correlation_matrix = df[model_pred_columns].corr()
+        print("\n📊 Model Correlation Matrix:")
+        print(correlation_matrix.round(3))
+        
+        # Find scenarios with highest disagreement
+        if 'model_range' in df.columns:
+            print("\n🚨 Top 5 scenarios with highest model disagreement:")
+            top_disagreement = df.nlargest(5, 'model_range')
+            
+            for _, row in top_disagreement.iterrows():
+                print(f"\n  📍 {row['description']}:")
+                print(f"      Range: {row['model_range']:.3f} (std: {row.get('model_std', 0):.3f})")
+                for model_name in model_names:
+                    pred_col = f'{model_name}_prediction'
+                    if pred_col in row:
+                        print(f"      {model_name}: {row[pred_col]:.1%}")
     
-    # ML model heatmap
-    ml_heatmap = create_heatmap_table(df, 'ml_prediction')
+    # Create reference tables for each model
+    print("\n🎯 Creating reference tables for each model...")
+    for model_name in model_names:
+        pred_col = f'{model_name}_prediction'
+        if pred_col in df.columns:
+            create_reference_table(df, pred_col, model_name)
     
-    # Baseline heatmap
-    baseline_heatmap = create_heatmap_table(df, 'baseline_prediction')
+    # Create baseline reference table
+    create_reference_table(df, 'baseline_prediction', 'baseline')
     
-    # Bomb scenario heatmap
-    create_bomb_scenario_heatmap(df)
+    # Create difference tables for each model
+    print("\n📊 Creating difference from baseline tables for each model...")
+    for model_name in model_names:
+        pred_col = f'{model_name}_prediction'
+        if pred_col in df.columns:
+            create_difference_table(df, pred_col, model_name)
     
-    # Create detailed test report
-    create_detailed_test_report(scenarios, ml_predictions, baseline_predictions)
+    # Create heatmaps for each model
+    print("\n🎨 Creating visualization heatmaps for all models...")
+    for model_name in model_names:
+        pred_col = f'{model_name}_prediction'
+        if pred_col in df.columns:
+            try:
+                create_heatmap_table(df, pred_col, model_name)
+            except Exception as e:
+                print(f"❌ Error creating heatmap for {model_name}: {e}")
     
-    # Summary of model performance
-    print(f"\n🎯 MODEL PERFORMANCE SUMMARY:")
-    print("=" * 40)
-    print(f"Baseline Type: {baseline_type}")
-    print(f"Average Prediction Difference: {analysis_results['avg_difference']:.3f}")
-    print(f"Maximum Prediction Difference: {analysis_results['max_difference']:.3f}")
-    print(f"Correlation with Baseline: {analysis_results['correlation']:.3f}")
+    # Create baseline heatmap
+    try:
+        create_heatmap_table(df, 'baseline_prediction', 'baseline')
+    except Exception as e:
+        print(f"❌ Error creating baseline heatmap: {e}")
     
-    if analysis_results['correlation'] > 0.8:
-        print("✅ Strong correlation - Model predictions align well with baseline")
-    elif analysis_results['correlation'] > 0.6:
-        print("⚠️  Moderate correlation - Model shows some alignment with baseline")
-    else:
-        print("❌ Weak correlation - Model predictions differ significantly from baseline")
+    # Create difference heatmaps for each model
+    print("\n🔍 Creating difference from baseline heatmaps...")
+    for model_name in model_names:
+        pred_col = f'{model_name}_prediction'
+        if pred_col in df.columns:
+            try:
+                create_difference_heatmap(df, pred_col, model_name)
+            except Exception as e:
+                print(f"❌ Error creating difference heatmap for {model_name}: {e}")
     
-    if analysis_results['avg_difference'] < 0.1:
-        print("✅ Low average difference - Model predictions are close to baseline")
-    elif analysis_results['avg_difference'] < 0.2:
-        print("⚠️  Moderate average difference - Some deviation from baseline")
-    else:
-        print("❌ High average difference - Significant deviation from baseline")
+    # Bomb scenario heatmaps for top models
+    top_models = sorted(model_names, key=lambda x: all_models[x]['performance']['rank'] if all_models[x]['performance']['rank'] > 0 else 999)[:3]
+    for model_name in top_models:
+        pred_col = f'{model_name}_prediction'
+        if pred_col in df.columns:
+            try:
+                create_bomb_scenario_heatmap(df, pred_col, model_name)
+            except Exception as e:
+                print(f"❌ Error creating bomb heatmap for {model_name}: {e}")
     
-    print("\n✅ Test scenarios complete!")
+    # Save model comparison summary
+    summary_data = []
+    for model_name, stats in model_stats.items():
+        summary_data.append({
+            'model_name': model_name,
+            'rank': all_models[model_name]['performance']['rank'],
+            'auc': all_models[model_name]['performance']['auc'],
+            'accuracy': all_models[model_name]['performance']['accuracy'],
+            'avg_prediction': stats['avg_prediction'],
+            'avg_difference_from_baseline': stats['avg_difference'],
+            'max_difference_from_baseline': stats['max_difference'],
+            'correlation_with_baseline': stats['correlation']
+        })
+    
+    summary_df = pd.DataFrame(summary_data)
+    summary_df.to_csv('../../outputs/reports/all_models_performance_summary.csv', index=False, encoding='utf-8')
+    print("💾 Model performance summary saved to '../../outputs/reports/all_models_performance_summary.csv'")
+    
+    # Overall summary
+    best_correlation = max(model_stats.values(), key=lambda x: x['correlation'])
+    best_model_name = [k for k, v in model_stats.items() if v == best_correlation][0]
+    
+    print(f"\n🎯 OVERALL MODEL COMPARISON SUMMARY:")
+    print("=" * 50)
+    print(f"Models tested: {len(model_names)}")
+    print(f"Scenarios tested: {len(scenarios)}")
+    print(f"Baseline type: {baseline_type}")
+    print(f"Best correlation with baseline: {best_correlation['correlation']:.3f} ({best_model_name})")
+    print(f"Average model agreement (std): {df.get('model_std', pd.Series([0])).mean():.3f}")
+    
+    print("\n✅ All models test scenarios complete!")
     print("📊 Check the generated PNG files for visual comparisons")
     print("📋 Check the CSV files for detailed numerical results")
+    print("🎯 All models have been compared across scenarios")
 
 if __name__ == "__main__":
     main()

@@ -27,7 +27,7 @@ def clean_dataset(df):
     df = df[(df['ts_alive'] >= 0) & (df['ts_alive'] <= 5)]
     
     # Remove entries with invalid time values (should be 0-115 for normal rounds)
-    df = df[(df['time_left'] >= 0) & (df['time_left'] <= 240)]  # Allow some overtime
+    df = df[(df['time_left'] >= 0) & (df['time_left'] <= 115)]  
     
     # Remove entries with missing winner data
     df = df[df['winner'].notna()]
