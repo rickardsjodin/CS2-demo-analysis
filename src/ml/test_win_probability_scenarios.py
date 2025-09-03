@@ -20,139 +20,64 @@ import numpy as np
 from src.core.win_probability import get_win_probability
 from train_win_probability_model import predict_win_probability
 
-def load_dataset_baseline(dataset_path='../../data/datasets/all_snapshots.json'):
-    """Load the actual dataset to use as baseline for comparison"""
-    print("📂 Loading dataset for baseline comparison...")
+def load_dataset_statistics():
+    """Load pre-computed dataset statistics from CSV file"""
+    print("📂 Loading dataset statistics for reference comparison...")
+    
+    scenario_file = '../../outputs/reports/scenario_probabilities.csv'
     
     try:
-        with open(dataset_path, 'r') as f:
-            data = json.load(f)
+        # Load the scenario probabilities CSV
+        df = pd.read_csv(scenario_file)
+        print(f"✅ Loaded {len(df)} scenario statistics from dataset")
         
-        df = pd.DataFrame(data)
+        # Convert to dictionary for fast lookup
+        scenario_probs = {}
+        for _, row in df.iterrows():
+            scenario_key = (row['time_phase'], row['cts_alive'], row['ts_alive'], row['bomb_planted'])
+            scenario_probs[scenario_key] = {
+                'ct_win_rate': row['ct_win_rate'],
+                't_win_rate': row['t_win_rate'],
+                'sample_count': row['total_samples']
+            }
         
-        # Clean the data (same cleaning as in dataset_statistics.py)
-        print("🧹 Cleaning dataset...")
-        initial_count = len(df)
-        
-        # Remove invalid entries
-        df = df[
-            (df['cts_alive'] >= 0) & (df['cts_alive'] <= 5) &
-            (df['ts_alive'] >= 0) & (df['ts_alive'] <= 5) &
-            (df['time_left'] >= 0) & (df['time_left'] <= 115) &
-            (df['winner'].isin(['ct', 't']))
-        ].copy()
-        
-        removed_count = initial_count - len(df)
-        print(f"🗑️  Removed {removed_count} invalid entries ({removed_count/initial_count*100:.1f}%)")
-        print(f"✅ Clean dataset: {len(df):,} valid snapshots")
-        
-        # Add time phase categorization with time ranges for better matching
-        def categorize_time_phase(time_left):
-            if time_left > 75:
-                return "early"
-            elif time_left >= 50 and time_left <= 70:  # Range for 60-second scenarios
-                return "middle_60s"
-            elif time_left > 35:
-                return "middle"
-            else:
-                return "late"
-        
-        df['time_phase'] = df['time_left'].apply(categorize_time_phase)
-        
-        return df
+        print(f"✅ Indexed {len(scenario_probs)} scenarios for lookup")
+        return scenario_probs
     
     except FileNotFoundError:
-        print(f"❌ Dataset file not found: {dataset_path}")
-        print("Using fallback theoretical baseline...")
+        print(f"❌ CRITICAL: Scenario statistics file not found: {scenario_file}")
+        print("⚠️  Please run 'python src/analysis/dataset_statistics.py' first to generate the statistics")
+        print("❌ Cannot proceed without dataset statistics - exiting")
         return None
-    except json.JSONDecodeError as e:
-        print(f"❌ JSON decode error: {e}")
-        print("Using fallback theoretical baseline...")
+    except Exception as e:
+        print(f"❌ CRITICAL: Error loading scenario statistics: {e}")
+        print("❌ Cannot proceed without dataset statistics - exiting")
         return None
 
-def compute_dataset_probabilities(dataset_df):
-    """Compute win probabilities from the actual dataset"""
-    if dataset_df is None:
-        return {}
-    
-    print("📊 Computing win probabilities from dataset...")
-    
-    # Group by scenario characteristics and compute win rates
-    scenario_probs = {}
-    
-    for _, group in dataset_df.groupby(['time_phase', 'cts_alive', 'ts_alive', 'bomb_planted']):
-        if len(group) >= 5:  # Only use scenarios with at least 5 samples
-            ct_wins = (group['winner'] == 'ct').sum()
-            total = len(group)
-            ct_win_rate = ct_wins / total
-            
-            # Create scenario key
-            time_phase = group['time_phase'].iloc[0]
-            cts_alive = group['cts_alive'].iloc[0]
-            ts_alive = group['ts_alive'].iloc[0]
-            bomb_planted = group['bomb_planted'].iloc[0]
-            
-            scenario_key = (time_phase, cts_alive, ts_alive, bomb_planted)
-            scenario_probs[scenario_key] = {
-                'ct_win_rate': ct_win_rate,
-                'sample_count': total
-            }
-    
-    print(f"✅ Computed probabilities for {len(scenario_probs)} scenarios")
-    return scenario_probs
+
 
 def get_dataset_baseline_prediction(time_left, ct_alive, t_alive, bomb_planted, dataset_probs):
-    """Get baseline prediction from dataset statistics"""
+    """Get baseline prediction from dataset statistics - no fallbacks"""
     
-    # Categorize time phase with specific handling for 60-second scenarios
+    if dataset_probs is None:
+        raise ValueError("Dataset statistics not available - cannot proceed")
+    
+    # Categorize time phase (matching dataset_statistics.py logic)
     if time_left > 75:
         time_phase = "early"
-    elif time_left == 60:  # Exact match for our test scenarios
-        time_phase = "middle_60s"
-    elif time_left >= 50 and time_left <= 70:
-        time_phase = "middle_60s"
     elif time_left > 35:
-        time_phase = "middle"
+        time_phase = "middle" 
     else:
         time_phase = "late"
     
-    # Look for exact match first
+    # Look for exact match
     scenario_key = (time_phase, ct_alive, t_alive, bomb_planted)
     
     if scenario_key in dataset_probs:
         return dataset_probs[scenario_key]['ct_win_rate']
     
-    # If no exact match for middle_60s, try regular middle
-    if time_phase == "middle_60s":
-        fallback_key = ("middle", ct_alive, t_alive, bomb_planted)
-        if fallback_key in dataset_probs:
-            return dataset_probs[fallback_key]['ct_win_rate']
-    
-    # If no exact match, try without bomb status
-    for bomb_status in [not bomb_planted, bomb_planted]:
-        fallback_key = (time_phase, ct_alive, t_alive, bomb_status)
-        if fallback_key in dataset_probs:
-            # Apply bomb modifier if needed
-            base_prob = dataset_probs[fallback_key]['ct_win_rate']
-            if bomb_planted and not bomb_status:
-                # Reduce CT win rate for bomb scenarios
-                base_prob = max(0.0, base_prob - 0.25)  # Bomb gives T +25% advantage
-            elif not bomb_planted and bomb_status:
-                # Increase CT win rate for no-bomb scenarios
-                base_prob = min(1.0, base_prob + 0.25)
-            return base_prob
-    
-    # If still no match, try different time phases
-    phase_fallbacks = ["middle_60s", "middle", "early", "late"] if time_phase == "middle_60s" else ["early", "middle", "middle_60s", "late"]
-    for phase in phase_fallbacks:
-        if phase == time_phase:  # Skip the original phase we already tried
-            continue
-        fallback_key = (phase, ct_alive, t_alive, bomb_planted)
-        if fallback_key in dataset_probs:
-            return dataset_probs[fallback_key]['ct_win_rate']
-    
-    # Final fallback - use theoretical baseline
-    return get_win_probability(ct_alive, t_alive, bomb_planted)
+    # No fallbacks - scenario not in dataset
+    raise KeyError(f"Scenario not found in dataset: {time_phase}, {ct_alive}v{t_alive}, bomb={bomb_planted}")
 
 def load_single_trained_model(model_file='../../data/models/ct_win_probability_model.pkl'):
     """Load a single trained model for predictions"""
@@ -362,14 +287,18 @@ def run_all_model_predictions(scenarios, models):
     
     return results
 
-def run_baseline_predictions(scenarios, dataset_probs=None):
-    """Run predictions using dataset-based baseline or theoretical fallback"""
+def run_baseline_predictions(scenarios, dataset_probs):
+    """Run predictions using dataset statistics - no fallbacks"""
+    
+    if dataset_probs is None:
+        print("❌ CRITICAL: Cannot run predictions without dataset statistics")
+        return None
     
     predictions = []
+    missing_scenarios = []
     
     for scenario in scenarios:
-        if dataset_probs is not None:
-            # Use dataset-based prediction
+        try:
             prob = get_dataset_baseline_prediction(
                 scenario['time_left'],
                 scenario['ct_alive'],
@@ -377,41 +306,59 @@ def run_baseline_predictions(scenarios, dataset_probs=None):
                 scenario['bomb_planted'],
                 dataset_probs
             )
-        else:
-            # Fallback to theoretical baseline
-            prob = get_win_probability(
-                scenario['ct_alive'],
-                scenario['t_alive'],
-                scenario['bomb_planted']
-            )
-        
-        predictions.append(prob)
+            predictions.append(prob)
+        except KeyError as e:
+            print(f"⚠️  Missing: {scenario['scenario']} - {e}")
+            missing_scenarios.append(scenario['scenario'])
+            predictions.append(None)  # Placeholder for missing data
+    
+    # Report statistics
+    valid_predictions = sum(1 for p in predictions if p is not None)
+    total = len(scenarios)
+    
+    print(f"📊 Baseline prediction results:")
+    print(f"   Valid predictions: {valid_predictions}/{total} ({valid_predictions/total*100:.1f}%)")
+    
+    if missing_scenarios:
+        print(f"   Missing scenarios: {len(missing_scenarios)}")
+        print(f"   ⚠️  Consider expanding test scenarios to match available dataset statistics")
     
     return predictions
 
-def create_multi_model_comparison_table(scenarios, all_model_predictions, baseline_predictions, baseline_type="Dataset"):
+def create_multi_model_comparison_table(scenarios, all_model_predictions, baseline_predictions, baseline_type="Dataset Statistics"):
     """Create a comprehensive comparison table with all models"""
     
-    # Base scenario information
+    # Filter out scenarios with missing baseline predictions
+    valid_indices = [i for i, pred in enumerate(baseline_predictions) if pred is not None]
+    
+    if len(valid_indices) == 0:
+        print("❌ No valid baseline predictions available")
+        return None
+    
+    if len(valid_indices) < len(scenarios):
+        print(f"⚠️  Only {len(valid_indices)}/{len(scenarios)} scenarios have valid dataset statistics")
+    
+    # Base scenario information (only valid scenarios)
     base_data = {
-        'scenario': [s['scenario'] for s in scenarios],
-        'time_left': [s['time_left'] for s in scenarios],
-        'ct_alive': [s['ct_alive'] for s in scenarios],
-        't_alive': [s['t_alive'] for s in scenarios],
-        'bomb_planted': [s['bomb_planted'] for s in scenarios],
-        'description': [s['description'] for s in scenarios],
-        'baseline_prediction': baseline_predictions,
+        'scenario': [scenarios[i]['scenario'] for i in valid_indices],
+        'time_left': [scenarios[i]['time_left'] for i in valid_indices],
+        'ct_alive': [scenarios[i]['ct_alive'] for i in valid_indices],
+        't_alive': [scenarios[i]['t_alive'] for i in valid_indices],
+        'bomb_planted': [scenarios[i]['bomb_planted'] for i in valid_indices],
+        'description': [scenarios[i]['description'] for i in valid_indices],
+        'baseline_prediction': [baseline_predictions[i] for i in valid_indices],
         'baseline_type': baseline_type
     }
     
-    # Add predictions for each model
+    # Add predictions for each model (only valid scenarios)
     for model_name, predictions in all_model_predictions.items():
-        base_data[f'{model_name}_prediction'] = predictions
-        base_data[f'{model_name}_diff_from_baseline'] = [abs(ml - bl) for ml, bl in zip(predictions, baseline_predictions)]
+        valid_predictions = [predictions[i] for i in valid_indices]
+        base_data[f'{model_name}_prediction'] = valid_predictions
+        base_data[f'{model_name}_diff_from_baseline'] = [abs(ml - bl) for ml, bl in zip(valid_predictions, base_data['baseline_prediction'])]
     
     df = pd.DataFrame(base_data)
     
-    # Add ensemble statistics
+    # Add ensemble statistics if we have multiple models
     model_columns = [f'{name}_prediction' for name in all_model_predictions.keys() if name != 'ensemble']
     if len(model_columns) > 1:
         df['model_avg'] = df[model_columns].mean(axis=1)
@@ -759,10 +706,10 @@ def analyze_prediction_differences(df, dataset_probs=None):
         if len(subset) > 0:
             print(f"  {bomb_label}: {len(subset)} scenarios, avg diff: {subset['difference'].mean():.3f}")
     
-    # If using dataset baseline, show coverage statistics
+    # If using dataset statistics, show coverage information
     if dataset_probs is not None:
-        print(f"\n📊 Dataset Baseline Coverage:")
-        print(f"   Total scenarios in dataset: {len(dataset_probs)}")
+        print(f"\n📊 Dataset Statistics Coverage:")
+        print(f"   Total scenarios in statistics: {len(dataset_probs)}")
         
         # Count how many test scenarios had exact matches
         exact_matches = 0
@@ -774,6 +721,11 @@ def analyze_prediction_differences(df, dataset_probs=None):
         
         exact_match_pct = exact_matches / len(df) * 100
         print(f"   Exact scenario matches: {exact_matches}/{len(df)} ({exact_match_pct:.1f}%)")
+        
+        # Show sample size distribution for matched scenarios
+        sample_sizes = [dataset_probs[key]['sample_count'] for key in dataset_probs.keys()]
+        print(f"   Sample size range: {min(sample_sizes)} - {max(sample_sizes)} per scenario")
+        print(f"   Average samples per scenario: {np.mean(sample_sizes):.0f}")
     
     return {
         'avg_difference': df['difference'].mean(),
@@ -877,16 +829,24 @@ def create_detailed_test_report(scenarios, ml_predictions, baseline_predictions)
 def main():
     """Main function to run all tests and create visualizations"""
     
-    print("🧪 CS2 Win Probability Model Test Scenarios - All Models Comparison")
+    print("🧪 CS2 Win Probability Model Test Scenarios - All Models vs Dataset Statistics")
+    print("=" * 80)
+    print("📊 This test compares ML model predictions against real-world dataset statistics")
+    print("💡 Dataset statistics are computed from actual CS2 professional match data")
     print("=" * 80)
     
-    # Load the dataset for baseline comparison
-    print("📊 Loading dataset for baseline comparison...")
-    dataset_df = load_dataset_baseline()
-    dataset_probs = compute_dataset_probabilities(dataset_df) if dataset_df is not None else None
+    # Load the dataset statistics for baseline comparison
+    print("📊 Loading dataset statistics for baseline comparison...")
+    dataset_probs = load_dataset_statistics()
     
-    baseline_type = "Dataset-based" if dataset_probs else "Theoretical"
-    print(f"✅ Using {baseline_type} baseline for comparison")
+    if dataset_probs is None:
+        print("❌ CRITICAL: Cannot proceed without dataset statistics")
+        print("💡 Please run: python src/analysis/dataset_statistics.py")
+        print("❌ Exiting...")
+        return
+    
+    baseline_type = "Dataset Statistics"
+    print(f"✅ Using {baseline_type} for comparison")
     
     # Load all trained models
     print("\n📦 Loading all trained models...")
@@ -924,12 +884,21 @@ def main():
     # Run predictions with all models
     all_model_predictions = run_all_model_predictions(scenarios, all_models)
     
-    print(f"📊 Running {baseline_type.lower()} baseline predictions...")
+    print(f"📊 Running dataset statistics baseline predictions...")
     baseline_predictions = run_baseline_predictions(scenarios, dataset_probs)
+    
+    if baseline_predictions is None or all(p is None for p in baseline_predictions):
+        print("❌ CRITICAL: No valid baseline predictions available")
+        print("❌ Cannot proceed with model comparison")
+        return
     
     # Create comparison table
     print("📋 Creating comprehensive comparison table...")
     df = create_multi_model_comparison_table(scenarios, all_model_predictions, baseline_predictions, baseline_type)
+    
+    if df is None:
+        print("❌ CRITICAL: Failed to create comparison table")
+        return
     
     # Save detailed results
     df.to_csv('../../outputs/reports/all_models_test_scenario_results.csv', index=False, encoding='utf-8')
@@ -937,8 +906,12 @@ def main():
     
     # Analyze differences for each model
     model_names = list(all_models.keys())
-    print(f"\n🔍 Model Performance Analysis (vs {baseline_type} Baseline):")
+    print(f"\n🔍 Model Performance Analysis (vs {baseline_type}):")
     print("=" * 80)
+    print("📊 Models are compared against actual professional match statistics")
+    print("💡 Lower differences indicate better alignment with real-world outcomes")
+    print("⚠️  Only scenarios with exact dataset matches are analyzed")
+    print("-" * 80)
     
     model_stats = {}
     for model_name in model_names:
@@ -995,7 +968,7 @@ def main():
             create_reference_table(df, pred_col, model_name)
     
     # Create baseline reference table
-    create_reference_table(df, 'baseline_prediction', 'baseline')
+    create_reference_table(df, 'baseline_prediction', 'dataset_statistics')
     
     # Create difference tables for each model
     print("\n📊 Creating difference from baseline tables for each model...")
@@ -1016,7 +989,7 @@ def main():
     
     # Create baseline heatmap
     try:
-        create_heatmap_table(df, 'baseline_prediction', 'baseline')
+        create_heatmap_table(df, 'baseline_prediction', 'dataset_statistics')
     except Exception as e:
         print(f"❌ Error creating baseline heatmap: {e}")
     
@@ -1065,15 +1038,18 @@ def main():
     print(f"\n🎯 OVERALL MODEL COMPARISON SUMMARY:")
     print("=" * 50)
     print(f"Models tested: {len(model_names)}")
-    print(f"Scenarios tested: {len(scenarios)}")
-    print(f"Baseline type: {baseline_type}")
+    print(f"Scenarios tested: {len(scenarios)} (valid: {len(df)})")
+    print(f"Reference baseline: {baseline_type}")
+    print(f"Dataset scenarios available: {len(dataset_probs)}")
+    sample_sizes = [stats['sample_count'] for stats in dataset_probs.values()]
+    print(f"Total real-world samples: {sum(sample_sizes):,}")
     print(f"Best correlation with baseline: {best_correlation['correlation']:.3f} ({best_model_name})")
     print(f"Average model agreement (std): {df.get('model_std', pd.Series([0])).mean():.3f}")
     
     print("\n✅ All models test scenarios complete!")
     print("📊 Check the generated PNG files for visual comparisons")
     print("📋 Check the CSV files for detailed numerical results")
-    print("🎯 All models have been compared across scenarios")
+    print("🎯 All models compared against real-world dataset statistics only")
 
 if __name__ == "__main__":
     main()

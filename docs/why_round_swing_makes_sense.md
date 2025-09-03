@@ -1,14 +1,19 @@
-### Round Swing (and thus Rating 3.0) is misunderstood – Why it needs more credit
+### Round Swing (and thus Rating 3.0) is misunderstood and why clutches are not overvalued
 
 At the start of the round, there's a roughly 50/50 win probability, given equal equipment value. If you single-handedly get the first kill, you shift the probability to your team's advantage – let's say, up to 65%. Therefore, you get credited with that 15% difference. This is intuitive, and everyone is happy.
 
-But let's take a more counter-intuitive example. Say you are in a 1v5 situation and have only a 1% probability of winning the round. Then, you make an awesome 200 IQ play and manage to bring it to a 1v1. Now, we are roughly back to 50/50. This means that so far in the round, you have earned a whopping +49% round swing. But then you die to the last opponent. That means -50%, and you end the round with -1%, exactly the same as if you would have died without any kill. This feels unfair, right? You might have had **400+ damage** output this round, yet you still end with a negative swing rating. Does this really make sense?
+But let's take a more extreme and counter-intuitive example. Say you are in a 1v5 situation and have only a 1% probability of winning the round. Then, you make an awesome 200 IQ play and manage to bring it to a 1v1. Now, we are roughly back to 50/50. This means that so far in the round, you have earned a whopping +49% round swing. But then you die to the last opponent. That means -50%, and you end the round with -1%, exactly the same as if you would have died without any kill. This feels unfair, right? You might have had **400+ damage** output this round, yet you still end with a negative swing rating. Does this really make sense?
 
 Well, look at it this way: from the game's perspective, you lost the round. Winning the match means winning rounds. Factoring out economic impact (let's say the enemies had 16k before the round), it makes virtually no difference to the match outcome whether you died instantly or killed four people before going down. The enemies get a point on the board, and you get none either way. **The objective of the game is not to get kills – they are only a means to an end.** And round swing is an excellent way of highlighting that.
 
 Let's say the final score of the game was 13-7. The players' round swing score would highlight how much their contribution to that score was. The fact that a 1v5 clutch **almost** happened would not have changed the score. Even if the player went down without kills that round, the game would still have ended as 13-7.
 
 I would even argue that 1v1s are therefore not "overpowered" – they rather show how incredibly important these situations are for the outcome of the game. Once you get to that point, it's all or nothing, which is completely reasonable. It's high risk, high reward. But of course, it's also very important that the percentages are fair – I will discuss this more further down.
+
+Essentially, people conflict two different things. Its essentially down to the questions:
+
+Which players impacted the final score of 13-7 the most?
+Which players got the most output?
 
 Therefore, you simply **cannot** look at the scoreboard without seeing the game and say, _"But how can player X have a 1.02 rating while going 25-15 with 120 ADR? This rating system is broken!"_ The rating is completely dependent on the context of the kills, and thereby must be analyzed more closely. And that is a feature, not a bug.
 

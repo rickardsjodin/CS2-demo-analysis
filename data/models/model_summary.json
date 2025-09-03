@@ -1,0 +1,55 @@
+{
+  "models": {
+    "ensemble": {
+      "filename": "../../data/models/ct_win_probability_random_forest.pkl",
+      "accuracy": 0.7567755385684504,
+      "auc": 0.8492247613975121,
+      "log_loss": 0.4745605507626925,
+      "rank": 1
+    },
+    "neural_network": {
+      "filename": "../../data/models/ct_win_probability_xgboost.pkl",
+      "accuracy": 0.755733148019458,
+      "auc": 0.8491630622668602,
+      "log_loss": 0.4748835542049262,
+      "rank": 2
+    },
+    "lightgbm": {
+      "filename": "../../data/models/ct_win_probability_lightgbm.pkl",
+      "accuracy": 0.7560806115357888,
+      "auc": 0.8474521307416772,
+      "log_loss": 0.47953335444768486,
+      "rank": 3
+    },
+    "random_forest": {
+      "filename": "../../data/models/ct_win_probability_logistic_regression.pkl",
+      "accuracy": 0.7534746351633078,
+      "auc": 0.8449074683749278,
+      "log_loss": 0.48165721529365146,
+      "rank": 4
+    },
+    "logistic_regression": {
+      "filename": "../../data/models/ct_win_probability_neural_network.pkl",
+      "accuracy": 0.7534746351633078,
+      "auc": 0.8422654408780883,
+      "log_loss": 0.47456406353363906,
+      "rank": 5
+    },
+    "xgboost": {
+      "filename": "../../data/models/ct_win_probability_ensemble.pkl",
+      "accuracy": 0.7458304378040306,
+      "auc": 0.8391789601574815,
+      "log_loss": 0.4938780662824127,
+      "rank": 6
+    }
+  },
+  "best_model": "ensemble",
+  "feature_columns": [
+    "round_time_left",
+    "bomb_time_left",
+    "cts_alive",
+    "ts_alive",
+    "bomb_planted"
+  ],
+  "total_models": 6
+}
