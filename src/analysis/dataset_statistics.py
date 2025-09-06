@@ -376,6 +376,7 @@ def create_time_distribution_plot(df):
     plt.title('T Win Rate by Time Left')
     plt.grid(True, alpha=0.3)
     plt.ylim(0, 100)
+    plt.xlim(115, 0)  # Reverse x-axis: time 0 on the right
     
     # Plot 3: Player count distribution
     plt.subplot(2, 2, 3)
@@ -410,6 +411,246 @@ def create_time_distribution_plot(df):
     plt.close()
     
     print("📊 Time analysis plots saved: ../../outputs/visualizations/dataset_time_analysis.png")
+
+def create_time_vs_probability_scenarios(df):
+    """Create time-against-probability plots for multiple scenarios in one plot"""
+    
+    plt.figure(figsize=(16, 12))
+    
+    # Define interesting scenarios to plot
+    scenarios = [
+        {'cts': 5, 'ts': 5, 'bomb': False, 'label': '5v5 No Bomb', 'color': '#1f77b4', 'linestyle': '-'},
+        {'cts': 5, 'ts': 5, 'bomb': True, 'label': '5v5 Post-Plant', 'color': '#ff7f0e', 'linestyle': '-'},
+        {'cts': 4, 'ts': 4, 'bomb': False, 'label': '4v4 No Bomb', 'color': '#2ca02c', 'linestyle': '--'},
+        {'cts': 4, 'ts': 4, 'bomb': True, 'label': '4v4 Post-Plant', 'color': '#d62728', 'linestyle': '--'},
+        {'cts': 3, 'ts': 3, 'bomb': False, 'label': '3v3 No Bomb', 'color': '#9467bd', 'linestyle': '-.'},
+        {'cts': 3, 'ts': 3, 'bomb': True, 'label': '3v3 Post-Plant', 'color': '#8c564b', 'linestyle': '-.'},
+        {'cts': 2, 'ts': 2, 'bomb': False, 'label': '2v2 No Bomb', 'color': '#e377c2', 'linestyle': ':'},
+        {'cts': 2, 'ts': 2, 'bomb': True, 'label': '2v2 Post-Plant', 'color': '#7f7f7f', 'linestyle': ':'},
+    ]
+    
+    # Create main plot
+    plt.subplot(2, 2, 1)
+    
+    for scenario in scenarios:
+        # Filter data for this scenario
+        scenario_data = df[
+            (df['cts_alive'] == scenario['cts']) & 
+            (df['ts_alive'] == scenario['ts']) & 
+            (df['bomb_planted'] == scenario['bomb'])
+        ]
+        
+        if len(scenario_data) < 20:  # Skip scenarios with insufficient data
+            continue
+            
+        # Bin time into 10-second intervals for smoother curves
+        time_bins = np.arange(0, 116, 10)
+        scenario_data_copy = scenario_data.copy()
+        scenario_data_copy['time_bin'] = pd.cut(scenario_data_copy['time_left'], bins=time_bins)
+        
+        # Calculate CT win rate for each time bin
+        time_probabilities = []
+        time_centers = []
+        
+        for time_bin in scenario_data_copy['time_bin'].cat.categories:
+            if pd.isna(time_bin):
+                continue
+                
+            bin_data = scenario_data_copy[scenario_data_copy['time_bin'] == time_bin]
+            if len(bin_data) >= 5:  # Only include bins with sufficient data
+                ct_win_rate = (bin_data['winner'] == 'ct').mean() * 100
+                time_center = (time_bin.left + time_bin.right) / 2
+                time_probabilities.append(ct_win_rate)
+                time_centers.append(time_center)
+        
+        if len(time_centers) >= 3:  # Need at least 3 points to plot
+            plt.plot(time_centers, time_probabilities, 
+                    label=scenario['label'], 
+                    color=scenario['color'],
+                    linestyle=scenario['linestyle'],
+                    linewidth=2.5,
+                    marker='o',
+                    markersize=4,
+                    alpha=0.8)
+    
+    plt.xlabel('Time Left (seconds)', fontweight='bold')
+    plt.ylabel('CT Win Probability (%)', fontweight='bold')
+    plt.title('CT Win Probability vs Time - Multiple Scenarios', fontsize=14, fontweight='bold')
+    plt.grid(True, alpha=0.3)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.ylim(0, 100)
+    plt.xlim(115, 0)  # Reverse x-axis: time 0 on the right
+    
+    # Create subplot 2: Player advantage scenarios
+    plt.subplot(2, 2, 2)
+    
+    advantage_scenarios = [
+        {'cts': 5, 'ts': 4, 'bomb': False, 'label': 'CT +1 (5v4)', 'color': '#1f77b4'},
+        {'cts': 4, 'ts': 5, 'bomb': False, 'label': 'T +1 (4v5)', 'color': '#ff7f0e'},
+        {'cts': 5, 'ts': 3, 'bomb': False, 'label': 'CT +2 (5v3)', 'color': '#2ca02c'},
+        {'cts': 3, 'ts': 5, 'bomb': False, 'label': 'T +2 (3v5)', 'color': '#d62728'},
+    ]
+    
+    for scenario in advantage_scenarios:
+        scenario_data = df[
+            (df['cts_alive'] == scenario['cts']) & 
+            (df['ts_alive'] == scenario['ts']) & 
+            (df['bomb_planted'] == scenario['bomb'])
+        ]
+        
+        if len(scenario_data) < 15:
+            continue
+            
+        time_bins = np.arange(0, 116, 15)
+        scenario_data_copy = scenario_data.copy()
+        scenario_data_copy['time_bin'] = pd.cut(scenario_data_copy['time_left'], bins=time_bins)
+        
+        time_probabilities = []
+        time_centers = []
+        
+        for time_bin in scenario_data_copy['time_bin'].cat.categories:
+            if pd.isna(time_bin):
+                continue
+                
+            bin_data = scenario_data_copy[scenario_data_copy['time_bin'] == time_bin]
+            if len(bin_data) >= 3:
+                ct_win_rate = (bin_data['winner'] == 'ct').mean() * 100
+                time_center = (time_bin.left + time_bin.right) / 2
+                time_probabilities.append(ct_win_rate)
+                time_centers.append(time_center)
+        
+        if len(time_centers) >= 2:
+            plt.plot(time_centers, time_probabilities, 
+                    label=scenario['label'], 
+                    color=scenario['color'],
+                    linewidth=2.5,
+                    marker='s',
+                    markersize=5,
+                    alpha=0.8)
+    
+    plt.xlabel('Time Left (seconds)', fontweight='bold')
+    plt.ylabel('CT Win Probability (%)', fontweight='bold')
+    plt.title('CT Win Probability vs Time - Player Advantages', fontsize=14, fontweight='bold')
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.ylim(0, 100)
+    plt.xlim(115, 0)  # Reverse x-axis: time 0 on the right
+    
+    # Create subplot 3: Clutch scenarios
+    plt.subplot(2, 2, 3)
+    
+    clutch_scenarios = [
+        {'cts': 1, 'ts': 1, 'bomb': False, 'label': '1v1 No Bomb', 'color': '#9467bd'},
+        {'cts': 1, 'ts': 1, 'bomb': True, 'label': '1v1 Post-Plant', 'color': '#8c564b'},
+        {'cts': 1, 'ts': 2, 'bomb': False, 'label': '1v2 CT Clutch', 'color': '#e377c2'},
+        {'cts': 2, 'ts': 1, 'bomb': False, 'label': '1v2 T Clutch', 'color': '#7f7f7f'},
+    ]
+    
+    for scenario in clutch_scenarios:
+        scenario_data = df[
+            (df['cts_alive'] == scenario['cts']) & 
+            (df['ts_alive'] == scenario['ts']) & 
+            (df['bomb_planted'] == scenario['bomb'])
+        ]
+        
+        if len(scenario_data) < 10:
+            continue
+            
+        time_bins = np.arange(0, 116, 20)
+        scenario_data_copy = scenario_data.copy()
+        scenario_data_copy['time_bin'] = pd.cut(scenario_data_copy['time_left'], bins=time_bins)
+        
+        time_probabilities = []
+        time_centers = []
+        
+        for time_bin in scenario_data_copy['time_bin'].cat.categories:
+            if pd.isna(time_bin):
+                continue
+                
+            bin_data = scenario_data_copy[scenario_data_copy['time_bin'] == time_bin]
+            if len(bin_data) >= 2:
+                ct_win_rate = (bin_data['winner'] == 'ct').mean() * 100
+                time_center = (time_bin.left + time_bin.right) / 2
+                time_probabilities.append(ct_win_rate)
+                time_centers.append(time_center)
+        
+        if len(time_centers) >= 2:
+            plt.plot(time_centers, time_probabilities, 
+                    label=scenario['label'], 
+                    color=scenario['color'],
+                    linewidth=2.5,
+                    marker='^',
+                    markersize=6,
+                    alpha=0.8)
+    
+    plt.xlabel('Time Left (seconds)', fontweight='bold')
+    plt.ylabel('CT Win Probability (%)', fontweight='bold')
+    plt.title('CT Win Probability vs Time - Clutch Scenarios', fontsize=14, fontweight='bold')
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.ylim(0, 100)
+    plt.xlim(115, 0)  # Reverse x-axis: time 0 on the right
+    
+    # Create subplot 4: Bomb impact comparison
+    plt.subplot(2, 2, 4)
+    
+    bomb_comparison_scenarios = [
+        {'cts': 5, 'ts': 5, 'label': '5v5', 'color': '#1f77b4'},
+        {'cts': 4, 'ts': 4, 'label': '4v4', 'color': '#ff7f0e'},
+        {'cts': 3, 'ts': 3, 'label': '3v3', 'color': '#2ca02c'},
+    ]
+    
+    for scenario in bomb_comparison_scenarios:
+        # No bomb data
+        no_bomb_data = df[
+            (df['cts_alive'] == scenario['cts']) & 
+            (df['ts_alive'] == scenario['ts']) & 
+            (df['bomb_planted'] == False)
+        ]
+        
+        # Post-plant data
+        bomb_data = df[
+            (df['cts_alive'] == scenario['cts']) & 
+            (df['ts_alive'] == scenario['ts']) & 
+            (df['bomb_planted'] == True)
+        ]
+        
+        if len(no_bomb_data) >= 10 and len(bomb_data) >= 5:
+            # Calculate overall win rates for comparison
+            no_bomb_ct_rate = (no_bomb_data['winner'] == 'ct').mean() * 100
+            bomb_ct_rate = (bomb_data['winner'] == 'ct').mean() * 100
+            
+            # Simple bar comparison
+            x_pos = list(bomb_comparison_scenarios).index(scenario)
+            plt.bar(x_pos - 0.2, no_bomb_ct_rate, 0.4, label=f'{scenario["label"]} No Bomb' if x_pos == 0 else "", 
+                   color=scenario['color'], alpha=0.7)
+            plt.bar(x_pos + 0.2, bomb_ct_rate, 0.4, label=f'{scenario["label"]} Post-Plant' if x_pos == 0 else "", 
+                   color=scenario['color'], alpha=0.4, hatch='///')
+            
+            # Add difference annotation
+            diff = bomb_ct_rate - no_bomb_ct_rate
+            plt.text(x_pos, max(no_bomb_ct_rate, bomb_ct_rate) + 5, f'{diff:+.1f}%', 
+                    ha='center', fontweight='bold', fontsize=10)
+    
+    plt.xlabel('Scenario', fontweight='bold')
+    plt.ylabel('CT Win Probability (%)', fontweight='bold')
+    plt.title('Bomb Impact on CT Win Probability', fontsize=14, fontweight='bold')
+    plt.xticks(range(len(bomb_comparison_scenarios)), [s['label'] for s in bomb_comparison_scenarios])
+    plt.ylim(0, 100)
+    plt.grid(True, alpha=0.3, axis='y')
+    
+    # Create custom legend for the bomb comparison
+    no_bomb_patch = plt.Rectangle((0, 0), 1, 1, facecolor='gray', alpha=0.7, label='No Bomb')
+    bomb_patch = plt.Rectangle((0, 0), 1, 1, facecolor='gray', alpha=0.4, hatch='///', label='Post-Plant')
+    plt.legend(handles=[no_bomb_patch, bomb_patch], loc='upper right')
+    
+    plt.tight_layout()
+    plt.savefig('../../outputs/visualizations/time_vs_probability_scenarios.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print("📊 Time vs Probability scenarios plot saved: ../../outputs/visualizations/time_vs_probability_scenarios.png")
+    
+    return True
 
 def generate_comprehensive_report(df, scenarios_df, basic_stats):
     """Generate a comprehensive text report"""
@@ -572,6 +813,9 @@ def main():
     
     # Time analysis plots
     create_time_distribution_plot(df)
+    
+    # Time vs probability scenarios
+    create_time_vs_probability_scenarios(df)
     
     # Additional analyses
     analyze_bomb_impact(df)

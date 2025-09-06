@@ -8,9 +8,10 @@ import os
 import json
 from pathlib import Path
 from tqdm import tqdm
+from ..utils.common import get_project_root
 
 
-project_root = Path(__file__).parent.parent.parent
+project_root = get_project_root()
 sys.path.insert(0, str(project_root))
 from src.core.snapshot_extractor import extract_snapshots_to_json
 

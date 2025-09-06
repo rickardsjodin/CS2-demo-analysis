@@ -106,9 +106,6 @@ def load_all_trained_models():
     # Load individual models
     for model_name, model_info in model_summary['models'].items():
         # Skip XGBoost for now due to calibration issues
-        if model_name == 'xgboost':
-            print(f"⚠️  Skipping {model_name} due to calibration issues")
-            continue
             
         try:
             model_path = model_info['filename']
@@ -127,22 +124,22 @@ def load_all_trained_models():
             print(f"❌ Failed to load {model_name}: {e}")
     
     # Load ensemble model if available
-    try:
-        ensemble_data = joblib.load('../../data/models/ct_win_probability_ensemble.pkl')
-        models['ensemble'] = {
-            'data': ensemble_data,
-            'performance': {
-                'accuracy': ensemble_data['accuracy'],
-                'auc': ensemble_data['auc'],
-                'log_loss': ensemble_data['log_loss'],
-                'rank': 0  # Special rank for ensemble
-            }
-        }
-        print(f"✅ Loaded ensemble model (AUC: {ensemble_data['auc']:.3f})")
-    except FileNotFoundError:
-        print("ℹ️  No ensemble model found")
-    except Exception as e:
-        print(f"❌ Failed to load ensemble: {e}")
+    # try:
+    #     ensemble_data = joblib.load('../../data/models/ct_win_probability_ensemble.pkl')
+    #     models['ensemble'] = {
+    #         'data': ensemble_data,
+    #         'performance': {
+    #             'accuracy': ensemble_data['accuracy'],
+    #             'auc': ensemble_data['auc'],
+    #             'log_loss': ensemble_data['log_loss'],
+    #             'rank': 0  # Special rank for ensemble
+    #         }
+    #     }
+    #     print(f"✅ Loaded ensemble model (AUC: {ensemble_data['auc']:.3f})")
+    # except FileNotFoundError:
+    #     print("ℹ️  No ensemble model found")
+    # except Exception as e:
+    #     print(f"❌ Failed to load ensemble: {e}")
     
     return models
 
@@ -212,6 +209,7 @@ def predict_with_model(model_data, time_left, cts_alive, ts_alive, bomb_planted)
     if model is not None:
         ct_win_prob = model.predict_proba(X)[0, 1]
     else:
+        print('[NOT USING CALIBRATED MODEL]')
         # Fallback to original model if calibrated model is None
         original_model = model_data.get('original_model')
         if original_model is not None:
@@ -252,10 +250,6 @@ def run_all_model_predictions(scenarios, models):
     print(f"🔮 Running predictions with {len(models)} models...")
     
     for model_name, model_info in models.items():
-        # Skip XGBoost due to calibration issues
-        if model_name == 'xgboost':
-            print(f"   Skipping {model_name} (calibration issues)")
-            continue
             
         print(f"   Running {model_name}...")
         predictions = []
@@ -826,6 +820,251 @@ def create_detailed_test_report(scenarios, ml_predictions, baseline_predictions)
                 else:
                     print("   ⚠️ ML model outside expected range")
 
+def create_time_vs_probability_plots_for_models(models, dataset_probs):
+    """Create time vs probability plots for each model, similar to dataset_statistics.py"""
+    
+    print("\n🎨 Creating time vs probability plots for each model...")
+    
+    # Define time points to test
+    time_points = list(range(5, 116, 5))  # Every 5 seconds from 5 to 115
+    
+    # Define scenarios to plot
+    scenarios = [
+        {'cts': 5, 'ts': 5, 'bomb': False, 'label': '5v5 No Bomb', 'color': '#1f77b4', 'linestyle': '-'},
+        {'cts': 5, 'ts': 5, 'bomb': True, 'label': '5v5 Post-Plant', 'color': '#ff7f0e', 'linestyle': '-'},
+        {'cts': 4, 'ts': 4, 'bomb': False, 'label': '4v4 No Bomb', 'color': '#2ca02c', 'linestyle': '--'},
+        {'cts': 4, 'ts': 4, 'bomb': True, 'label': '4v4 Post-Plant', 'color': '#d62728', 'linestyle': '--'},
+        {'cts': 3, 'ts': 3, 'bomb': False, 'label': '3v3 No Bomb', 'color': '#9467bd', 'linestyle': '-.'},
+        {'cts': 3, 'ts': 3, 'bomb': True, 'label': '3v3 Post-Plant', 'color': '#8c564b', 'linestyle': '-.'},
+        {'cts': 2, 'ts': 2, 'bomb': False, 'label': '2v2 No Bomb', 'color': '#e377c2', 'linestyle': ':'},
+        {'cts': 2, 'ts': 2, 'bomb': True, 'label': '2v2 Post-Plant', 'color': '#7f7f7f', 'linestyle': ':'},
+    ]
+    
+    # Generate predictions for each model
+    for model_name, model_info in models.items():
+        print(f"   Creating time vs probability plot for {model_name}...")
+        
+        plt.figure(figsize=(20, 16))
+        
+        # Subplot 1: Main scenarios
+        plt.subplot(2, 2, 1)
+        
+        for scenario in scenarios:
+            time_centers = []
+            model_probabilities = []
+            
+            for time_left in time_points:
+                # Skip invalid bomb scenarios (bomb timer can't be > 40 seconds)
+                if scenario['bomb'] and time_left > 40:
+                    continue
+                
+                try:
+                    if model_name == 'ensemble':
+                        pred = predict_with_ensemble(models, time_left, scenario['cts'], scenario['ts'], scenario['bomb'])
+                    else:
+                        pred = predict_with_model(model_info['data'], time_left, scenario['cts'], scenario['ts'], scenario['bomb'])
+                    
+                    ct_win_prob = pred * 100
+                    time_centers.append(time_left)
+                    model_probabilities.append(ct_win_prob)
+                    
+                except Exception as e:
+                    continue  # Skip this time point if prediction fails
+            
+            if len(time_centers) >= 3:  # Need at least 3 points to plot
+                plt.plot(time_centers, model_probabilities, 
+                        label=scenario['label'], 
+                        color=scenario['color'],
+                        linestyle=scenario['linestyle'],
+                        linewidth=2.5,
+                        marker='o',
+                        markersize=4,
+                        alpha=0.8)
+        
+        plt.xlabel('Time Left (seconds)', fontweight='bold')
+        plt.ylabel('CT Win Probability (%)', fontweight='bold')
+        plt.title(f'CT Win Probability vs Time - {model_name.replace("_", " ").title()}', fontsize=14, fontweight='bold')
+        plt.grid(True, alpha=0.3)
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.ylim(0, 100)
+        plt.xlim(115, 0)  # Reverse x-axis: time 0 on the right
+        
+        # Subplot 2: Player advantage scenarios
+        plt.subplot(2, 2, 2)
+        
+        advantage_scenarios = [
+            {'cts': 5, 'ts': 4, 'bomb': False, 'label': 'CT +1 (5v4)', 'color': '#1f77b4'},
+            {'cts': 4, 'ts': 5, 'bomb': False, 'label': 'T +1 (4v5)', 'color': '#ff7f0e'},
+            {'cts': 5, 'ts': 3, 'bomb': False, 'label': 'CT +2 (5v3)', 'color': '#2ca02c'},
+            {'cts': 3, 'ts': 5, 'bomb': False, 'label': 'T +2 (3v5)', 'color': '#d62728'},
+        ]
+        
+        for scenario in advantage_scenarios:
+            time_centers = []
+            model_probabilities = []
+            
+            for time_left in time_points:
+                try:
+                    if model_name == 'ensemble':
+                        pred = predict_with_ensemble(models, time_left, scenario['cts'], scenario['ts'], scenario['bomb'])
+                    else:
+                        pred = predict_with_model(model_info['data'], time_left, scenario['cts'], scenario['ts'], scenario['bomb'])
+                    
+                    ct_win_prob = pred * 100
+                    time_centers.append(time_left)
+                    model_probabilities.append(ct_win_prob)
+                    
+                except Exception as e:
+                    continue
+            
+            if len(time_centers) >= 3:
+                plt.plot(time_centers, model_probabilities, 
+                        label=scenario['label'], 
+                        color=scenario['color'],
+                        linewidth=2.5,
+                        marker='s',
+                        markersize=5,
+                        alpha=0.8)
+        
+        plt.xlabel('Time Left (seconds)', fontweight='bold')
+        plt.ylabel('CT Win Probability (%)', fontweight='bold')
+        plt.title(f'CT Win Probability vs Time - Player Advantages - {model_name.replace("_", " ").title()}', fontsize=14, fontweight='bold')
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+        plt.ylim(0, 100)
+        plt.xlim(115, 0)
+        
+        # Subplot 3: Clutch scenarios
+        plt.subplot(2, 2, 3)
+        
+        clutch_scenarios = [
+            {'cts': 1, 'ts': 1, 'bomb': False, 'label': '1v1 No Bomb', 'color': '#9467bd'},
+            {'cts': 1, 'ts': 1, 'bomb': True, 'label': '1v1 Post-Plant', 'color': '#8c564b'},
+            {'cts': 1, 'ts': 2, 'bomb': False, 'label': '1v2 CT Clutch', 'color': '#e377c2'},
+            {'cts': 2, 'ts': 1, 'bomb': False, 'label': '1v2 T Clutch', 'color': '#7f7f7f'},
+        ]
+        
+        for scenario in clutch_scenarios:
+            time_centers = []
+            model_probabilities = []
+            
+            for time_left in time_points:
+                # Skip invalid bomb scenarios
+                if scenario['bomb'] and time_left > 40:
+                    continue
+                    
+                try:
+                    if model_name == 'ensemble':
+                        pred = predict_with_ensemble(models, time_left, scenario['cts'], scenario['ts'], scenario['bomb'])
+                    else:
+                        pred = predict_with_model(model_info['data'], time_left, scenario['cts'], scenario['ts'], scenario['bomb'])
+                    
+                    ct_win_prob = pred * 100
+                    time_centers.append(time_left)
+                    model_probabilities.append(ct_win_prob)
+                    
+                except Exception as e:
+                    continue
+            
+            if len(time_centers) >= 3:
+                plt.plot(time_centers, model_probabilities, 
+                        label=scenario['label'], 
+                        color=scenario['color'],
+                        linewidth=2.5,
+                        marker='^',
+                        markersize=6,
+                        alpha=0.8)
+        
+        plt.xlabel('Time Left (seconds)', fontweight='bold')
+        plt.ylabel('CT Win Probability (%)', fontweight='bold')
+        plt.title(f'CT Win Probability vs Time - Clutch Scenarios - {model_name.replace("_", " ").title()}', fontsize=14, fontweight='bold')
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+        plt.ylim(0, 100)
+        plt.xlim(115, 0)
+        
+        # Subplot 4: Model vs Dataset comparison for 3v3 scenarios
+        plt.subplot(2, 2, 4)
+        
+        # Compare model predictions to dataset statistics for 3v3 scenarios
+        comparison_scenarios = [
+            {'cts': 3, 'ts': 3, 'bomb': False, 'label': '3v3 No Bomb'},
+            {'cts': 3, 'ts': 3, 'bomb': True, 'label': '3v3 Post-Plant'},
+        ]
+        
+        for scenario in comparison_scenarios:
+            model_time_centers = []
+            model_probabilities = []
+            dataset_probabilities = []
+            
+            for time_left in time_points:
+                # Skip invalid bomb scenarios
+                if scenario['bomb'] and time_left > 40:
+                    continue
+                
+                try:
+                    # Get model prediction
+                    if model_name == 'ensemble':
+                        model_pred = predict_with_ensemble(models, time_left, scenario['cts'], scenario['ts'], scenario['bomb'])
+                    else:
+                        model_pred = predict_with_model(model_info['data'], time_left, scenario['cts'], scenario['ts'], scenario['bomb'])
+                    
+                    # Get dataset baseline prediction
+                    try:
+                        dataset_pred = get_dataset_baseline_prediction(time_left, scenario['cts'], scenario['ts'], scenario['bomb'], dataset_probs)
+                        
+                        model_time_centers.append(time_left)
+                        model_probabilities.append(model_pred * 100)
+                        dataset_probabilities.append(dataset_pred * 100)
+                        
+                    except KeyError:
+                        # No dataset statistics for this scenario
+                        continue
+                        
+                except Exception as e:
+                    continue
+            
+            if len(model_time_centers) >= 3:
+                # Plot model predictions
+                color = '#1f77b4' if not scenario['bomb'] else '#ff7f0e'
+                linestyle = '-' if not scenario['bomb'] else '--'
+                
+                plt.plot(model_time_centers, model_probabilities, 
+                        label=f'{scenario["label"]} - {model_name.replace("_", " ").title()}', 
+                        color=color,
+                        linestyle=linestyle,
+                        linewidth=2.5,
+                        marker='o',
+                        markersize=4,
+                        alpha=0.8)
+                
+                # Plot dataset predictions
+                plt.plot(model_time_centers, dataset_probabilities, 
+                        label=f'{scenario["label"]} - Dataset', 
+                        color=color,
+                        linestyle=':',
+                        linewidth=2.0,
+                        marker='x',
+                        markersize=6,
+                        alpha=0.6)
+        
+        plt.xlabel('Time Left (seconds)', fontweight='bold')
+        plt.ylabel('CT Win Probability (%)', fontweight='bold')
+        plt.title(f'Model vs Dataset Comparison - {model_name.replace("_", " ").title()}', fontsize=14, fontweight='bold')
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+        plt.ylim(0, 100)
+        plt.xlim(115, 0)
+        
+        plt.tight_layout()
+        filename = f'../../outputs/visualizations/time_vs_probability_{model_name}.png'
+        plt.savefig(filename, dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        print(f"📊 Time vs probability plot for {model_name} saved: {filename}")
+    
+    print("✅ All time vs probability plots created successfully!")
+
 def main():
     """Main function to run all tests and create visualizations"""
     
@@ -1004,7 +1243,7 @@ def main():
                 print(f"❌ Error creating difference heatmap for {model_name}: {e}")
     
     # Bomb scenario heatmaps for top models
-    top_models = sorted(model_names, key=lambda x: all_models[x]['performance']['rank'] if all_models[x]['performance']['rank'] > 0 else 999)[:3]
+    top_models = sorted(model_names, key=lambda x: all_models[x]['performance']['rank'] if all_models[x]['performance']['rank'] > 0 else 999)
     for model_name in top_models:
         pred_col = f'{model_name}_prediction'
         if pred_col in df.columns:
@@ -1012,6 +1251,12 @@ def main():
                 create_bomb_scenario_heatmap(df, pred_col, model_name)
             except Exception as e:
                 print(f"❌ Error creating bomb heatmap for {model_name}: {e}")
+    
+    # Create time vs probability plots for each model
+    try:
+        create_time_vs_probability_plots_for_models(all_models, dataset_probs)
+    except Exception as e:
+        print(f"❌ Error creating time vs probability plots: {e}")
     
     # Save model comparison summary
     summary_data = []

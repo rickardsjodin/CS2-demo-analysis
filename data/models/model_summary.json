@@ -1,49 +1,35 @@
 {
   "models": {
-    "ensemble": {
-      "filename": "../../data/models/ct_win_probability_random_forest.pkl",
-      "accuracy": 0.7567755385684504,
-      "auc": 0.8492247613975121,
-      "log_loss": 0.4745605507626925,
+    "lightgbm": {
+      "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_lightgbm.pkl",
+      "accuracy": 0.7552119527449618,
+      "auc": 0.8490817925621575,
+      "log_loss": 0.47436894894202714,
       "rank": 1
     },
-    "neural_network": {
-      "filename": "../../data/models/ct_win_probability_xgboost.pkl",
-      "accuracy": 0.755733148019458,
-      "auc": 0.8491630622668602,
-      "log_loss": 0.4748835542049262,
+    "xgboost": {
+      "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_xgboost.pkl",
+      "accuracy": 0.7552119527449618,
+      "auc": 0.8486372783708699,
+      "log_loss": 0.4744185462206835,
       "rank": 2
     },
-    "lightgbm": {
-      "filename": "../../data/models/ct_win_probability_lightgbm.pkl",
-      "accuracy": 0.7560806115357888,
-      "auc": 0.8474521307416772,
-      "log_loss": 0.47953335444768486,
+    "random_forest": {
+      "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_random_forest.pkl",
+      "accuracy": 0.7512161223071577,
+      "auc": 0.8431894036498572,
+      "log_loss": 0.47543014412768364,
       "rank": 3
     },
-    "random_forest": {
-      "filename": "../../data/models/ct_win_probability_logistic_regression.pkl",
-      "accuracy": 0.7534746351633078,
-      "auc": 0.8449074683749278,
-      "log_loss": 0.48165721529365146,
-      "rank": 4
-    },
     "logistic_regression": {
-      "filename": "../../data/models/ct_win_probability_neural_network.pkl",
+      "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_logistic_regression.pkl",
       "accuracy": 0.7534746351633078,
       "auc": 0.8422654408780883,
       "log_loss": 0.47456406353363906,
-      "rank": 5
-    },
-    "xgboost": {
-      "filename": "../../data/models/ct_win_probability_ensemble.pkl",
-      "accuracy": 0.7458304378040306,
-      "auc": 0.8391789601574815,
-      "log_loss": 0.4938780662824127,
-      "rank": 6
+      "rank": 4
     }
   },
-  "best_model": "ensemble",
+  "best_model": "lightgbm",
   "feature_columns": [
     "round_time_left",
     "bomb_time_left",
@@ -51,5 +37,5 @@
     "ts_alive",
     "bomb_planted"
   ],
-  "total_models": 6
+  "total_models": 4
 }

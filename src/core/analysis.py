@@ -6,6 +6,7 @@ import pandas as pd
 import polars as pl
 from collections import defaultdict
 from .win_probability import get_win_probability, calculate_impact_score
+from ..utils.common import ensure_pandas
 
 
 def get_player_kill_death_analysis(dem, player_name, debug=False):
@@ -29,11 +30,8 @@ def get_player_kill_death_analysis(dem, player_name, debug=False):
         return None
     
     # Convert Polars to pandas if needed
-    if isinstance(kills, pl.DataFrame):
-        kills = kills.to_pandas()
-    
-    if bomb_events is not None and isinstance(bomb_events, pl.DataFrame):
-        bomb_events = bomb_events.to_pandas()
+    kills = ensure_pandas(kills)
+    bomb_events = ensure_pandas(bomb_events)
     
     # Initialize round statistics
     round_stats = defaultdict(lambda: {
