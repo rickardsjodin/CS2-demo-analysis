@@ -66,7 +66,7 @@ def load_and_prepare_data(json_file=None):
     """Load snapshots and prepare features for ML training"""
     
     if json_file is None:
-        json_file = PROJECT_ROOT / "data" / "datasets" / "all_snapshots.json"
+        json_file = PROJECT_ROOT / "data" / "datasets" / "all_snapshots3.json"
     
     print(f"📊 Loading data from {json_file}...")
     with open(json_file, 'r') as f:
@@ -171,7 +171,7 @@ def train_models(X, y):
         
         # Calibrate Random Forest
         print("   🎯 Calibrating Random Forest probabilities...")
-        rf_calibrated = CalibratedClassifierCV(rf_model, method='isotonic', cv=5)
+        rf_calibrated = rf_model # CalibratedClassifierCV(rf_model, method='isotonic', cv=5)
         rf_calibrated.fit(X_train, y_train)
         
         # Get calibrated probabilities
@@ -237,7 +237,7 @@ def train_models(X, y):
             xgb_model.fit(X_train, y_train)
             # Calibrate XGBoost
             print("   🎯 Calibrating XGBoost probabilities...")
-            xgb_calibrated = CalibratedClassifierCV(xgb_model, method='sigmoid', cv=5)
+            xgb_calibrated = xgb_model# CalibratedClassifierCV(xgb_model, method='sigmoid', cv=5)
             xgb_calibrated.fit(X_train, y_train)
             
             xgb_pred = xgb_calibrated.predict(X_test)
@@ -274,7 +274,7 @@ def train_models(X, y):
             
             # Calibrate LightGBM
             print("   🎯 Calibrating LightGBM probabilities...")
-            lgb_calibrated = CalibratedClassifierCV(lgb_model, method='sigmoid', cv=5)
+            lgb_calibrated = lgb_model# CalibratedClassifierCV(lgb_model, method='sigmoid', cv=5)
             lgb_calibrated.fit(X_train, y_train)
             
             lgb_pred = lgb_calibrated.predict(X_test)
@@ -305,7 +305,7 @@ def train_models(X, y):
         
         # Calibrate Logistic Regression
         print("   🎯 Calibrating Logistic Regression probabilities...")
-        lr_calibrated = CalibratedClassifierCV(lr_model, method='sigmoid', cv=5)
+        lr_calibrated = lr_model# CalibratedClassifierCV(lr_model, method='sigmoid', cv=5)
         lr_calibrated.fit(X_train_scaled, y_train)
         
         lr_pred = lr_calibrated.predict(X_test_scaled)
@@ -335,7 +335,7 @@ def train_models(X, y):
         
         # Calibrate Neural Network
         print("   🎯 Calibrating Neural Network probabilities...")
-        mlp_calibrated = CalibratedClassifierCV(mlp_model, method='sigmoid', cv=5)
+        mlp_calibrated =  CalibratedClassifierCV(mlp_model, method='sigmoid', cv=5)
         mlp_calibrated.fit(X_train_scaled, y_train)
         
         mlp_pred = mlp_calibrated.predict(X_test_scaled)

@@ -1,35 +1,35 @@
 {
   "models": {
-    "lightgbm": {
-      "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_lightgbm.pkl",
-      "accuracy": 0.7552119527449618,
-      "auc": 0.8490817925621575,
-      "log_loss": 0.47436894894202714,
-      "rank": 1
-    },
     "xgboost": {
       "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_xgboost.pkl",
-      "accuracy": 0.7552119527449618,
-      "auc": 0.8486372783708699,
-      "log_loss": 0.4744185462206835,
-      "rank": 2
+      "accuracy": 0.7527772718994719,
+      "auc": 0.8529627608540433,
+      "log_loss": 0.4635763537897383,
+      "rank": 1
     },
-    "random_forest": {
-      "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_random_forest.pkl",
-      "accuracy": 0.7512161223071577,
-      "auc": 0.8431894036498572,
-      "log_loss": 0.47543014412768364,
-      "rank": 3
+    "lightgbm": {
+      "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_lightgbm.pkl",
+      "accuracy": 0.7515024585685668,
+      "auc": 0.8523082334978187,
+      "log_loss": 0.46459554960108185,
+      "rank": 2
     },
     "logistic_regression": {
       "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_logistic_regression.pkl",
-      "accuracy": 0.7534746351633078,
-      "auc": 0.8422654408780883,
-      "log_loss": 0.47456406353363906,
+      "accuracy": 0.7505008195228556,
+      "auc": 0.8483550483444573,
+      "log_loss": 0.47076817920571,
+      "rank": 3
+    },
+    "random_forest": {
+      "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_random_forest.pkl",
+      "accuracy": 0.75195774904389,
+      "auc": 0.8479728698610112,
+      "log_loss": 0.47198345787656876,
       "rank": 4
     }
   },
-  "best_model": "lightgbm",
+  "best_model": "xgboost",
   "feature_columns": [
     "round_time_left",
     "bomb_time_left",

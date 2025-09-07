@@ -148,11 +148,11 @@ def train_xgboost_minimal(X, y, feature_columns):
     )
     # Calibrate XGBoost
     print("   🎯 Calibrating XGBoost probabilities...")
-    xgb_calibrated = CalibratedClassifierCV(xgb_model, method='isotonic', cv=5)
-    xgb_calibrated.fit(X_train, y_train)
+    # xgb_calibrated = CalibratedClassifierCV(xgb_model, method='isotonic', cv=5)
+    xgb_model.fit(X_train, y_train)
     
-    xgb_pred = xgb_calibrated.predict(X_test)
-    xgb_pred_proba = xgb_calibrated.predict_proba(X_test)[:, 1]
+    xgb_pred = xgb_model.predict(X_test)
+    xgb_pred_proba = xgb_model.predict_proba(X_test)[:, 1]
     
     accuracy = accuracy_score(y_test, xgb_pred)
     auc = roc_auc_score(y_test, xgb_pred_proba)
@@ -165,7 +165,7 @@ def train_xgboost_minimal(X, y, feature_columns):
     
     # Save the model
     model_data = {
-        'model': xgb_calibrated,
+        'model': xgb_model,
         'scaler': None, # No scaler used in this minimal setup
         'feature_columns': feature_columns,
         'model_type': 'xgboost_minimal',
@@ -185,7 +185,7 @@ def train_xgboost_minimal(X, y, feature_columns):
     joblib.dump(model_data, model_filename)
     print(f"\n💾 Saved minimal XGBoost model as '{model_filename}'")
     
-    return xgb_calibrated
+    return xgb_model
 
 def test_model_against_summary(model):
     import os

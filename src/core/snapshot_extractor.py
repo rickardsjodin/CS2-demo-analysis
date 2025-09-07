@@ -5,14 +5,23 @@ Minimal, concise code for extracting tick-based snapshots for ML training
 
 import json
 import os
+import pickle
 import pandas as pd
 import polars as pl
-from ..utils.cache_utils import load_demo
+from tqdm import tqdm
+try:
+    from ..utils.cache_utils import CACHE_DIR
+except ImportError:
+    # Handle case when running directly
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from utils.cache_utils import CACHE_DIR
 
 ROUND_TIME = 115  
 BOMB_TIME = 40   
 
-def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json", tick_rate=64, append_mode=False):
+def extract_snapshots_to_json(parsed_demo_file: str, output_file: str = "snapshots.json", tick_rate=64, append_mode=False):
     """Extract snapshots with time_left and alive counts at every kill event
     
     Args:
@@ -22,8 +31,23 @@ def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json
         append_mode: If True, append to existing file instead of overwriting
     """
     
-    # Load demo
-    demo = load_demo(demo_file, use_cache=True)
+    with open(parsed_demo_file, 'rb') as f:
+        cache_data = pickle.load(f)
+    
+    # Create a minimal demo-like object with the cached data
+    class CachedDemo:
+        def __init__(self, data):
+            self.kills = data.get('kills')
+            self.rounds = data.get('rounds')
+            self.damages = data.get('damages')
+            self.smokes = data.get('smokes')
+            self.flashes = data.get('flashes')
+            self.grenades = data.get('grenades')
+            self.bomb = data.get('bomb')
+            self.ticks = data.get('ticks')
+    
+    demo = CachedDemo(cache_data)
+
     
     # Get rounds data
     rounds = demo.rounds
@@ -94,7 +118,7 @@ def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json
             ts_alive = 5 - t_deaths
             
             snapshot = {
-                "source": f"Round {round_num} in {demo_file}",
+                "source": f"Round {round_num} in {parsed_demo_file}",
                 "time_left": ticks_left / tick_rate, 
                 "cts_alive": cts_alive,
                 "ts_alive": ts_alive,
@@ -122,4 +146,20 @@ def extract_snapshots_to_json(demo_file: str, output_file: str = "snapshots.json
     
 
 if __name__ == "__main__":
-    extract_snapshots_to_json("F:\\CS2\\demos\\8039\\TYLOO_vs._Vitality_at_Esports_World_Cup_2025__Inferno_Nuke_Overpass__demo_99354_tyloo-vs-vitality-m2-nuke.dem")
+
+    demo_files = [os.path.join(CACHE_DIR, f) for f in os.listdir(CACHE_DIR)]
+    output_file = "all_snapshots.json"
+
+    first_demo = demo_files[0]
+    print(f"Processing: {first_demo}")
+    extract_snapshots_to_json(str(first_demo), output_file)
+    
+    # Process remaining demos in append mode with progress bar
+    for demo_file in tqdm(demo_files[1:], desc="Processing demos", unit="demo"):
+        try:
+            extract_snapshots_to_json(str(demo_file), output_file, append_mode=True)
+        except Exception as e:
+            tqdm.write(f"Error processing {demo_file}: {e}")
+            continue
+    
+    print(f"All demos processed. Results saved to {output_file}")
