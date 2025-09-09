@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 from src.core.win_probability import get_win_probability
+from src.ml.feature_engineering import create_features
 from train_win_probability_model import predict_win_probability
 
 dataset_bin_size = 5
@@ -226,21 +227,28 @@ def create_test_scenarios():
 def predict_with_model(model_data, time_left, cts_alive, ts_alive, bomb_planted):
     """Make prediction with a specific model"""
     
-    # Create feature vector
-    round_time_left = time_left if not bomb_planted else 0
-    bomb_time_left = time_left if bomb_planted else 0
-    
-    feature_data = {
-        'round_time_left': round_time_left,
-        'bomb_time_left': bomb_time_left,
-        'cts_alive': cts_alive, 
-        'ts_alive': ts_alive, 
+    # Create a dictionary for the single snapshot
+    snapshot_data = {
+        'time_left': time_left,
+        'cts_alive': cts_alive,
+        'ts_alive': ts_alive,
         'bomb_planted': bomb_planted,
+        'hp_t': ts_alive * 100,
+        'hp_ct': cts_alive*100,
+
+                "ct_main_weapons": 5,
+                "t_main_weapons": 5,
+                "ct_grenades": 10,
+                "t_grenades": 10,
     }
     
-    # Create DataFrame with proper feature names
+    # Convert to DataFrame and engineer features
+    df = pd.DataFrame([snapshot_data])
+    df = create_features(df)
+    
+    # Ensure all required feature columns are present
     feature_columns = model_data['feature_columns']
-    X = pd.DataFrame([feature_data], columns=feature_columns)
+    X = df[feature_columns]
     
     # Scale if needed
     scaler = model_data.get('scaler')

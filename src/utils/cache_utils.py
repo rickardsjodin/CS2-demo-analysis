@@ -100,7 +100,8 @@ def save_demo_to_cache(demo, demo_file):
                 'flashes': demo.flashes if hasattr(demo, 'flashes') else None,
                 'grenades': demo.grenades if hasattr(demo, 'grenades') else None,
                 'bomb': demo.bomb if hasattr(demo, 'bomb') else None,
-                'ticks': demo.ticks 
+                'ticks': demo.ticks,
+                'events': demo.events
             }
             
             # Write to a temporary file first, then rename to avoid corruption
@@ -135,7 +136,7 @@ def load_demo(demo_file, use_cache=True):
     print(f"🎮 Parsing demo: {demo_file}")
     try:
         dem = Demo(demo_file)
-        dem.parse()
+        dem.parse(player_props=['armor_value', 'has_helmet', 'has_defuser', 'inventory'])
         print("✅ Demo parsed successfully!")
         
         # Save to cache for next time

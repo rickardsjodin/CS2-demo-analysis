@@ -7,10 +7,10 @@ Trains a model to predict CT team win probability using game state snapshots
 # MODEL SELECTION - Edit this to choose which models to train
 # ============================================================================
 TRAIN_MODELS = {
-    'random_forest': True,      # Fast, good baseline
+    'random_forest': False,      # Fast, good baseline
     'xgboost': True,           # High performance (needs: pip install xgboost)
-    'lightgbm': True,          # Fast, good performance (needs: pip install lightgbm)
-    'logistic_regression': True, # Very fast, interpretable
+    'lightgbm': False,          # Fast, good performance (needs: pip install lightgbm)
+    'logistic_regression': False, # Very fast, interpretable
     'neural_network': False,    # Slower, can overfit
     'ensemble': False           # Combines all models (automatic if >1 model)
 }
@@ -37,11 +37,18 @@ warnings.filterwarnings('ignore')
 # Handle imports for both module and script execution
 try:
     from ..utils.common import get_project_root, ensure_dir
+    from .feature_engineering import create_features
+    from . import feature_sets
     PROJECT_ROOT = get_project_root()
-except ImportError:
+except (ImportError, ModuleNotFoundError):
     # Fallback when running as script
     from pathlib import Path
+    import sys
     PROJECT_ROOT = Path(__file__).parent.parent.parent
+    sys.path.append(str(PROJECT_ROOT))
+    from src.ml.feature_engineering import create_features
+    from src.ml import feature_sets
+    from feature_sets import FEATURE_SET
     def ensure_dir(file_path):
         path = Path(file_path)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -66,7 +73,7 @@ def load_and_prepare_data(json_file=None):
     """Load snapshots and prepare features for ML training"""
     
     if json_file is None:
-        json_file = PROJECT_ROOT / "data" / "datasets" / "all_snapshots3.json"
+        json_file = PROJECT_ROOT / "data" / "datasets" / "all_snapshots.json"
     
     print(f"📊 Loading data from {json_file}...")
     with open(json_file, 'r') as f:
@@ -77,38 +84,21 @@ def load_and_prepare_data(json_file=None):
     
     print(f"✅ Loaded {len(df)} snapshots")
     print(f"📈 Data shape: {df.shape}")
-    print(f"🏷️ Columns: {list(df.columns)}")
     
     # Create target variable (1 if CT wins, 0 if T wins)
     df['ct_wins'] = (df['winner'] == 'ct').astype(int)
     
-    # Feature engineering - Fix the time_left ambiguity
-    df['player_advantage'] = df['cts_alive'] - df['ts_alive']
-    df['ct_alive_ratio'] = df['cts_alive'] / (df['cts_alive'] + df['ts_alive'] + 1e-8)  # Avoid division by zero
+    # Engineer features using the centralized function
+    df = create_features(df)
     
-    # Create separate, unambiguous time features
-    df['round_time_left'] = df.apply(lambda row: row['time_left'] if not row['bomb_planted'] else 0, axis=1)
-    df['bomb_time_left'] = df.apply(lambda row: row['time_left'] if row['bomb_planted'] else 0, axis=1)
-    
-    # Create contextual time features that always have consistent meaning
-    df['time_pressure_ct'] = df.apply(lambda row: 
-        0 if not row['bomb_planted'] else (40.0 - row['time_left']) / 40.0, axis=1)
-    df['time_pressure_t'] = df.apply(lambda row: 
-        (115.0 - row['time_left']) / 115.0 if not row['bomb_planted'] else 0, axis=1)
-    
-    # Select features for training
-    feature_columns = [
-        'round_time_left',      # Time left in round (0 if bomb planted)
-        'bomb_time_left',       # Time left on bomb (0 if not planted)
-        # 'time_pressure_ct',     # Higher = more pressure on CT (0-1 scale)
-        # 'time_pressure_t',      # Higher = more pressure on T (0-1 scale)
-        'cts_alive', 
-        'ts_alive',
-        'bomb_planted',
-        # 'player_advantage',
-        # 'ct_alive_ratio',
-    ]
-    
+    # Select features for training based on the configured feature set
+    try:
+        feature_columns = feature_sets.FEATURE_SET
+        print(f"🧬 Using feature set '{FEATURE_SET}' with {len(feature_columns)} features.")
+    except AttributeError:
+        print(f"⚠️ Feature set '{FEATURE_SET}' not found in feature_sets.py. Using default.")
+        feature_columns = feature_sets.DEFAULT_FEATURES
+
     X = df[feature_columns]
     y = df['ct_wins']
     
@@ -224,11 +214,11 @@ def train_models(X, y):
         if XGBOOST_AVAILABLE:
             print("\n🚀 Training XGBoost...")
             xgb_model = xgb.XGBClassifier(
-                n_estimators=50,
+                n_estimators=100,
                 max_depth=5,
-                learning_rate=0.1,
-                subsample=1.0,
-                colsample_bytree=1.0,
+                learning_rate=0.05,
+                subsample=0.8,
+                colsample_bytree=0.8,
                 random_state=42,
                 eval_metric='logloss',
                 use_label_encoder=False
@@ -798,36 +788,27 @@ def predict_win_probability(time_left, cts_alive, ts_alive, bomb_planted, model_
     scaler = model_data['scaler']
     feature_columns = model_data['feature_columns']
     
-    # Create feature vector with unambiguous time features
-    player_advantage = cts_alive - ts_alive
-    ct_alive_ratio = cts_alive / (cts_alive + ts_alive + 1e-8)
-    
-    # Separate time features - no more ambiguity!
-    round_time_left = time_left if not bomb_planted else 0
-    bomb_time_left = time_left if bomb_planted else 0
-    
-    # Contextual time pressure features (0-1 scale, consistent meaning)
-    if not bomb_planted:
-        time_pressure_ct = 0#time_left / 115.0  # Higher = more time for CT
-        time_pressure_t = (115.0 - time_left) / 115.0  # Higher = more pressure on T
-    else:
-        time_pressure_ct = (40.0 - time_left) / 40.0  # Higher = bomb about to explode (bad for CT)
-        time_pressure_t = 0#time_left / 40.0  # Higher = more time for T to defend bomb
-    
-    # Create DataFrame with proper feature names to avoid sklearn warning
-    feature_data = {
-        'round_time_left': round_time_left,
-        'bomb_time_left': bomb_time_left,
-        # 'time_pressure_ct': time_pressure_ct,
-        # 'time_pressure_t': time_pressure_t,
-        'cts_alive': cts_alive, 
-        'ts_alive': ts_alive, 
-        'bomb_planted': bomb_planted,
-        # 'player_advantage': player_advantage, 
-        # 'ct_alive_ratio': ct_alive_ratio, 
+    # Create a dictionary for the single snapshot
+    snapshot_data = {
+        'time_left': time_left,
+        'cts_alive': cts_alive,
+        'ts_alive': ts_alive,
+        'bomb_planted': bomb_planted
+        ,'hp_t': ts_alive * 100
+        ,'hp_ct': cts_alive * 100,
+
+                "ct_main_weapons": 5,
+                "t_main_weapons": 5,
+                "ct_grenades": 10,
+                "t_grenades": 10,
     }
     
-    X = pd.DataFrame([feature_data], columns=feature_columns)
+    # Convert to DataFrame and engineer features
+    df = pd.DataFrame([snapshot_data])
+    df = create_features(df)
+    
+    # Ensure all required feature columns are present
+    X = df[feature_columns]
     
     # Scale if needed
     if scaler is not None:

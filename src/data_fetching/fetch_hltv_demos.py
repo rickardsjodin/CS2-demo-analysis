@@ -67,7 +67,143 @@ class DemoRef:
     match_title: str  # e.g., "MOUZ_vs_G2_BLAST_Open_London_2025"
     maps_hint: str    # "Mirage_Nuke" if we can find it, else ""
 
+@dataclass(frozen=True)
+class EventRef:
+    event_id: int
+    name: str
+    url: str  # absolute URL to the event page
+
 # --- scraping ----------------------------------------------------------------
+
+def list_events_from_archive(session: requests.Session, max_events: Optional[int] = None, 
+                           event_type: str = "INTLLAN", prize_min: int = 28807, 
+                           prize_max: int = 2000000) -> List[EventRef]:
+    """
+    Scrape events from HLTV events archive page.
+    
+    Args:
+        session: HTTP session
+        max_events: Maximum number of events to return (None for all)
+        event_type: Event type filter (e.g., 'INTLLAN', 'LAN', 'Online')
+        prize_min: Minimum prize pool in USD
+        prize_max: Maximum prize pool in USD
+        
+    Returns:
+        List of EventRef objects with event information
+    """
+    events: List[EventRef] = []
+    offset = 0
+    
+    # Base URL for events archive
+    archive_url = f"{HLTV}/events/archive"
+    
+    pbar = tqdm(desc="Scraping events", unit="page", leave=False)
+    
+    while True:
+        # Build parameters for the request
+        params = {
+            "eventType": event_type,
+            "prizeMin": str(prize_min),
+            "prizeMax": str(prize_max),
+            "offset": str(offset)
+        }
+        
+        pbar.set_postfix({"events_found": len(events), "offset": offset})
+        
+        try:
+            resp = http_get(session, archive_url, params=params)
+            soup = BeautifulSoup(resp.text, "html.parser")
+            
+            # Find all links that point to event pages
+            # HLTV event links follow the pattern /events/<id>/<name>
+            event_links = soup.find_all("a", href=re.compile(r"/events/\d+/"))
+            
+            events_on_page = []
+            processed_ids = set()
+            
+            for link in event_links:
+                try:
+                    event_url = link.get("href")
+                    if not event_url:
+                        continue
+                    
+                    # Make URL absolute
+                    if event_url.startswith("/"):
+                        event_url = HLTV + event_url
+                    
+                    # Extract event ID from URL (e.g., /events/7907/blast-premier-fall-groups-2024)
+                    event_id_match = re.search(r"/events/(\d+)/", event_url)
+                    if not event_id_match:
+                        continue
+                    
+                    event_id = int(event_id_match.group(1))
+                    
+                    # Skip if we've already processed this event ID on this page
+                    if event_id in processed_ids:
+                        continue
+                    processed_ids.add(event_id)
+                    
+                    # Extract clean event name from URL
+                    event_name_from_url = event_url.split("/")[-1].replace("-", " ").title()
+                    
+                    # Get basic event name from link text, but clean it up
+                    link_text = link.get_text(strip=True)
+                    
+                    # Use the cleaner name from URL if the link text is too messy
+                    if len(link_text) > 100 or "$" in link_text:
+                        event_name = event_name_from_url
+                    else:
+                        event_name = link_text
+                    
+                    # Final cleanup
+                    if not event_name or len(event_name) < 3:
+                        event_name = f"Event {event_id}"
+                    
+                    event_ref = EventRef(
+                        event_id=event_id,
+                        name=event_name,
+                        url=event_url
+                    )
+                    
+                    events_on_page.append(event_ref)
+                    
+                except Exception as e:
+                    # Skip problematic events but continue processing
+                    continue
+            
+            # Remove duplicates based on event_id
+            unique_events = []
+            seen_ids = {event.event_id for event in events}
+            for event in events_on_page:
+                if event.event_id not in seen_ids:
+                    unique_events.append(event)
+                    seen_ids.add(event.event_id)
+            
+            # If no new events found, we've reached the end
+            if not unique_events:
+                break
+            
+            events.extend(unique_events)
+            pbar.set_postfix_str(f"found {len(unique_events)} new events on page")
+            
+            # Check if we've reached the max events limit
+            if max_events and len(events) >= max_events:
+                events = events[:max_events]
+                break
+            
+            # Move to next page
+            offset += 50  # HLTV typically uses 50 events per page
+            pbar.update(1)
+            
+            # Be polite to HLTV
+            time.sleep(1.0)
+            
+        except Exception as e:
+            print(f"Error fetching events archive page: {e}")
+            break
+    
+    pbar.close()
+    return events
 
 def list_match_pages_for_event(session: requests.Session, event_id: int, max_matches: Optional[int]) -> List[MatchRef]:
     """Paginate results?event=<id> with offset=0,100,200,... collect finished match page URLs."""
@@ -196,8 +332,13 @@ def download_demo(session: requests.Session, demo: DemoRef, out_dir: Path, overw
 # --- main --------------------------------------------------------------------
 
 def main():
-    ap = argparse.ArgumentParser(description="Download HLTV demos for a given event ID.")
-    ap.add_argument("--event", type=int, required=True, help="HLTV event id (see /events/<id>/...)")
+    ap = argparse.ArgumentParser(description="Download HLTV demos for a given event ID or list events from archive.")
+    ap.add_argument("--event", type=int, help="HLTV event id (see /events/<id>/...)")
+    ap.add_argument("--list-events", action="store_true", help="List events from HLTV archive instead of downloading demos")
+    ap.add_argument("--max-events", type=int, default=20, help="Maximum number of events to list (default: 20)")
+    ap.add_argument("--event-type", type=str, default="INTLLAN", help="Event type filter (default: INTLLAN)")
+    ap.add_argument("--prize-min", type=int, default=28807, help="Minimum prize pool in USD (default: 28807)")
+    ap.add_argument("--prize-max", type=int, default=2000000, help="Maximum prize pool in USD (default: 2000000)")
     ap.add_argument("--out", type=Path, default=Path("F://CS2/demos_zipped"), help="Output directory")
     ap.add_argument("--concurrency", type=int, default=1, help="Parallel downloads (be polite; 2–6 is fine)")
     ap.add_argument("--max", type=int, default=None, help="Max matches to process (useful for testing)")
@@ -206,6 +347,40 @@ def main():
 
     session = requests.Session()
     session.headers.update({"User-Agent": UA, "Accept-Language": "en"})
+
+    # Handle event listing mode
+    if args.list_events:
+        print(f"🔍 Fetching events from HLTV archive...")
+        print(f"📊 Filters: Type={args.event_type}, Prize=${args.prize_min:,}-${args.prize_max:,}")
+        print(f"📋 Max events: {args.max_events}")
+        print()
+        
+        events = list_events_from_archive(
+            session, 
+            max_events=args.max_events,
+            event_type=args.event_type,
+            prize_min=args.prize_min,
+            prize_max=args.prize_max
+        )
+        
+        if not events:
+            print("❌ No events found with the specified filters.")
+            return
+        
+        print(f"📅 Found {len(events)} events:")
+        print("=" * 80)
+        for i, event in enumerate(events, 1):
+            print(f"{i:2d}. Event ID: {event.event_id} - {event.name}")
+        
+        print("\n💡 To process demos for an event, use:")
+        print(f"   python {sys.argv[0]} --event <EVENT_ID>")
+        return
+
+    # Original demo downloading functionality
+    if not args.event:
+        print("❌ Either --event or --list-events must be specified")
+        ap.print_help()
+        return
 
     # Step 1: discover match pages for this event
     matches = list_match_pages_for_event(session, args.event, args.max)

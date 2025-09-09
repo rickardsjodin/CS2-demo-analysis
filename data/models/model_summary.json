@@ -2,31 +2,10 @@
   "models": {
     "xgboost": {
       "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_xgboost.pkl",
-      "accuracy": 0.7527772718994719,
-      "auc": 0.8529627608540433,
-      "log_loss": 0.4635763537897383,
+      "accuracy": 0.7849601778107057,
+      "auc": 0.8800468016617232,
+      "log_loss": 0.4272758915683781,
       "rank": 1
-    },
-    "lightgbm": {
-      "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_lightgbm.pkl",
-      "accuracy": 0.7515024585685668,
-      "auc": 0.8523082334978187,
-      "log_loss": 0.46459554960108185,
-      "rank": 2
-    },
-    "logistic_regression": {
-      "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_logistic_regression.pkl",
-      "accuracy": 0.7505008195228556,
-      "auc": 0.8483550483444573,
-      "log_loss": 0.47076817920571,
-      "rank": 3
-    },
-    "random_forest": {
-      "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_random_forest.pkl",
-      "accuracy": 0.75195774904389,
-      "auc": 0.8479728698610112,
-      "log_loss": 0.47198345787656876,
-      "rank": 4
     }
   },
   "best_model": "xgboost",
@@ -35,7 +14,13 @@
     "bomb_time_left",
     "cts_alive",
     "ts_alive",
-    "bomb_planted"
+    "bomb_planted",
+    "hp_t",
+    "hp_ct",
+    "ct_main_weapons",
+    "t_main_weapons",
+    "ct_grenades",
+    "t_grenades"
   ],
-  "total_models": 4
+  "total_models": 1
 }

@@ -32,7 +32,9 @@ from src.data_fetching.fetch_hltv_demos import (
     list_match_pages_for_event, 
     parse_match_for_demos, 
     download_demo,
+    list_events_from_archive,
     DemoRef,
+    EventRef,
     UA
 )
 from src.data_fetching.unzip_demos import extract_with_7zip, get_archive_type
@@ -112,6 +114,88 @@ class DemoPipeline:
                 self._save_processed_demos()
         return False
     
+    def list_events_from_archive(self, max_events: int = 20, event_type: str = "INTLLAN", 
+                               prize_min: int = 28807, prize_max: int = 2000000) -> List[EventRef]:
+        """
+        List events from HLTV archive page.
+        
+        Args:
+            max_events: Maximum number of events to return
+            event_type: Event type filter (e.g., 'INTLLAN', 'LAN', 'Online')
+            prize_min: Minimum prize pool in USD
+            prize_max: Maximum prize pool in USD
+            
+        Returns:
+            List of EventRef objects
+        """
+        print(f"🔍 Fetching events from HLTV archive...")
+        print(f"📊 Filters: Type={event_type}, Prize=${prize_min:,}-${prize_max:,}")
+        print(f"📋 Max events: {max_events}")
+        print()
+        
+        events = list_events_from_archive(
+            self.session,
+            max_events=max_events,
+            event_type=event_type,
+            prize_min=prize_min,
+            prize_max=prize_max
+        )
+        
+        if not events:
+            print("❌ No events found with the specified filters.")
+            return []
+        
+        print(f"📅 Found {len(events)} events:")
+        print("=" * 80)
+        for i, event in enumerate(events, 1):
+            print(f"{i:2d}. Event ID: {event.event_id} - {event.name}")
+        
+        return events
+    
+    def process_events_from_archive(self, max_events: int = 20, max_demos_per_event: Optional[int] = None,
+                                  event_type: str = "INTLLAN", prize_min: int = 28807, 
+                                  prize_max: int = 2000000, max_events_to_process: Optional[int] = None) -> Dict[int, int]:
+        """
+        List events from archive and process demos from multiple events.
+        
+        Args:
+            max_events: Maximum number of events to list from archive
+            max_demos_per_event: Maximum demos per event (applies to each event individually)
+            event_type: Event type filter (e.g., 'INTLLAN', 'LAN', 'Online')  
+            prize_min: Minimum prize pool in USD
+            prize_max: Maximum prize pool in USD
+            max_events_to_process: Maximum number of events to actually process (None for all)
+            
+        Returns:
+            Dictionary mapping event_id to number of successfully processed demos
+        """
+        # First, list events from the archive
+        events = self.list_events_from_archive(
+            max_events=max_events,
+            event_type=event_type,
+            prize_min=prize_min,
+            prize_max=prize_max
+        )
+        
+        if not events:
+            return {}
+        
+        # Limit the number of events to process if specified
+        if max_events_to_process and max_events_to_process < len(events):
+            events = events[:max_events_to_process]
+            print(f"📋 Processing first {max_events_to_process} events from the list")
+        
+        # Extract event IDs
+        event_ids = [event.event_id for event in events]
+        
+        print(f"\n🚀 Starting processing of {len(event_ids)} events:")
+        for i, event in enumerate(events, 1):
+            print(f"  {i}. {event.name} (ID: {event.event_id})")
+        print()
+        
+        # Process the events using existing functionality
+        return self.process_events(event_ids, max_demos_per_event)
+
     def get_demo_refs_for_event(self, event_id: int, max_demos: Optional[int] = None) -> List[DemoRef]:
         """Get demo references for an event, filtering out already processed ones"""
         print(f"🔍 Discovering matches for event {event_id}...")
@@ -617,7 +701,8 @@ class DemoPipeline:
                 'flashes': demo.flashes if hasattr(demo, 'flashes') else None,
                 'grenades': demo.grenades if hasattr(demo, 'grenades') else None,
                 'bomb': demo.bomb if hasattr(demo, 'bomb') else None,
-                'ticks': demo.ticks if hasattr(demo, 'ticks') else None
+                'ticks': demo.ticks if hasattr(demo, 'ticks') else None,
+                'events': demo.events if hasattr(demo, 'events') else None
             }
             
             training_data.append(demo_data)
@@ -631,15 +716,26 @@ def main():
     """Command line interface for the demo pipeline"""
     parser = argparse.ArgumentParser(description="CS2 Demo Processing Pipeline")
     
-    # Event specification - either single event or multiple events
+    # Event specification - either single event, multiple events, or from archive
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--event", type=int, help="Single HLTV event ID")
     group.add_argument("--events", type=int, nargs='+', help="Multiple HLTV event IDs (space-separated)")
+    group.add_argument("--from-archive", action="store_true", help="Process events from HLTV archive")
+    group.add_argument("--list-events", action="store_true", help="List events from HLTV archive without processing")
     
+    # Archive-specific options
+    parser.add_argument("--max-events", type=int, default=20, help="Maximum number of events to list from archive (default: 20)")
+    parser.add_argument("--max-events-to-process", type=int, help="Maximum number of events to actually process from archive")
+    parser.add_argument("--event-type", type=str, default="INTLLAN", help="Event type filter for archive (default: INTLLAN)")
+    parser.add_argument("--prize-min", type=int, default=28807, help="Minimum prize pool in USD (default: 28807)")
+    parser.add_argument("--prize-max", type=int, default=2000000, help="Maximum prize pool in USD (default: 2000000)")
+    
+    # General options
     parser.add_argument("--max-demos", type=int, help="Maximum number of demos per event")
     parser.add_argument("--temp-dir", type=Path, help="Temporary directory for downloads")
     parser.add_argument("--keep-demos", action="store_true", help="Keep original .dem files after processing")
 
+    # Utility options
     parser.add_argument("--list", action="store_true", help="List processed demos and exit")
     parser.add_argument("--load", help="Load a specific demo for ML training (provide demo_id)")
     parser.add_argument("--training-data", action="store_true", help="Get all training data from cached demos")
@@ -664,6 +760,18 @@ def main():
         print(f"🤖 Retrieved {len(training_data)} demos for ML training")
         return
     
+    # Handle event listing mode
+    if args.list_events:
+        pipeline.list_events_from_archive(
+            max_events=args.max_events,
+            event_type=args.event_type,
+            prize_min=args.prize_min,
+            prize_max=args.prize_max
+        )
+        print("💡 To process events from archive, use:")
+        print("   python -m src.workflows.demo_pipeline --from-archive [options]")
+        return
+    
     # Process event(s)
     if args.event:
         # Single event
@@ -671,6 +779,16 @@ def main():
     elif args.events:
         # Multiple events
         pipeline.process_events(args.events, args.max_demos)
+    elif args.from_archive:
+        # Events from archive
+        pipeline.process_events_from_archive(
+            max_events=args.max_events,
+            max_demos_per_event=args.max_demos,
+            event_type=args.event_type,
+            prize_min=args.prize_min,
+            prize_max=args.prize_max,
+            max_events_to_process=args.max_events_to_process
+        )
 
 
 if __name__ == "__main__":
