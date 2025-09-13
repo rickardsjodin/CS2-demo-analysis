@@ -6,6 +6,7 @@ import os
 import pickle
 import hashlib
 from pathlib import Path
+import polars as pl
 from awpy import Demo
 
 

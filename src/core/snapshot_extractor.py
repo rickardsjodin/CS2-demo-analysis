@@ -96,7 +96,7 @@ def create_snapshot(
     end_tick = round_row['end']
     plant_tick = round_row['bomb_plant']
     
-    if current_tick >= end_tick:
+    if current_tick > end_tick:
         return None
 
     round_ticks_left = max(0, (freeze_end + ROUND_TIME * tick_rate) - current_tick)

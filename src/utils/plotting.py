@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from collections import defaultdict
 
+from src.core.analysis import get_player_kill_death_analysis
+
 # Configuration - easily adjustable axis limits
 DEFAULT_AXIS_LIMIT = 70  # Default minimum axis limit for impact plots
 
@@ -980,8 +982,8 @@ def compare_individual_impacts_vertical(dem, player1_name, player2_name):
     print(f"\n🔍 Comparing Individual Impacts (Vertical): {player1_name} vs {player2_name}")
     
     # Get individual impacts for both players 
-    impacts1 = get_individual_impacts_data(dem, player1_name)
-    impacts2 = get_individual_impacts_data(dem, player2_name)
+    impacts1 = get_player_kill_death_analysis(dem, player1_name)
+    impacts2 = get_player_kill_death_analysis(dem, player2_name)
     
     if not impacts1 or not impacts2:
         print("❌ Could not get individual impact data for one or both players")

@@ -188,7 +188,7 @@ def load_all_trained_models():
     
     # Load model summary
     try:
-        with open('../../data/models/model_summary.json', 'r') as f:
+        with open(project_root / 'data' / 'models' / 'model_summary.json', 'r') as f:
             model_summary = json.load(f)
         print(f"✅ Found {model_summary['total_models']} models")
     except FileNotFoundError:
