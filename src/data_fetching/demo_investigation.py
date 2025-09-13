@@ -50,48 +50,7 @@ print("\n--- Available Events ---")
 print("List of all event types available in the demo:")
 print(list(dem.events.keys()))
 
-# %%
-# Simple inventory samples - LIMITED DATA
-print("\n--- INVENTORY SAMPLES (QUICK) ---")
-
-if 'inventory' in ticks_df.columns:
-    # Take only first 1000 rows to speed things up
-    sample_df = ticks_df.head(1000)
-    print(f"Working with first 1000 ticks instead of {len(ticks_df)} total ticks")
-    
-    # Get some non-empty inventories from the sample
-    non_empty_inventories = sample_df[sample_df['inventory'].notna() & (sample_df['inventory'].astype(str) != '[]')]
-    
-    if not non_empty_inventories.empty:
-        print(f"Found {len(non_empty_inventories)} ticks with inventories in first 1000 ticks")
-        
-        # Show first 3 unique inventory examples
-        unique_inventories = non_empty_inventories['inventory'].drop_duplicates().head(30)
-        
-        for i, inventory in enumerate(unique_inventories):
-            print(f"\nExample {i+1}: {inventory}")
-            print(f"Type: {type(inventory)}")
-            
-            if isinstance(inventory, list):
-                print(f"Items: {len(inventory)} items")
-                for item in inventory:
-                    print(f"  - {item}")
-    else:
-        print("No inventories found in first 1000 ticks. Try later in the game...")
-        # Try a different sample from middle of the game
-        middle_sample = ticks_df.iloc[10000:11000] if len(ticks_df) > 11000 else ticks_df.tail(1000)
-        non_empty_inventories = middle_sample[middle_sample['inventory'].notna() & (middle_sample['inventory'].astype(str) != '[]')]
-        
-        if not non_empty_inventories.empty:
-            print(f"Found {len(non_empty_inventories)} inventories in middle sample")
-            unique_inventories = non_empty_inventories['inventory'].drop_duplicates().head(30)
-            
-            for i, inventory in enumerate(unique_inventories):
-                print(f"\nExample {i+1}: {inventory}")
-                if isinstance(inventory, list):
-                    for item in inventory:
-                        print(f"  - {item}")
-else:
-    print("No 'inventory' column found.")
 
 # %%
+
+

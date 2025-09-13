@@ -16,6 +16,11 @@ MINIMAL_FEATURES = [
     "t_main_weapons",
     "ct_grenades",
     "t_grenades",
+    "ct_helmets",
+    "t_helmets",
+    "ct_armor",
+    "t_armor",
+    "defusers",
 ]
 
 # Features including player advantage and ratios

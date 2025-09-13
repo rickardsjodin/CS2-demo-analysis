@@ -59,21 +59,21 @@ class ProcessedDemo:
 class DemoPipeline:
     """Manages the complete demo processing pipeline with disk space optimization"""
     
-    def __init__(self, temp_dir: Optional[Path] = None, keep_demos: bool = False):
+    def __init__(self, demo_dir: Optional[Path] = None, keep_demos: bool = True):
         """
         Initialize the pipeline.
         
         Args:
-            temp_dir: Directory for temporary files (default: system temp)
+            demo_dir: Directory to save unzipped demo files (default: demos/ in project root)
             keep_demos: Whether to keep the original .dem files after processing
         """
-        self.temp_dir = Path(temp_dir) if temp_dir else Path(tempfile.gettempdir()) / "cs2_pipeline"
+        self.demo_dir = Path(demo_dir) if demo_dir else config.PROJECT_ROOT / "demos"
         self.keep_demos = keep_demos
         self.processed_demos_file = config.PROJECT_ROOT / "processed_demos.json"
         self.processed_demos = self._load_processed_demos()
         
-        # Create temp directory if it doesn't exist
-        self.temp_dir.mkdir(exist_ok=True)
+        # Create demo directory if it doesn't exist
+        self.demo_dir.mkdir(exist_ok=True)
         
         # Setup session for downloads
         self.session = requests.Session()
@@ -234,16 +234,14 @@ class DemoPipeline:
     
     def download_and_extract_demo(self, demo_ref: DemoRef) -> Optional[Path]:
         """Download and extract a demo, returning the path to the .dem file"""
-        temp_archive_dir = self.temp_dir / "archives"
-        temp_demo_dir = self.temp_dir / "demos"
-        
-        temp_archive_dir.mkdir(exist_ok=True)
-        temp_demo_dir.mkdir(exist_ok=True)
+        # Download archives to the same disk as the demos for efficiency
+        archive_dir = self.demo_dir / "archives"
+        archive_dir.mkdir(exist_ok=True)
         
         try:
             # Download the archive
             print(f"⬇️ Downloading {demo_ref.match_title}...")
-            archive_path, _ = download_demo(self.session, demo_ref, temp_archive_dir, overwrite=True)
+            archive_path, _ = download_demo(self.session, demo_ref, archive_dir, overwrite=True)
             
             # Determine archive type and extract
             print(f"📦 Extracting {archive_path.name}...")
@@ -290,14 +288,14 @@ class DemoPipeline:
                 print(f"❌ No .dem files found in {archive_path.name}")
                 return None
             
-            # Save the first (usually only) .dem file
+            # Save the first (usually only) .dem file to the specified demo directory
             dem_filename, dem_content = dem_files_data[0]
-            demo_path = temp_demo_dir / f"{demo_ref.match_title}_{demo_ref.demo_id}.dem"
+            demo_path = self.demo_dir / f"{demo_ref.match_title}_{demo_ref.demo_id}.dem"
             
             with open(demo_path, 'wb') as f:
                 f.write(dem_content)
             
-            print(f"✅ Extracted to {demo_path.name}")
+            print(f"✅ Extracted to {demo_path}")
             
             # Clean up the archive immediately to save space
             try:
@@ -389,96 +387,11 @@ class DemoPipeline:
             print(f"❌ Error processing {demo_path.name}: {e}")
             return False
     
-    def download_and_extract_demo(self, demo_ref: DemoRef) -> Optional[Path]:
-        """Download and extract a demo, returning the path to the .dem file"""
-        temp_archive_dir = self.temp_dir / "archives"
-        temp_demo_dir = self.temp_dir / "demos"
-        
-        temp_archive_dir.mkdir(exist_ok=True)
-        temp_demo_dir.mkdir(exist_ok=True)
-        
-        try:
-            # Download the archive
-            print(f"⬇️ Downloading {demo_ref.match_title}...")
-            archive_path, _ = download_demo(self.session, demo_ref, temp_archive_dir, overwrite=True)
-            
-            # Determine archive type and extract
-            print(f"📦 Extracting {archive_path.name}...")
-            archive_type = get_archive_type(archive_path)
-            
-            if archive_type == 'unknown':
-                print(f"❌ Unknown archive type for {archive_path.name}")
-                return None
-            
-            # Extract using the appropriate method
-            dem_files_data = []
-            
-            if archive_type in ['zip', '7z', 'rar']:
-                try:
-                    if archive_type == 'zip':
-                        import zipfile
-                        with zipfile.ZipFile(archive_path, 'r') as zip_ref:
-                            dem_files = [f for f in zip_ref.namelist() if f.endswith('.dem')]
-                            for dem_file in dem_files:
-                                dem_content = zip_ref.read(dem_file)
-                                dem_files_data.append((Path(dem_file).name, dem_content))
-                    
-                    elif archive_type == '7z':
-                        import py7zr
-                        with py7zr.SevenZipFile(archive_path, 'r') as archive:
-                            all_files = archive.getnames()
-                            dem_files = [f for f in all_files if f.endswith('.dem')]
-                            if dem_files:
-                                bio_dict = archive.read(targets=dem_files)
-                                for dem_file in dem_files:
-                                    if dem_file in bio_dict:
-                                        dem_content = bio_dict[dem_file].read()
-                                        dem_files_data.append((Path(dem_file).name, dem_content))
-                    
-                    elif archive_type == 'rar':
-                        # Use 7zip for RAR files
-                        dem_files_data = extract_with_7zip(archive_path)
-                
-                except Exception as e:
-                    print(f"❌ Error extracting {archive_path.name}: {e}")
-                    return None
-            
-            if not dem_files_data:
-                print(f"❌ No .dem files found in {archive_path.name}")
-                return None
-            
-            # Save the first (usually only) .dem file
-            dem_filename, dem_content = dem_files_data[0]
-            demo_path = temp_demo_dir / f"{demo_ref.match_title}_{demo_ref.demo_id}.dem"
-            
-            with open(demo_path, 'wb') as f:
-                f.write(dem_content)
-            
-            # Verify the file was written successfully
-            if not demo_path.exists() or demo_path.stat().st_size == 0:
-                print(f"❌ Failed to write demo file")
-                return None
-            
-            print(f"✅ Extracted ({demo_path.stat().st_size / 1024 / 1024:.1f} MB)")
-            
-            # Clean up the archive immediately to save space
-            try:
-                archive_path.unlink()
-                print(f"🗑️ Removed archive {archive_path.name}")
-            except Exception as e:
-                print(f"⚠️ Could not remove archive: {e}")
-            
-            return demo_path
-        
-        except Exception as e:
-            print(f"❌ Error downloading/extracting {demo_ref.match_title}: {e}")
-            return None
-    
     def process_event(self, event_id: int, max_demos: Optional[int] = None) -> int:
         """Process all demos for an event sequentially, returning the number successfully processed"""
         print(f"🚀 Starting demo pipeline for event {event_id}")
         print(f"📁 Cache directory: {CACHE_DIR}")
-        print(f"🗂️ Temp directory: {self.temp_dir}")
+        print(f"🗂️ Demo directory: {self.demo_dir}")
         print(f"💾 Keep demos: {self.keep_demos}")
         print()
         
@@ -577,20 +490,7 @@ class DemoPipeline:
             print(f"   Event {event_id}: {count} demos")
         print(f"{'='*60}")
         
-        # Clean up temp directory after all events
-        self._cleanup_temp_dir()
-        
         return results
-    
-    def _cleanup_temp_dir(self):
-        """Clean up the temporary directory"""
-        try:
-            import shutil
-            if self.temp_dir.exists():
-                shutil.rmtree(self.temp_dir)
-                print(f"🧹 Cleaned up temp directory: {self.temp_dir}")
-        except Exception as e:
-            print(f"⚠️ Could not clean up temp directory: {e}")
     
     def list_processed_demos(self):
         """List all processed demos with their information"""
@@ -732,7 +632,7 @@ def main():
     
     # General options
     parser.add_argument("--max-demos", type=int, help="Maximum number of demos per event")
-    parser.add_argument("--temp-dir", type=Path, help="Temporary directory for downloads")
+    parser.add_argument("--demo-dir", type=Path, default=Path("G:\\CS2\\demos"),help="Directory to save unzipped demo files")
     parser.add_argument("--keep-demos", action="store_true", help="Keep original .dem files after processing")
 
     # Utility options
@@ -743,7 +643,7 @@ def main():
     args = parser.parse_args()
     
     # Initialize pipeline
-    pipeline = DemoPipeline(temp_dir=args.temp_dir, keep_demos=args.keep_demos)
+    pipeline = DemoPipeline(demo_dir=args.demo_dir, keep_demos=args.keep_demos)
     
     if args.list:
         pipeline.list_processed_demos()

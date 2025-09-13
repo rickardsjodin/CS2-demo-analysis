@@ -17,12 +17,12 @@ from src.utils.cache_utils import load_demo, clear_cache
 # ================================
 # You can edit config.py for project-wide settings, or override them here:
 
-DEMO_FILE = str(config.DEFAULT_DEMO_FILE)  # or set your own path
-PLAYER_TO_ANALYZE = config.DEFAULT_PLAYER  # or set your own player name
+DEMO_FILE = str("G:\\CS2\\demos\\fissure-playground-2-falcons-vs-virtuspro-bo3-qivzNI2LmnWi0RrHw-7sxj\\falcons-vs-virtus-pro-m1-mirage.dem")  # or set your own path
+PLAYER_TO_ANALYZE = "NiKo"  # or set your own player name
 
 # Optional: Set these for player comparison (leave as None to skip comparison)
-COMPARE_PLAYER1 = "REZ"  # e.g., "Kursy"
-COMPARE_PLAYER2 = "Kursy"  # e.g., "REZ"
+COMPARE_PLAYER1 = "NiKo"  # e.g., "Kursy"
+COMPARE_PLAYER2 = "m0NESY"  # e.g., "REZ"
 
 # Cache settings
 USE_CACHE = config.USE_CACHE

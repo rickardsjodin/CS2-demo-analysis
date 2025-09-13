@@ -2,9 +2,9 @@
   "models": {
     "xgboost": {
       "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_xgboost.pkl",
-      "accuracy": 0.7849601778107057,
-      "auc": 0.8800468016617232,
-      "log_loss": 0.4272758915683781,
+      "accuracy": 0.7829973373906428,
+      "auc": 0.8806102158867886,
+      "log_loss": 0.4236232985179728,
       "rank": 1
     }
   },
@@ -20,7 +20,12 @@
     "ct_main_weapons",
     "t_main_weapons",
     "ct_grenades",
-    "t_grenades"
+    "t_grenades",
+    "ct_helmets",
+    "t_helmets",
+    "ct_armor",
+    "t_armor",
+    "defusers"
   ],
   "total_models": 1
 }

@@ -19,9 +19,59 @@ import seaborn as sns
 import numpy as np
 from src.core.win_probability import get_win_probability
 from src.ml.feature_engineering import create_features
-from train_win_probability_model import predict_win_probability
+from src.ml.feature_sets import MINIMAL_FEATURES
 
 dataset_bin_size = 5
+
+def generate_all_feature_plots(models, dataset_probs, model_name):
+    """
+    Generates plots for all minimal features against win probability.
+    """
+    print(f"🎨 Generating plots for all minimal features for model '{model_name}'...")
+
+    feature_configs = {
+        'time_left': {'range': list(range(0, 120, 5)), 'base_scenario': {}},
+        'bomb_time_left': {'range': list(range(0, 45, 2)), 'base_scenario': {'bomb_planted': True}},
+        'cts_alive': {'range': list(range(0, 6)), 'base_scenario': {}},
+        'ts_alive': {'range': list(range(0, 6)), 'base_scenario': {}},
+        'bomb_planted': {'range': [False, True], 'base_scenario': {}},
+        'hp_t': {'range': list(range(0, 501, 25)), 'base_scenario': {}},
+        'hp_ct': {'range': list(range(0, 501, 25)), 'base_scenario': {}},
+        'ct_main_weapons': {'range': list(range(0, 6)), 'base_scenario': {}},
+        't_main_weapons': {'range': list(range(0, 6)), 'base_scenario': {}},
+        'ct_grenades': {'range': list(range(0, 11)), 'base_scenario': {}},
+        't_grenades': {'range': list(range(0, 11)), 'base_scenario': {}},
+        'ct_helmets': {'range': list(range(0, 6)), 'base_scenario': {}},
+        't_helmets': {'range': list(range(0, 6)), 'base_scenario': {}},
+        'ct_armor': {'range': list(range(0, 501, 25)), 'base_scenario': {}},
+        't_armor': {'range': list(range(0, 501, 25)), 'base_scenario': {}},
+        'defusers': {'range': list(range(0, 6)), 'base_scenario': {}},
+    }
+
+    # Note: 'round_time_left' in MINIMAL_FEATURES corresponds to 'time_left' in snapshot data.
+    # The create_features function handles this mapping.
+    
+    for feature in MINIMAL_FEATURES:
+        # Map from feature name to snapshot key if different
+        snapshot_feature_name = 'time_left' if feature == 'round_time_left' else feature
+        
+        if snapshot_feature_name in feature_configs:
+            config = feature_configs[snapshot_feature_name]
+            try:
+                plot_feature_vs_probability(
+                    models=models,
+                    dataset_probs=dataset_probs,
+                    feature_to_plot=snapshot_feature_name,
+                    feature_range=config['range'],
+                    base_scenario=config['base_scenario'],
+                    model_name=model_name
+                )
+            except Exception as e:
+                print(f"❌ Error generating plot for feature '{snapshot_feature_name}': {e}")
+        else:
+            print(f"⚠️ No configuration found for feature '{snapshot_feature_name}', skipping plot.")
+
+    print("✅ All feature plots generated.")
 
 def load_dataset_statistics():
     """Compute dataset statistics directly from all_snapshots.json with binned time"""
@@ -235,11 +285,15 @@ def predict_with_model(model_data, time_left, cts_alive, ts_alive, bomb_planted)
         'bomb_planted': bomb_planted,
         'hp_t': ts_alive * 100,
         'hp_ct': cts_alive*100,
-
-                "ct_main_weapons": 5,
-                "t_main_weapons": 5,
-                "ct_grenades": 10,
-                "t_grenades": 10,
+        "ct_main_weapons": 5,
+        "t_main_weapons": 5,
+        "ct_grenades": 10,
+        "t_grenades": 10,
+        "ct_helmets": 5,
+        "t_helmets": 5,
+        "ct_armor": 500,
+        "t_armor": 500,
+        "defusers": 5,
     }
     
     # Convert to DataFrame and engineer features
@@ -1046,7 +1100,7 @@ def create_time_vs_probability_plots_for_models(models, dataset_probs):
                 # Skip invalid bomb scenarios
                 if scenario['bomb'] and time_left > 40:
                     continue
-                    
+                
                 try:
                     # Get model prediction
                     if model_name == 'ensemble':
@@ -1326,26 +1380,24 @@ def create_additional_time_plots_for_models(models, dataset_probs):
         plt.ylim(0, 100)
         plt.xlim(115, 0)
         
-        # Subplot 3: Post-Plant Extreme Scenarios
+        # Subplot 3: Post-Plant Scenarios (5v5, 4v4)
         plt.subplot(2, 2, 3)
         
-        postplant_extreme_scenarios = [
-            {'cts': 5, 'ts': 2, 'bomb': True, 'label': 'CT +3 Post-Plant (5v2)', 'color': '#1f77b4'},
-            {'cts': 4, 'ts': 1, 'bomb': True, 'label': 'CT +3 Post-Plant (4v1)', 'color': '#2ca02c'},
-            {'cts': 2, 'ts': 5, 'bomb': True, 'label': 'T +3 Post-Plant (2v5)', 'color': '#ff7f0e'},
-            {'cts': 1, 'ts': 4, 'bomb': True, 'label': 'T +3 Post-Plant (1v4)', 'color': '#d62728'},
+        postplant_scenarios = [
+            {'cts': 5, 'ts': 5, 'bomb': True, 'label': '5v5 Post-Plant', 'color': '#1f77b4'},
+            {'cts': 4, 'ts': 4, 'bomb': True, 'label': '4v4 Post-Plant', 'color': '#ff7f0e'},
         ]
         
-        for scenario in postplant_extreme_scenarios:
-            time_centers = []
+        for scenario in postplant_scenarios:
+            model_time_centers = []
             model_probabilities = []
             dataset_probabilities = []
             
             for time_left in time_points:
-                # Skip invalid bomb scenarios (bomb timer can't be > 40 seconds)
+                # Skip invalid bomb scenarios
                 if scenario['bomb'] and time_left > 40:
                     continue
-                    
+                
                 try:
                     # Get model prediction
                     if model_name == 'ensemble':
@@ -1357,30 +1409,36 @@ def create_additional_time_plots_for_models(models, dataset_probs):
                     try:
                         dataset_pred = get_dataset_baseline_prediction(time_left, scenario['cts'], scenario['ts'], scenario['bomb'], dataset_probs)
                         
-                        time_centers.append(time_left)
+                        model_time_centers.append(time_left)
                         model_probabilities.append(model_pred * 100)
                         dataset_probabilities.append(dataset_pred * 100)
                         
                     except KeyError:
+                        # No dataset statistics for this scenario
                         continue
                         
                 except Exception as e:
                     continue
             
-            if len(time_centers) >= 3:
-                # Plot model predictions
-                plt.plot(time_centers, model_probabilities, 
+            if len(model_time_centers) >= 3:
+                # Assign colors cyclically for post-plant scenarios
+                colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
+                color_idx = postplant_scenarios.index(scenario) % len(colors)
+                color = colors[color_idx]
+                
+                plt.plot(model_time_centers, model_probabilities, 
                         label=f'{scenario["label"]} - {model_name.replace("_", " ").title()}', 
-                        color=scenario['color'],
+                        color=color,
+                        linestyle='-',
                         linewidth=2.5,
-                        marker='^',
-                        markersize=6,
+                        marker='o',
+                        markersize=4,
                         alpha=0.8)
                 
                 # Plot dataset predictions
-                plt.plot(time_centers, dataset_probabilities, 
+                plt.plot(model_time_centers, dataset_probabilities, 
                         label=f'{scenario["label"]} - Dataset', 
-                        color=scenario['color'],
+                        color=color,
                         linestyle=':',
                         linewidth=2.0,
                         marker='x',
@@ -1389,7 +1447,7 @@ def create_additional_time_plots_for_models(models, dataset_probs):
         
         plt.xlabel('Time Left (seconds)', fontweight='bold')
         plt.ylabel('CT Win Probability (%)', fontweight='bold')
-        plt.title(f'Extreme Post-Plant Scenarios - {model_name.replace("_", " ").title()} vs Dataset', fontsize=14, fontweight='bold')
+        plt.title(f'Post-Plant Scenarios - {model_name.replace("_", " ").title()} vs Dataset', fontsize=14, fontweight='bold')
         plt.grid(True, alpha=0.3)
         plt.legend(fontsize=8)
         plt.ylim(0, 100)
@@ -1471,6 +1529,108 @@ def create_additional_time_plots_for_models(models, dataset_probs):
         print(f"📊 Additional time scenarios plot for {model_name} saved: {filename}")
     
     print("✅ All additional time vs probability plots created successfully!")
+
+def plot_feature_vs_probability(models, dataset_probs, feature_to_plot, feature_range, base_scenario, model_name):
+    """
+    Plots a given feature vs. CT win probability for a specific model and scenario.
+    """
+    model_info = models.get(model_name)
+    if not model_info:
+        print(f"Model {model_name} not found.")
+        return
+
+    print(f"📊 Generating plot for '{feature_to_plot}' vs. win probability for model '{model_name}'...")
+
+    plt.figure(figsize=(12, 8))
+    
+    model_probabilities = []
+    
+    # Base snapshot data, can be overridden by feature_to_plot
+    base_snapshot = {
+        'time_left': 60,
+        'cts_alive': 3,
+        'ts_alive': 3,
+        'bomb_planted': False,
+        'hp_t': 300,
+        'hp_ct': 300,
+        "ct_main_weapons": 3,
+        "t_main_weapons": 3,
+        "ct_grenades": 6,
+        "t_grenades": 6,
+        "ct_helmets": 3,
+        "t_helmets": 3,
+        "ct_armor": 300,
+        "t_armor": 300,
+        "defusers": 3,
+    }
+    
+    # Update with user-defined base scenario
+    base_snapshot.update(base_scenario)
+
+    for value in feature_range:
+        snapshot_data = base_snapshot.copy()
+        snapshot_data[feature_to_plot] = value
+        
+        # For convenience, if cts_alive or ts_alive is the feature, update hp too
+        if feature_to_plot == 'cts_alive':
+            snapshot_data['hp_ct'] = value * 100
+        if feature_to_plot == 'ts_alive':
+            snapshot_data['hp_t'] = value * 100
+
+        try:
+            # Create a dictionary for the single snapshot
+            df = pd.DataFrame([snapshot_data])
+            df = create_features(df)
+            
+            feature_columns = model_info['data']['feature_columns']
+            X = df[feature_columns]
+            
+            scaler = model_info['data'].get('scaler')
+            if scaler is not None:
+                X = scaler.transform(X)
+            
+            model = model_info['data']['model']
+            ct_win_prob = model.predict_proba(X)[0, 1]
+            model_probabilities.append(ct_win_prob * 100)
+        except Exception as e:
+            print(f"⚠️ Error predicting for {feature_to_plot}={value}: {e}")
+            model_probabilities.append(None)
+
+    # Filter out None values for plotting
+    valid_indices = [i for i, p in enumerate(model_probabilities) if p is not None]
+    if not valid_indices:
+        print("No valid predictions were generated.")
+        return
+        
+    plottable_range = [feature_range[i] for i in valid_indices]
+    plottable_probs = [model_probabilities[i] for i in valid_indices]
+
+    plt.plot(plottable_range, plottable_probs, 
+             label=f'{model_name.replace("_", " ").title()}', 
+             marker='o',
+             linestyle='-',
+             linewidth=2)
+
+    plt.xlabel(feature_to_plot.replace("_", " ").title(), fontweight='bold')
+    plt.ylabel('CT Win Probability (%)', fontweight='bold')
+    
+    scenario_desc = ", ".join(f"{k}={v}" for k, v in base_scenario.items())
+    plt.title(f'CT Win Probability vs {feature_to_plot.replace("_", " ").title()} for {model_name}\nScenario: {scenario_desc}', fontsize=14, fontweight='bold')
+    
+    plt.grid(True, alpha=0.5)
+    plt.legend()
+    plt.ylim(0, 100)
+    
+    # Reverse x-axis for time_left
+    if feature_to_plot == 'time_left':
+        plt.xlim(max(plottable_range), min(plottable_range))
+
+    filename = f'../../outputs/visualizations/{feature_to_plot}_vs_probability_{model_name}.png'
+    plt.savefig(filename, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"✅ Plot saved to {filename}")
+
 
 def main():
     """Main function to run all tests and create visualizations"""
@@ -1670,6 +1830,14 @@ def main():
         create_additional_time_plots_for_models(all_models, dataset_probs)
     except Exception as e:
         print(f"❌ Error creating additional time vs probability plots: {e}")
+
+    # Example of using the generic feature plotter
+    try:
+        print("\n🎨 Creating generic feature plot example...")
+        top_model_name = sorted_models[0][0] if sorted_models else list(all_models.keys())[0]
+        generate_all_feature_plots(all_models, dataset_probs, top_model_name)
+    except Exception as e:
+        print(f"❌ Error creating generic feature plot: {e}")
     
     # Save model comparison summary
     summary_data = []
@@ -1699,8 +1867,9 @@ def main():
     print(f"Scenarios tested: {len(scenarios)} (valid: {len(df)})")
     print(f"Reference baseline: {baseline_type}")
     print(f"Dataset scenarios available: {len(dataset_probs)}")
-    sample_sizes = [stats['sample_count'] for stats in dataset_probs.values()]
-    print(f"Total real-world samples: {sum(sample_sizes):,}")
+    if dataset_probs:
+        sample_sizes = [stats['sample_count'] for stats in dataset_probs.values()]
+        print(f"Total real-world samples: {sum(sample_sizes):,}")
     print(f"Best correlation with baseline: {best_correlation['correlation']:.3f} ({best_model_name})")
     print(f"Average model agreement (std): {df.get('model_std', pd.Series([0])).mean():.3f}")
     

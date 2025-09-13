@@ -4,9 +4,11 @@ Core analysis functions for CS2 demo processing.
 
 import pandas as pd
 import polars as pl
+import os
 from collections import defaultdict
 from .win_probability import get_win_probability, calculate_impact_score
 from ..utils.common import ensure_pandas
+from .snapshot_extractor import load_demo_data, calculate_player_stats
 
 
 def get_player_kill_death_analysis(dem, player_name, debug=False):
@@ -21,9 +23,42 @@ def get_player_kill_death_analysis(dem, player_name, debug=False):
     Returns:
         DataFrame with round-by-round analysis
     """
-    # Get game data
-    kills = dem.kills
-    bomb_events = dem.bomb  # Fix: use dem.bomb instead of dem.bomb_events
+    # Support two input types:
+    # - `dem` is a path to a parsed-demo pickle file (string)
+    # - `dem` is an in-memory parsed demo object with attributes `kills` and `bomb`
+    kills = None
+    bomb_events = None
+
+    if isinstance(dem, str) and os.path.exists(dem):
+        # Load structured demo data from the cache/pickle using the shared loader
+        demo_data = load_demo_data(dem)
+        if demo_data is None:
+            print(f"❌ Could not load demo data from {dem}")
+            return None
+
+        # Extract kills as a pandas DataFrame
+        kills = demo_data['kills']
+
+        # Construct a minimal bomb_events DataFrame from the rounds table (plant ticks)
+        rounds_df = demo_data['rounds']
+        # Convert to pandas for the rest of the codepath
+        rounds_pd = ensure_pandas(rounds_df)
+        plant_rows = rounds_pd[rounds_pd['bomb_plant'].notnull()][['round_num', 'bomb_plant']]
+        if not plant_rows.empty:
+            bomb_events = pd.DataFrame({
+                'round_num': plant_rows['round_num'].tolist(),
+                'tick': plant_rows['bomb_plant'].tolist(),
+                'event_type': ['plant'] * len(plant_rows)
+            })
+        else:
+            bomb_events = pd.DataFrame(columns=['round_num', 'tick', 'event_type'])
+    else:
+        # Assume an in-memory parsed demo object
+        kills = getattr(dem, 'kills', None)
+        # support both dem.bomb and dem.bomb_events depending on caller
+        bomb_events = getattr(dem, 'bomb', None)
+        if bomb_events is None:
+            bomb_events = getattr(dem, 'bomb_events', None)
     
     if kills is None or len(kills) == 0:
         print("❌ No kill data found in demo")
@@ -31,7 +66,11 @@ def get_player_kill_death_analysis(dem, player_name, debug=False):
     
     # Convert Polars to pandas if needed
     kills = ensure_pandas(kills)
-    bomb_events = ensure_pandas(bomb_events)
+    # bomb_events may be None or already pandas; ensure it's a pandas DataFrame
+    if bomb_events is None:
+        bomb_events = pd.DataFrame(columns=['round_num', 'tick', 'event_type'])
+    else:
+        bomb_events = ensure_pandas(bomb_events)
     
     # Initialize round statistics
     round_stats = defaultdict(lambda: {
@@ -56,78 +95,95 @@ def get_player_kill_death_analysis(dem, player_name, debug=False):
                 'death_impacts': []
             }
     
-    # Process bomb events first to get plant information
-    if bomb_events is not None and len(bomb_events) > 0:
-        if debug:
-            print(f"Debug: Found {len(bomb_events)} bomb events")
-            print("Bomb event columns:", bomb_events.columns.tolist())
-        
-        for _, bomb_event in bomb_events.iterrows():
-            round_num = bomb_event.get('round_num', 0)
-            if round_num in round_stats:
-                # Check for different possible bomb event indicators
-                event_columns = bomb_event.index.tolist()
-                event_values = bomb_event.values
-                
-                # Look for plant indicators in various ways - BE MORE STRICT
-                is_plant = False
-                plant_tick = None
-                
-                # Method 1: Check for exact 'plant' event type
-                if 'event_type' in event_columns:
-                    event_type = str(bomb_event['event_type']).lower()
-                    if event_type == 'plant' or event_type == 'bomb_plant':
-                        is_plant = True
-                        plant_tick = bomb_event.get('tick', 0)
-                        if debug:
-                            print(f"Debug: Found plant via event_type in round {round_num}")
-                
-                # Method 2: Check for bombsite column with actual plant event
-                if 'site' in event_columns and 'event_type' in event_columns:
-                    if 'plant' in str(bomb_event['event_type']).lower():
-                        is_plant = True
-                        plant_tick = bomb_event.get('tick', 0)
-                        if debug:
-                            print(f"Debug: Found plant via bombsite+event_type in round {round_num}")
-                
-                # Method 3: Only if we have a specific bomb plant indicator
-                for col, val in zip(event_columns, event_values):
-                    if isinstance(val, str) and val.lower() in ['plant', 'bomb_plant', 'c4_plant']:
-                        is_plant = True
-                        plant_tick = bomb_event.get('tick', 0)
-                        if debug:
-                            print(f"Debug: Found plant in round {round_num}, column {col}, value: {val}")
-                        break
-                
-                if is_plant:
-                    round_stats[round_num]['bomb_planted'] = True
-                    round_stats[round_num]['plant_tick'] = plant_tick
+    # Build a robust rounds/kills/ticks view using snapshot_extractor loader when possible
+    demo_data = None
+    # If we were passed a filepath, load structured demo data
+    if isinstance(dem, str):
+        demo_data = load_demo_data(dem)
+        if demo_data is None:
+            print(f"❌ Could not load demo data from {dem}")
+            return None
+        # Convert kills to pandas for iteration
+        kills = ensure_pandas(demo_data['kills'])
+        ticks = demo_data.get('ticks')
+        rounds_table = demo_data.get('rounds')
+        if ticks is not None:
+            ticks = ensure_pandas(ticks)
+        if rounds_table is not None:
+            rounds_table = ensure_pandas(rounds_table)
+        # Populate round_stats with plant info from rounds table
+        if rounds_table is not None and 'bomb_plant' in rounds_table.columns:
+            for _, rr in rounds_table.iterrows():
+                rn = rr.get('round_num')
+                if rn in round_stats:
+                    plant_tick = rr.get('bomb_plant')
+                    if pd.notna(plant_tick):
+                        round_stats[rn]['bomb_planted'] = True
+                        round_stats[rn]['plant_tick'] = int(plant_tick)
     else:
+        # keep existing in-memory behaviour
         if debug:
-            print("Debug: No bomb events found or bomb_events is None")
+            print("Using in-memory demo object for analysis")
     
-    # Process kills and deaths with game state tracking
+    # Process kills and deaths with updated game-state tracking using demo_data when available
     for round_num in sorted(round_stats.keys()):
         if round_num == 0:
             continue
-            
-        round_kills = kills[kills['round_num'] == round_num]
-        
+
+        # select round kills robustly
+        try:
+            round_kills = kills[kills['round_num'] == round_num]
+        except Exception:
+            round_kills = pd.DataFrame()
+
         # Track alive players during the round (start with 5v5)
         ct_alive = 5
         t_alive = 5
-        
+
+        # Pre-compute snapshot tick for inventory/player stats: prefer plant_tick then freeze_end then round start
+        snapshot_tick = None
+        if round_stats[round_num].get('plant_tick'):
+            snapshot_tick = round_stats[round_num]['plant_tick']
+        else:
+            # try to pull freeze_end from rounds_table if available
+            if isinstance(demo_data, dict) and demo_data.get('rounds') is not None:
+                rounds_pd = ensure_pandas(demo_data['rounds'])
+                rr = rounds_pd[rounds_pd['round_num'] == round_num]
+                if not rr.empty and 'freeze_end' in rr.columns:
+                    snapshot_tick = int(rr.iloc[0]['freeze_end'])
+
+        # If we have tick-level data and a snapshot tick, compute inventory stats for alive players
+        if snapshot_tick is not None and isinstance(demo_data, dict) and demo_data.get('ticks') is not None:
+            ticks_pd = ensure_pandas(demo_data['ticks'])
+            current_details = ticks_pd[ticks_pd['tick'] == snapshot_tick]
+            # Exclude players already dead earlier in the round
+            if not current_details.empty:
+                # compute dead players up to snapshot tick from kills
+                deaths_so_far = kills[(kills['round_num'] == round_num) & (kills['tick'] <= snapshot_tick)]
+                dead_player_steamids = deaths_so_far['victim_steamid'].unique().tolist() if not deaths_so_far.empty else []
+                alive_players = current_details[~current_details['steamid'].isin(dead_player_steamids)]
+                # convert alive_players back to polars for calculate_player_stats which expects a pl.DataFrame
+                try:
+                    alive_pl = pl.from_pandas(alive_players)
+                    player_stats = calculate_player_stats(alive_pl)
+                    round_stats[round_num].update(player_stats)
+                except Exception:
+                    # if conversion fails, skip player stats
+                    if debug:
+                        print(f"Debug: Could not compute player stats for round {round_num}")
+
         for _, kill in round_kills.iterrows():
             attacker_name = kill.get('attacker_name', '')
             victim_name = kill.get('victim_name', '')
             attacker_side = kill.get('attacker_side', '')
             victim_side = kill.get('victim_side', '')
 
-            
             # Check if bomb is planted at time of this kill
-            is_post_plant = (round_stats[round_num]['bomb_planted'] and 
-                           kill.get('tick', 0) >= round_stats[round_num].get('plant_tick', 0))
-            
+            is_post_plant = False
+            plant_tick = round_stats[round_num].get('plant_tick')
+            if plant_tick and pd.notna(kill.get('tick', None)):
+                is_post_plant = int(kill.get('tick', 0)) >= int(plant_tick)
+
             # Calculate impact before updating counts
             if victim_side == 'ct':
                 ct_after = max(0, ct_alive - 1)
@@ -138,25 +194,25 @@ def get_player_kill_death_analysis(dem, player_name, debug=False):
             else:
                 ct_after = ct_alive
                 t_after = t_alive
-            
+
             impact = calculate_impact_score(ct_alive, t_alive, ct_after, t_after, is_post_plant)
-            
+
             # Record kills for our target player
             if attacker_name == player_name:
                 if attacker_side == 'ct':
                     game_state = f"{ct_alive} v {t_alive}"
                 else:
                     game_state = f"{t_alive} v {ct_alive}"
-                
+
                 if is_post_plant:
                     game_state += " post plant"
-                
+
                 weapon = kill.get('weapon', 'unknown')
                 kill_description = f"{game_state} vs {weapon}"
-                
+
                 round_stats[round_num]['kills'].append(kill_description)
                 round_stats[round_num]['kill_impacts'].append(impact)
-            
+
             # Record deaths for our target player
             if victim_name == player_name:
                 if victim_side == 'ct':
@@ -166,13 +222,13 @@ def get_player_kill_death_analysis(dem, player_name, debug=False):
 
                 if is_post_plant:
                     game_state += " post plant"
-                
+
                 weapon = kill.get('weapon', 'unknown')
                 death_description = f"{game_state} vs {weapon}"
-                
+
                 round_stats[round_num]['deaths'].append(death_description)
                 round_stats[round_num]['death_impacts'].append(-impact)  # Negative for deaths
-            
+
             # Update alive counts after the kill
             if victim_side == 'ct':
                 ct_alive = max(0, ct_alive - 1)

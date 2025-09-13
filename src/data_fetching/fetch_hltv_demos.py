@@ -329,19 +329,114 @@ def download_demo(session: requests.Session, demo: DemoRef, out_dir: Path, overw
         os.replace(tmp, target)
     return target, hasher.hexdigest()
 
+def download_demos_from_events(session: requests.Session, event_ids: List[int], out_dir: Path, 
+                              max_matches_per_event: Optional[int] = None, concurrency: int = 1, 
+                              overwrite: bool = False) -> dict:
+    """
+    Download demos from multiple events.
+    
+    Args:
+        session: HTTP session
+        event_ids: List of event IDs to process
+        out_dir: Output directory for downloads
+        max_matches_per_event: Maximum matches per event
+        concurrency: Number of parallel downloads
+        overwrite: Whether to overwrite existing files
+        
+    Returns:
+        Dictionary mapping event_id to number of successfully downloaded demos
+    """
+    results = {}
+    total_demos = 0
+    
+    for i, event_id in enumerate(event_ids, 1):
+        print(f"\n{'='*60}")
+        print(f"📊 Event {i}/{len(event_ids)}: {event_id}")
+        print(f"{'='*60}")
+        
+        try:
+            # Step 1: discover match pages for this event
+            matches = list_match_pages_for_event(session, event_id, max_matches_per_event)
+            if not matches:
+                print(f"❌ No matches found for event {event_id}")
+                results[event_id] = 0
+                continue
+
+            # Step 2: extract demo links
+            demos: List[DemoRef] = []
+            seen_demo_ids: Set[str] = set()
+            with tqdm(matches, desc="Scanning matches", unit="match") as pbar:
+                for m in pbar:
+                    pbar.set_postfix_str(m.label)
+                    d = parse_match_for_demos(session, m.url)
+                    time.sleep(0.5)  # polite
+                    if d and d.demo_id not in seen_demo_ids:
+                        demos.append(d)
+                        seen_demo_ids.add(d.demo_id)
+
+            if not demos:
+                print(f"❌ No demo downloads found for event {event_id}")
+                results[event_id] = 0
+                continue
+
+            # Step 3: download in parallel
+            event_out_dir = out_dir / str(event_id)
+            event_out_dir.mkdir(parents=True, exist_ok=True)
+            print(f"📥 Downloading {len(demos)} demo zip(s) to {event_out_dir.resolve()}")
+
+            def _worker(dr: DemoRef):
+                try:
+                    return download_demo(session, dr, event_out_dir, overwrite=overwrite)
+                except Exception as e:
+                    print(f"❌ Error downloading {dr.demo_url}: {e}", file=sys.stderr)
+                    return None
+
+            successful_downloads = 0
+            with cf.ThreadPoolExecutor(max_workers=max(1, concurrency)) as ex:
+                for res in tqdm(ex.map(_worker, demos), total=len(demos), desc=f"Event {event_id} downloads"):
+                    if res is not None:
+                        successful_downloads += 1
+
+            results[event_id] = successful_downloads
+            total_demos += successful_downloads
+            print(f"✅ Event {event_id}: {successful_downloads}/{len(demos)} demos downloaded successfully")
+
+        except Exception as e:
+            print(f"❌ Error processing event {event_id}: {e}")
+            results[event_id] = 0
+
+    print(f"\n{'='*60}")
+    print(f"🎉 Multi-event download complete!")
+    print(f"📊 Total demos downloaded: {total_demos}")
+    print(f"📈 Results by event:")
+    for event_id, count in results.items():
+        print(f"   Event {event_id}: {count} demos")
+    print(f"{'='*60}")
+    
+    return results
+
 # --- main --------------------------------------------------------------------
 
 def main():
     ap = argparse.ArgumentParser(description="Download HLTV demos for a given event ID or list events from archive.")
-    ap.add_argument("--event", type=int, help="HLTV event id (see /events/<id>/...)")
-    ap.add_argument("--list-events", action="store_true", help="List events from HLTV archive instead of downloading demos")
-    ap.add_argument("--max-events", type=int, default=20, help="Maximum number of events to list (default: 20)")
+    
+    # Event specification - mutually exclusive options
+    group = ap.add_mutually_exclusive_group(required=True)
+    group.add_argument("--event", type=int, help="HLTV event id (see /events/<id>/...)")
+    group.add_argument("--list-events", action="store_true", help="List events from HLTV archive instead of downloading demos")
+    group.add_argument("--download-from-archive", action="store_true", help="Download demos from multiple events listed in archive")
+    
+    # Archive-specific options
+    ap.add_argument("--max-events", type=int, default=20, help="Maximum number of events to list from archive (default: 20)")
+    ap.add_argument("--max-events-to-process", type=int, help="Maximum number of events to actually process from archive")
     ap.add_argument("--event-type", type=str, default="INTLLAN", help="Event type filter (default: INTLLAN)")
     ap.add_argument("--prize-min", type=int, default=28807, help="Minimum prize pool in USD (default: 28807)")
     ap.add_argument("--prize-max", type=int, default=2000000, help="Maximum prize pool in USD (default: 2000000)")
-    ap.add_argument("--out", type=Path, default=Path("F://CS2/demos_zipped"), help="Output directory")
+    
+    # Download options
+    ap.add_argument("--out", type=Path, default=Path("G:\\CS2\\demos\\archives"), help="Output directory")
     ap.add_argument("--concurrency", type=int, default=1, help="Parallel downloads (be polite; 2–6 is fine)")
-    ap.add_argument("--max", type=int, default=None, help="Max matches to process (useful for testing)")
+    ap.add_argument("--max", type=int, default=None, help="Max matches to process per event (useful for testing)")
     ap.add_argument("--overwrite", action="store_true", help="Overwrite files if they exist")
     args = ap.parse_args()
 
@@ -376,51 +471,94 @@ def main():
         print(f"   python {sys.argv[0]} --event <EVENT_ID>")
         return
 
+    # Handle download from archive mode
+    if args.download_from_archive:
+        print(f"🔍 Fetching events from HLTV archive for downloading...")
+        print(f"📊 Filters: Type={args.event_type}, Prize=${args.prize_min:,}-${args.prize_max:,}")
+        print(f"📋 Max events to list: {args.max_events}")
+        print(f"📋 Max events to process: {args.max_events_to_process or 'all listed'}")
+        print()
+        
+        events = list_events_from_archive(
+            session, 
+            max_events=args.max_events,
+            event_type=args.event_type,
+            prize_min=args.prize_min,
+            prize_max=args.prize_max
+        )
+        
+        if not events:
+            print("❌ No events found with the specified filters.")
+            return
+        
+        # Limit the number of events to process if specified
+        if args.max_events_to_process and args.max_events_to_process < len(events):
+            events = events[:args.max_events_to_process]
+            print(f"📋 Processing first {args.max_events_to_process} events from the list")
+        
+        print(f"📅 Found {len(events)} events to process:")
+        print("=" * 80)
+        for i, event in enumerate(events, 1):
+            print(f"{i:2d}. Event ID: {event.event_id} - {event.name}")
+        print()
+        
+        # Extract event IDs and download demos
+        event_ids = [event.event_id for event in events]
+        download_demos_from_events(
+            session, 
+            event_ids, 
+            args.out, 
+            max_matches_per_event=args.max,
+            concurrency=args.concurrency,
+            overwrite=args.overwrite
+        )
+        return
+
     # Original demo downloading functionality
-    if not args.event:
-        print("❌ Either --event or --list-events must be specified")
+    if args.event:
+        # Step 1: discover match pages for this event
+        matches = list_match_pages_for_event(session, args.event, args.max)
+        if not matches:
+            print("No matches found (event may be ongoing or has no results yet).")
+            return
+
+        # Step 2: extract demo links
+        demos: List[DemoRef] = []
+        seen_demo_ids: Set[str] = set()
+        with tqdm(matches, desc="Scanning matches", unit="match") as pbar:
+            for m in pbar:
+                pbar.set_postfix_str(m.label)
+                d = parse_match_for_demos(session, m.url)
+                time.sleep(0.5)  # polite
+                if d and d.demo_id not in seen_demo_ids:
+                    demos.append(d)
+                    seen_demo_ids.add(d.demo_id)
+
+        if not demos:
+            print("No demo downloads found yet for this event (try again later).")
+            return
+
+        # Step 3: download in parallel
+        event_out_dir = args.out / str(args.event)
+        event_out_dir.mkdir(parents=True, exist_ok=True)
+        print(f"Downloading {len(demos)} demo zip(s) to {event_out_dir.resolve()}")
+
+        def _worker(dr: DemoRef):
+            try:
+                return download_demo(session, dr, event_out_dir, overwrite=args.overwrite)
+            except Exception as e:
+                print(f"Error downloading {dr.demo_url}: {e}", file=sys.stderr)
+                return None
+
+        with cf.ThreadPoolExecutor(max_workers=max(1, args.concurrency)) as ex:
+            for res in tqdm(ex.map(_worker, demos), total=len(demos), desc="Downloads"):
+                pass
+
+        print("Done.")
+    else:
+        print("❌ One of --event, --list-events, or --download-from-archive must be specified")
         ap.print_help()
         return
-
-    # Step 1: discover match pages for this event
-    matches = list_match_pages_for_event(session, args.event, args.max)
-    if not matches:
-        print("No matches found (event may be ongoing or has no results yet).")
-        return
-
-    # Step 2: extract demo links
-    demos: List[DemoRef] = []
-    seen_demo_ids: Set[str] = set()
-    with tqdm(matches, desc="Scanning matches", unit="match") as pbar:
-        for m in pbar:
-            pbar.set_postfix_str(m.label)
-            d = parse_match_for_demos(session, m.url)
-            time.sleep(0.5)  # polite
-            if d and d.demo_id not in seen_demo_ids:
-                demos.append(d)
-                seen_demo_ids.add(d.demo_id)
-
-    if not demos:
-        print("No demo downloads found yet for this event (try again later).")
-        return
-
-    # Step 3: download in parallel
-    event_out_dir = args.out / str(args.event)
-    event_out_dir.mkdir(parents=True, exist_ok=True)
-    print(f"Downloading {len(demos)} demo zip(s) to {event_out_dir.resolve()}")
-
-    def _worker(dr: DemoRef):
-        try:
-            return download_demo(session, dr, event_out_dir, overwrite=args.overwrite)
-        except Exception as e:
-            print(f"Error downloading {dr.demo_url}: {e}", file=sys.stderr)
-            return None
-
-    with cf.ThreadPoolExecutor(max_workers=max(1, args.concurrency)) as ex:
-        for res in tqdm(ex.map(_worker, demos), total=len(demos), desc="Downloads"):
-            pass
-
-    print("Done.")
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -16,7 +16,7 @@ def get_project_root():
     # Navigate up from src/utils/cache_utils.py to project root
     return current_file.parent.parent.parent
 
-CACHE_DIR = Path("F:\\CS2\\cache")
+CACHE_DIR = Path("G:\\CS2\\cache")
 
 
 def get_cache_filename(demo_file):

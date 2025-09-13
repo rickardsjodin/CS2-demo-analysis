@@ -214,7 +214,7 @@ def train_models(X, y):
         if XGBOOST_AVAILABLE:
             print("\n🚀 Training XGBoost...")
             xgb_model = xgb.XGBClassifier(
-                n_estimators=100,
+                n_estimators=200,
                 max_depth=5,
                 learning_rate=0.05,
                 subsample=0.8,
@@ -776,48 +776,6 @@ def save_all_models(models, feature_columns):
     
     return saved_models, sorted_models[0]
 
-def predict_win_probability(time_left, cts_alive, ts_alive, bomb_planted, model_file=None):
-    """Use trained model to predict CT win probability for a given game state"""
-    
-    if model_file is None:
-        model_file = PROJECT_ROOT / "data" / "models" / "ct_win_probability_model.pkl"
-    
-    # Load model
-    model_data = joblib.load(model_file)
-    model = model_data['model']
-    scaler = model_data['scaler']
-    feature_columns = model_data['feature_columns']
-    
-    # Create a dictionary for the single snapshot
-    snapshot_data = {
-        'time_left': time_left,
-        'cts_alive': cts_alive,
-        'ts_alive': ts_alive,
-        'bomb_planted': bomb_planted
-        ,'hp_t': ts_alive * 100
-        ,'hp_ct': cts_alive * 100,
-
-                "ct_main_weapons": 5,
-                "t_main_weapons": 5,
-                "ct_grenades": 10,
-                "t_grenades": 10,
-    }
-    
-    # Convert to DataFrame and engineer features
-    df = pd.DataFrame([snapshot_data])
-    df = create_features(df)
-    
-    # Ensure all required feature columns are present
-    X = df[feature_columns]
-    
-    # Scale if needed
-    if scaler is not None:
-        X = scaler.transform(X)
-    
-    # Predict probability
-    ct_win_prob = model.predict_proba(X)[0, 1]
-    
-    return ct_win_prob
 
 def main():
     """Main training pipeline"""
@@ -858,30 +816,6 @@ def main():
         
         # Save all models
         saved_models, (best_model_name, best_model_info) = save_all_models(models, feature_columns)
-        
-        # Test prediction function
-        print("\n🧪 Testing prediction function:")
-        test_scenarios = [
-            (60, 5, 5, False, "Equal teams, mid-round"),
-            (30, 3, 5, False, "CT disadvantage"),
-            (20, 5, 2, True, "CT advantage with bomb planted"),
-            (5, 1, 1, True, "1v1 clutch with bomb planted"),
-            (45, 4, 4, False, "Equal teams, early round"),
-            (10, 2, 3, True, "CT slight disadvantage, bomb planted"),
-            (90, 5, 3, False, "CT advantage, plenty of time"),
-            (15, 1, 3, False, "CT major disadvantage, no bomb"),
-            (3, 2, 1, True, "CT advantage, very low time, bomb planted"),
-            (75, 5, 1, False, "CT major advantage, early round"),
-            (25, 3, 3, True, "Equal teams, bomb planted, mid-time"),
-            (8, 1, 2, False, "1v2 clutch for CT, no bomb"),
-            (35, 4, 5, False, "T slight advantage, mid-round"),
-            (12, 3, 1, True, "CT advantage, bomb planted, low time"),
-            (50, 2, 4, False, "T major advantage, no bomb")
-        ]
-        
-        for time_left, cts, ts, bomb, description in test_scenarios:
-            prob = predict_win_probability(time_left, cts, ts, bomb)
-            print(f"  {description}: {prob:.1%} CT win probability")
         
         print(f"\n✅ Training complete! Best model: {best_model_name}")
         print(f"📊 Total models trained: {len(models)}")
