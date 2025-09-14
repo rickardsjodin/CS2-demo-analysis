@@ -11,17 +11,29 @@ import polars as pl
 from tqdm import tqdm
 from typing import List, Dict, Any, Optional
 
+from pathlib import Path
+import sys
+
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from src.utils.cache_utils import get_cache_filename, load_demo
+
 try:
     from ..utils.cache_utils import CACHE_DIR
-    from .constants import ROUND_TIME, BOMB_TIME, WEAPON_TIERS, GRENADE_TYPES
+    from .constants import ROUND_TIME, BOMB_TIME, WEAPON_TIERS, MOLOTOV_NADE, HE_NADE, SMOKE_NADE, FLASH_NADE, GRENADE_AND_BOMB_TYPES
 except ImportError:
     # Handle case when running directly for testing or standalone execution
     import sys
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from utils.cache_utils import CACHE_DIR
-    from core.constants import ROUND_TIME, BOMB_TIME, WEAPON_TIERS, GRENADE_TYPES
+    from core.constants import ROUND_TIME, BOMB_TIME, WEAPON_TIERS, MOLOTOV_NADE, HE_NADE, SMOKE_NADE, FLASH_NADE, GRENADE_AND_BOMB_TYPES
 
 def load_demo_data(parsed_demo_file: str) -> Optional[Dict[str, pl.DataFrame]]:
+    if '.dem' in parsed_demo_file:
+        load_demo(parsed_demo_file)
+        parsed_demo_file = get_cache_filename(parsed_demo_file)
+        
     """Loads and prepares data from a parsed demo file."""
     try:
         with open(parsed_demo_file, 'rb') as f:
@@ -45,10 +57,11 @@ def calculate_player_stats(alive_players: pl.DataFrame) -> Dict[str, int]:
     """Calculates equipment and stats for alive players at a specific tick."""
     stats = {
         "ct_main_weapons": 0, "t_main_weapons": 0,
-        "ct_grenades": 0, "t_grenades": 0,
         "ct_helmets": 0, "t_helmets": 0,
         "ct_armor": 0, "t_armor": 0,
-        "defusers": 0
+        "defusers": 0,
+        "ct_smokes": 0, "ct_flashes": 0, "ct_he_nades" : 0, "ct_molotovs": 0,
+        "t_smokes": 0, "t_flashes": 0, "t_he_nades" : 0, "t_molotovs": 0
     }
 
     for player_row in alive_players.iter_rows(named=True):
@@ -62,7 +75,7 @@ def calculate_player_stats(alive_players: pl.DataFrame) -> Dict[str, int]:
                 if tier is not None:
                     if tier > best_weapon_tier:
                         best_weapon_tier = tier
-                elif (item_name not in GRENADE_TYPES) and ("Knife" not in item_name):
+                elif (item_name not in GRENADE_AND_BOMB_TYPES) and ("Knife" not in item_name):
                     tqdm.write(f"Warning: Unknown weapon '{item_name}' not in WEAPON_TIERS.")
         
         if best_weapon_tier >= 5:
@@ -71,17 +84,29 @@ def calculate_player_stats(alive_players: pl.DataFrame) -> Dict[str, int]:
             else:
                 stats["t_main_weapons"] += 1
         
-        grenade_count = sum(1 for item in inventory if item in GRENADE_TYPES)
+        smoke_count = sum(1 for item in inventory if item == SMOKE_NADE)
+        molotov_count = sum(1 for item in inventory if item in MOLOTOV_NADE)
+        flash_count = sum(1 for item in inventory if item == FLASH_NADE)
+        he_count = sum(1 for item in inventory if item == HE_NADE)
+        
+
         armor = player_row.get('armor', 0) or 0
+        has_armor = armor > 0
 
         if player_side == 'ct':
-            stats["ct_grenades"] += grenade_count
+            stats["ct_smokes"] += smoke_count
+            stats["ct_flashes"] += flash_count
+            stats["ct_he_nades"] += he_count
+            stats["ct_molotovs"] += molotov_count
             stats["ct_helmets"] += 1 if player_row.get('has_helmet') else 0
-            stats["ct_armor"] += armor
+            stats["ct_armor"] += has_armor
         else:
-            stats["t_grenades"] += grenade_count
+            stats["t_smokes"] += smoke_count
+            stats["t_flashes"] += flash_count
+            stats["t_he_nades"] += he_count
+            stats["t_molotovs"] += molotov_count
             stats["t_helmets"] += 1 if player_row.get('has_helmet') else 0
-            stats["t_armor"] += armor
+            stats["t_armor"] += has_armor
 
         stats["defusers"] += 1 if player_row.get('has_defuser') else 0
         
@@ -199,7 +224,6 @@ def main():
         return
 
     demo_files = [os.path.join(cache_path, f) for f in os.listdir(cache_path) if f.endswith('.pkl')]
-    
     if not demo_files:
         print("No processed demo files found in cache.")
         return

@@ -21,7 +21,14 @@ WEAPON_TIERS = {
 }
 
 # List of grenade types
-GRENADE_TYPES = [
+GRENADE_AND_BOMB_TYPES = [
     "High Explosive Grenade", "Flashbang", "Smoke Grenade", "Molotov", 
     "Incendiary Grenade", "Decoy Grenade", "C4 Explosive"
 ]
+
+
+HE_NADE = "High Explosive Grenade"
+MOLOTOV_NADE = ["Molotov", "Incendiary Grenade"]
+SMOKE_NADE = "Smoke Grenade"
+FLASH_NADE = "Flashbang"
+

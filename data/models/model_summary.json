@@ -2,9 +2,9 @@
   "models": {
     "xgboost": {
       "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_xgboost.pkl",
-      "accuracy": 0.7829973373906428,
-      "auc": 0.8806102158867886,
-      "log_loss": 0.4236232985179728,
+      "accuracy": 0.8054555048292,
+      "auc": 0.9027221107924439,
+      "log_loss": 0.3840091364747227,
       "rank": 1
     }
   },
