@@ -22,9 +22,9 @@ In our 1v5 example, the player's performance was a 10/10. They displayed world-c
 
 ##### A Soccer Analogy
 
-Let's make the difference even more clear with an analogy from a soccer game. Imagine a star player who is brilliant all game. They dribble past defenders, create multiple clear chances, and fires shots that unluckily smacks the goalpost. Their team loses 0-1. Their performance was world-class, but their impact on the final score was zero. This is our 1v5 hero. They did everything right, but a bit of bad luck or a single mistake at the end meant their brilliant output didn't convert.
+Let's make the difference even more clear with an analogy from a soccer game. Imagine a star player who is brilliant all game. He dribble past defenders, create multiple clear chances, and fires shots that unluckily smacks the goalpost. His team loses 0-1. His performance was world-class, but his impact on the final score was zero. This is our 1v5 hero. They did everything right, but a bit of bad luck or a single mistake at the end meant their brilliant output didn't convert.
 
-Now, contrast this to a player who has a terrible game—bad passes, poor positioning—but the ball deflects off their shin and into the goal for a 1-0 win. Their performance was poor, but their impact was match-winning. Round Swing is designed to reward this player. It doesn't care how you played; it cares that your actions directly led to a win. This might seem unfair, however, I'm sure the first question that comes to mind if you hear a soccer result is "Who scored the goals?"
+Now, contrast this to a player who has a terrible game—bad passes, poor positioning—but the ball deflects off their shin and into the goal for a 1-0 win. Their performance was poor, but their impact was match-winning. Round Swing is designed to reward this player. It doesn't care how you played; it cares that your actions directly led to a win. This might seem unfair. However, I'm sure the first question that comes to mind if you hear a soccer result is "Who scored the goals?"
 
 ##### The Role of Sample Size (And Why a Mismatch is Interesting)
 
