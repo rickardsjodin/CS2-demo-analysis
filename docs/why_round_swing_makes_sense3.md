@@ -32,6 +32,6 @@ Now, over a large sample size—say, an entire tournament or a whole year—thes
 
 ##### Where the Confusion Comes From
 
-And this is the core of the confusion: We instinctively expect a single rating number to tell us both stories at once. We want it to tell us who was most responsible for the win and who played the best. But as the examples show, those are sometimes two different players.
+This is the core of the confusion: We instinctively expect a single rating number to tell us both stories at once. We want it to tell us who was most responsible for the win and who played the best. But as the examples show, those are sometimes two different players.
 
-This doesn't mean the concept of Round Swing is flawed, even if its current implementation has limits. The real takeaway is that "impact" and "performance" are separate things, and our analysis will only become clearer once we stop conflating the two.
+This is precisely the tightrope Rating 3.0 tries to walk by merging these two concepts into one. But since a single number can't truly represent two different ideas, confusion is inevitable. This has led many to blame the counter-intuitive results on Round Swing itself. But this misses the point. The issue isn't that the concept of Round Swing is flawed—even if its current implementation has limits. The real takeaway is that "impact" and "performance" are separate things, and our analysis will only become clearer once we stop conflating the two.
