@@ -1,0 +1,234 @@
+/* Prediction Results Styles */
+.prediction-card {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 25px;
+  border: 2px solid #e2e8f0;
+  transition: all 0.3s ease;
+}
+
+.prediction-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.prediction-header h3 {
+  font-size: 1.3rem;
+  color: #2d3748;
+}
+
+.model-name {
+  background: #667eea;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.probability-bars {
+  margin-bottom: 20px;
+}
+
+.prob-bar {
+  margin-bottom: 15px;
+}
+
+.prob-bar label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #4a5568;
+}
+
+.progress-bar {
+  position: relative;
+  background: #e2e8f0;
+  height: 30px;
+  border-radius: 15px;
+  overflow: hidden;
+}
+
+.progress {
+  height: 100%;
+  border-radius: 15px;
+  transition: width 0.8s ease;
+  position: relative;
+}
+
+.ct-progress {
+  background: linear-gradient(90deg, #48bb78 0%, #38a169 100%);
+}
+
+.t-progress {
+  background: linear-gradient(90deg, #f56565 0%, #e53e3e 100%);
+}
+
+.percentage {
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: white;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.prediction-summary {
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+.winner {
+  font-size: 1.2rem;
+  margin-bottom: 8px;
+  color: #2d3748;
+}
+
+.confidence {
+  font-size: 1rem;
+  color: #666;
+}
+
+.model-stats {
+  text-align: center;
+  color: #666;
+  font-size: 0.85rem;
+}
+
+/* Model Comparison Styles */
+.comparison-container {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 25px;
+  border: 2px solid #e2e8f0;
+  transition: all 0.3s ease;
+}
+
+.comparison-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.comparison-header h3 {
+  font-size: 1.3rem;
+  color: #2d3748;
+  margin-bottom: 4px;
+}
+
+.comparison-subtitle {
+  color: #666;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.model-prediction-card {
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.2s ease;
+}
+
+.model-prediction-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.model-prediction-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.model-prediction-header h4 {
+  font-size: 1rem;
+  color: #2d3748;
+  margin: 0;
+  text-transform: capitalize;
+}
+
+.model-mini-stats {
+  display: flex;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.prediction-winner {
+  text-align: center;
+  margin-bottom: 12px;
+  padding: 8px;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+.prediction-winner strong {
+  display: block;
+  font-size: 1.1rem;
+  color: #2d3748;
+  margin-bottom: 2px;
+}
+
+.confidence-mini {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.probability-bars-mini {
+  margin-top: 12px;
+}
+
+.prob-bar-mini {
+  margin-bottom: 8px;
+}
+
+.prob-bar-mini label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #4a5568;
+  font-size: 0.85rem;
+}
+
+.progress-bar-mini {
+  position: relative;
+  background: #e2e8f0;
+  height: 20px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.percentage-mini {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: white;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+@media (max-width: 768px) {
+  .prediction-header {
+    flex-direction: column;
+    gap: 8px;
+    text-align: center;
+  }
+
+  .comparison-grid {
+    grid-template-columns: 1fr;
+  }
+}
