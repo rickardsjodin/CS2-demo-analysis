@@ -23,13 +23,135 @@ from src.ml.feature_sets import MINIMAL_FEATURES
 
 dataset_bin_size = 5
 
-def generate_all_feature_plots(models, dataset_probs, model_name):
+def generate_combined_player_feature_plots(models, dataset_probs, model_name):
     """
-    Generates plots for all minimal features against win probability.
+    Generate combined plots showing all players together for each feature type.
+    Much more efficient than individual plots for each player.
     """
-    print(f"🎨 Generating plots for all minimal features for model '{model_name}'...")
+    model_info = models.get(model_name)
+    if not model_info:
+        print(f"Model {model_name} not found.")
+        return
+
+    print(f"🎨 Generating combined player feature plots for model '{model_name}'...")
+
+    # Create combined plots for each feature type
+    feature_types = ['health', 'armor', 'best_weapon_tier']
+    
+    for feature_type in feature_types:
+        plt.figure(figsize=(12, 8))
+        
+        # Define colors for CT (blue tones) and T (red tones) players
+        ct_colors = ['#0066CC', '#0080FF', '#3399FF', '#66B2FF', '#99CCFF']
+        t_colors = ['#CC0000', '#FF1A1A', '#FF4D4D', '#FF8080', '#FFB3B3']
+        
+        # Determine value range based on feature type
+        if feature_type == 'health' or feature_type == 'armor':
+            value_range = list(range(0, 101, 10))
+            xlabel = f'Player {feature_type.title()}'
+        elif feature_type == 'best_weapon_tier':
+            value_range = list(range(0, 6))
+            xlabel = 'Player Weapon Tier'
+        
+        # Plot all players for this feature type
+        for player_id in range(10):
+            player_side = "CT" if player_id < 5 else "T"
+            color = ct_colors[player_id] if player_id < 5 else t_colors[player_id - 5]
+            probabilities = []
+            
+            for value in value_range:
+                base_snapshot = create_balanced_scenario()
+                base_snapshot[f'player_{player_id}_{feature_type}'] = value
+                
+                try:
+                    prob = predict_scenario_probability(model_info, base_snapshot)
+                    probabilities.append(prob * 100)
+                except:
+                    probabilities.append(None)
+            
+            # Filter valid predictions
+            valid_values = [v for v, p in zip(value_range, probabilities) if p is not None]
+            valid_probs = [p for p in probabilities if p is not None]
+            
+            if valid_values:
+                linestyle = '-' if player_id < 5 else '--'
+                plt.plot(valid_values, valid_probs, 
+                        label=f'P{player_id} ({player_side})', 
+                        color=color, linewidth=2, linestyle=linestyle)
+        
+        plt.xlabel(xlabel, fontweight='bold')
+        plt.ylabel('CT Win Probability (%)', fontweight='bold')
+        plt.title(f'Impact of Individual Player {feature_type.title()} - {model_name.replace("_", " ").title()}\n(Solid=CT, Dashed=T)', 
+                 fontsize=14, fontweight='bold')
+        plt.grid(True, alpha=0.3)
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+        plt.ylim(0, 100)
+        
+        # Save the combined plot
+        safe_feature_name = feature_type.replace('_', '-')
+        filename = f'../../outputs/visualizations/combined_player_{safe_feature_name}_vs_probability_{model_name}.png'
+        plt.savefig(filename, dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        print(f"✅ Combined {feature_type} plot saved to {filename}")
+
+    # Special case: CT defuser plot (post-plant scenario)
+    plt.figure(figsize=(12, 8))
+    
+    for ct_id in range(5):  # Only CT players
+        color = ct_colors[ct_id]
+        defuser_values = [0, 1]
+        probabilities = []
+        
+        for has_defuser in defuser_values:
+            base_snapshot = create_balanced_scenario()
+            base_snapshot['bomb_planted'] = True
+            base_snapshot['time_left'] = 20
+            base_snapshot[f'player_{ct_id}_has_defuser'] = has_defuser
+            base_snapshot[f'player_{ct_id}_side'] = 1
+            
+            try:
+                prob = predict_scenario_probability(model_info, base_snapshot)
+                probabilities.append(prob * 100)
+            except:
+                probabilities.append(None)
+        
+        if all(p is not None for p in probabilities):
+            x_positions = [ct_id * 2, ct_id * 2 + 1]  # Offset positions for each player
+            plt.bar(x_positions, probabilities, color=color, alpha=0.7, 
+                   label=f'Player {ct_id}', width=0.8)
+    
+    plt.xlabel('CT Players (No Defuser / Has Defuser)', fontweight='bold')
+    plt.ylabel('CT Win Probability (%)', fontweight='bold')
+    plt.title(f'Impact of Individual CT Player Defuser - {model_name.replace("_", " ").title()}\n(Post-plant, 20s left)', 
+             fontsize=14, fontweight='bold')
+    plt.grid(True, alpha=0.3, axis='y')
+    plt.legend()
+    plt.ylim(0, 100)
+    
+    # Set custom x-tick labels
+    tick_positions = []
+    tick_labels = []
+    for ct_id in range(5):
+        tick_positions.extend([ct_id * 2, ct_id * 2 + 1])
+        tick_labels.extend([f'P{ct_id} No', f'P{ct_id} Yes'])
+    plt.xticks(tick_positions, tick_labels, rotation=45, ha='right')
+    
+    filename = f'../../outputs/visualizations/combined_player_defuser_vs_probability_{model_name}.png'
+    plt.savefig(filename, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"✅ Combined defuser plot saved to {filename}")
+    print("✅ All combined player feature plots generated efficiently.")
+def generate_team_level_feature_plots(models, dataset_probs, model_name):
+    """
+    Generates plots for team-level features only (no individual players).
+    Much more efficient approach.
+    """
+    print(f"🎨 Generating plots for team-level features for model '{model_name}'...")
 
     feature_configs = {
+        # Team aggregated features only
         'time_left': {'range': list(range(0, 120, 5)), 'base_scenario': {}},
         'bomb_time_left': {'range': list(range(0, 45, 2)), 'base_scenario': {'bomb_planted': True}},
         'cts_alive': {'range': list(range(0, 6)), 'base_scenario': {}},
@@ -54,30 +176,37 @@ def generate_all_feature_plots(models, dataset_probs, model_name):
         "t_molotovs": {'range': list(range(0, 6)), 'base_scenario': {}},
     }
 
-    # Note: 'round_time_left' in MINIMAL_FEATURES corresponds to 'time_left' in snapshot data.
-    # The create_features function handles this mapping.
+    # Import minimal features from feature_sets (excluding individual player features)
+    from src.ml.feature_sets import MINIMAL_FEATURES
     
+    features_to_plot = []
+    
+    # Add only team-level minimal features
     for feature in MINIMAL_FEATURES:
-        # Map from feature name to snapshot key if different
         snapshot_feature_name = 'time_left' if feature == 'round_time_left' else feature
-        
-        if snapshot_feature_name in feature_configs:
-            config = feature_configs[snapshot_feature_name]
+        if snapshot_feature_name in feature_configs and not snapshot_feature_name.startswith('player_'):
+            features_to_plot.append(snapshot_feature_name)
+    
+    print(f"📊 Plotting {len(features_to_plot)} team-level features")
+    
+    for feature in features_to_plot:
+        if feature in feature_configs:
+            config = feature_configs[feature]
             try:
                 plot_feature_vs_probability(
                     models=models,
                     dataset_probs=dataset_probs,
-                    feature_to_plot=snapshot_feature_name,
+                    feature_to_plot=feature,
                     feature_range=config['range'],
                     base_scenario=config['base_scenario'],
                     model_name=model_name
                 )
             except Exception as e:
-                print(f"❌ Error generating plot for feature '{snapshot_feature_name}': {e}")
+                print(f"❌ Error generating plot for feature '{feature}': {e}")
         else:
-            print(f"⚠️ No configuration found for feature '{snapshot_feature_name}', skipping plot.")
+            print(f"⚠️ No configuration found for feature '{feature}', skipping plot.")
 
-    print("✅ All feature plots generated.")
+    print("✅ Team-level feature plots generated.")
 
 def load_dataset_statistics():
     """Compute dataset statistics directly from all_snapshots.json with binned time"""
@@ -1545,6 +1674,7 @@ def create_additional_time_plots_for_models(models, dataset_probs):
 def plot_feature_vs_probability(models, dataset_probs, feature_to_plot, feature_range, base_scenario, model_name):
     """
     Plots a given feature vs. CT win probability for a specific model and scenario.
+    Enhanced to handle both team-level and individual player features.
     """
     model_info = models.get(model_name)
     if not model_info:
@@ -1557,7 +1687,7 @@ def plot_feature_vs_probability(models, dataset_probs, feature_to_plot, feature_
     
     model_probabilities = []
     
-    # Base snapshot data, can be overridden by feature_to_plot
+    # Base snapshot data for team-level features
     base_snapshot = {
         'time_left': 60,
         'cts_alive': 3,
@@ -1582,12 +1712,71 @@ def plot_feature_vs_probability(models, dataset_probs, feature_to_plot, feature_
         "t_molotovs": 2,
     }
     
+    # Add default values for all individual player features
+    for player_id in range(10):
+        player_prefix = f'player_{player_id}_'
+        
+        # Default: players 0-4 are CT (side=1), players 5-9 are T (side=0)
+        default_side = 1 if player_id < 5 else 0
+        
+        base_snapshot[f'{player_prefix}health'] = 100
+        base_snapshot[f'{player_prefix}armor'] = 100
+        base_snapshot[f'{player_prefix}has_defuser'] = 1 if default_side == 1 else 0  # Only CTs can have defuser
+        base_snapshot[f'{player_prefix}has_helmet'] = 1
+        base_snapshot[f'{player_prefix}best_weapon_tier'] = 4  # Good weapon by default
+        base_snapshot[f'{player_prefix}side'] = default_side
+    
     # Update with user-defined base scenario
     base_snapshot.update(base_scenario)
+    
+    # Special handling for player features
+    is_player_feature = feature_to_plot.startswith('player_')
+    if is_player_feature:
+        # Extract player ID and feature type
+        parts = feature_to_plot.split('_')
+        if len(parts) >= 3:
+            player_id = int(parts[1])
+            feature_type = '_'.join(parts[2:])
+            
+            # Set a realistic scenario for analyzing this specific player
+            if feature_type in ['has_defuser']:
+                # Only analyze defuser for CT players
+                for pid in range(10):
+                    if pid < 5:  # CT players
+                        base_snapshot[f'player_{pid}_side'] = 1
+                    else:  # T players
+                        base_snapshot[f'player_{pid}_side'] = 0
+                        base_snapshot[f'player_{pid}_has_defuser'] = 0
+            
+            # If analyzing a T player's defuser, set their side correctly
+            if feature_type == 'has_defuser' and player_id >= 5:
+                base_snapshot[f'player_{player_id}_side'] = 0  # Ensure T side
+            
+            # If analyzing side, adjust other features accordingly
+            if feature_type == 'side':
+                # When changing sides, adjust defuser accordingly
+                pass  # Will be handled in the loop below
 
     for value in feature_range:
         snapshot_data = base_snapshot.copy()
         snapshot_data[feature_to_plot] = value
+        
+        # Special adjustments based on feature type
+        if is_player_feature:
+            parts = feature_to_plot.split('_')
+            if len(parts) >= 3:
+                player_id = int(parts[1])
+                feature_type = '_'.join(parts[2:])
+                
+                # If changing player side, adjust defuser accordingly
+                if feature_type == 'side':
+                    if value == 0:  # T side
+                        snapshot_data[f'player_{player_id}_has_defuser'] = 0
+                    # CT side can have defuser (keep current value)
+                
+                # If setting defuser for T player, ensure they're on CT side
+                if feature_type == 'has_defuser' and value == 1:
+                    snapshot_data[f'player_{player_id}_side'] = 1
         
         # For convenience, if cts_alive or ts_alive is the feature, update hp too
         if feature_to_plot == 'cts_alive':
@@ -1629,11 +1818,24 @@ def plot_feature_vs_probability(models, dataset_probs, feature_to_plot, feature_
              linestyle='-',
              linewidth=2)
 
-    plt.xlabel(feature_to_plot.replace("_", " ").title(), fontweight='bold')
+    # Create more descriptive labels for player features
+    if is_player_feature:
+        parts = feature_to_plot.split('_')
+        if len(parts) >= 3:
+            player_id = int(parts[1])
+            feature_type = '_'.join(parts[2:])
+            player_side = "CT" if player_id < 5 else "T"
+            xlabel = f"Player {player_id} ({player_side}) {feature_type.replace('_', ' ').title()}"
+        else:
+            xlabel = feature_to_plot.replace("_", " ").title()
+    else:
+        xlabel = feature_to_plot.replace("_", " ").title()
+    
+    plt.xlabel(xlabel, fontweight='bold')
     plt.ylabel('CT Win Probability (%)', fontweight='bold')
     
-    scenario_desc = ", ".join(f"{k}={v}" for k, v in base_scenario.items())
-    plt.title(f'CT Win Probability vs {feature_to_plot.replace("_", " ").title()} for {model_name}\nScenario: {scenario_desc}', fontsize=14, fontweight='bold')
+    scenario_desc = ", ".join(f"{k}={v}" for k, v in base_scenario.items()) if base_scenario else "Default scenario"
+    plt.title(f'CT Win Probability vs {xlabel} for {model_name}\nScenario: {scenario_desc}', fontsize=14, fontweight='bold')
     
     plt.grid(True, alpha=0.5)
     plt.legend()
@@ -1643,12 +1845,521 @@ def plot_feature_vs_probability(models, dataset_probs, feature_to_plot, feature_
     if feature_to_plot == 'time_left':
         plt.xlim(max(plottable_range), min(plottable_range))
 
-    filename = f'../../outputs/visualizations/{feature_to_plot}_vs_probability_{model_name}.png'
+    # Make filename more descriptive for player features
+    safe_feature_name = feature_to_plot.replace('_', '-')
+    filename = f'../../outputs/visualizations/{safe_feature_name}_vs_probability_{model_name}.png'
     plt.savefig(filename, dpi=300, bbox_inches='tight')
     plt.close()
     
     print(f"✅ Plot saved to {filename}")
 
+
+def create_player_impact_analysis(models, model_name):
+    """
+    Create comprehensive analysis of individual player impacts on win probability.
+    Shows how each player's attributes affect the overall game outcome.
+    All players plotted together for easy comparison.
+    """
+    model_info = models.get(model_name)
+    if not model_info:
+        print(f"Model {model_name} not found.")
+        return
+
+    print(f"🔍 Creating combined player impact analysis for model '{model_name}'...")
+
+    fig, axes = plt.subplots(2, 3, figsize=(24, 16))
+    fig.suptitle(f'Combined Player Impact Analysis - {model_name.replace("_", " ").title()}', 
+                 fontsize=16, fontweight='bold')
+
+    # Define colors for CT (blue tones) and T (red tones) players
+    ct_colors = ['#0066CC', '#0080FF', '#3399FF', '#66B2FF', '#99CCFF']
+    t_colors = ['#CC0000', '#FF1A1A', '#FF4D4D', '#FF8080', '#FFB3B3']
+    
+    # Scenario 1: All players health impact
+    ax1 = axes[0, 0]
+    health_values = list(range(0, 101, 10))
+    
+    for player_id in range(10):
+        player_side = "CT" if player_id < 5 else "T"
+        color = ct_colors[player_id] if player_id < 5 else t_colors[player_id - 5]
+        probabilities = []
+        
+        for health in health_values:
+            base_snapshot = create_balanced_scenario()
+            base_snapshot[f'player_{player_id}_health'] = health
+            
+            try:
+                prob = predict_scenario_probability(model_info, base_snapshot)
+                probabilities.append(prob * 100)
+            except:
+                probabilities.append(None)
+        
+        valid_health = [h for h, p in zip(health_values, probabilities) if p is not None]
+        valid_probs = [p for p in probabilities if p is not None]
+        
+        if valid_health:
+            linestyle = '-' if player_id < 5 else '--'
+            ax1.plot(valid_health, valid_probs, 
+                    label=f'P{player_id} ({player_side})', 
+                    color=color, linewidth=2, linestyle=linestyle)
+    
+    ax1.set_xlabel('Player Health', fontweight='bold')
+    ax1.set_ylabel('CT Win Probability (%)', fontweight='bold')
+    ax1.set_title('Impact of Individual Player Health\n(Solid=CT, Dashed=T)', fontweight='bold')
+    ax1.grid(True, alpha=0.3)
+    ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+    ax1.set_ylim(0, 100)
+
+    # Scenario 2: All players armor impact
+    ax2 = axes[0, 1]
+    armor_values = list(range(0, 101, 10))
+    
+    for player_id in range(10):
+        player_side = "CT" if player_id < 5 else "T"
+        color = ct_colors[player_id] if player_id < 5 else t_colors[player_id - 5]
+        probabilities = []
+        
+        for armor in armor_values:
+            base_snapshot = create_balanced_scenario()
+            base_snapshot[f'player_{player_id}_armor'] = armor
+            
+            try:
+                prob = predict_scenario_probability(model_info, base_snapshot)
+                probabilities.append(prob * 100)
+            except:
+                probabilities.append(None)
+        
+        valid_armor = [a for a, p in zip(armor_values, probabilities) if p is not None]
+        valid_probs = [p for p in probabilities if p is not None]
+        
+        if valid_armor:
+            linestyle = '-' if player_id < 5 else '--'
+            ax2.plot(valid_armor, valid_probs, 
+                    label=f'P{player_id} ({player_side})', 
+                    color=color, linewidth=2, linestyle=linestyle)
+    
+    ax2.set_xlabel('Player Armor', fontweight='bold')
+    ax2.set_ylabel('CT Win Probability (%)', fontweight='bold')
+    ax2.set_title('Impact of Individual Player Armor\n(Solid=CT, Dashed=T)', fontweight='bold')
+    ax2.grid(True, alpha=0.3)
+    ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+    ax2.set_ylim(0, 100)
+
+    # Scenario 3: All players weapon tier impact
+    ax3 = axes[0, 2]
+    weapon_values = list(range(0, 6))
+    
+    for player_id in range(10):
+        player_side = "CT" if player_id < 5 else "T"
+        color = ct_colors[player_id] if player_id < 5 else t_colors[player_id - 5]
+        probabilities = []
+        
+        for weapon_tier in weapon_values:
+            base_snapshot = create_balanced_scenario()
+            base_snapshot[f'player_{player_id}_best_weapon_tier'] = weapon_tier
+            
+            try:
+                prob = predict_scenario_probability(model_info, base_snapshot)
+                probabilities.append(prob * 100)
+            except:
+                probabilities.append(None)
+        
+        valid_weapons = [w for w, p in zip(weapon_values, probabilities) if p is not None]
+        valid_probs = [p for p in probabilities if p is not None]
+        
+        if valid_weapons:
+            linestyle = '-' if player_id < 5 else '--'
+            ax3.plot(valid_weapons, valid_probs, 
+                    label=f'P{player_id} ({player_side})', 
+                    color=color, linewidth=2, linestyle=linestyle)
+    
+    ax3.set_xlabel('Player Weapon Tier', fontweight='bold')
+    ax3.set_ylabel('CT Win Probability (%)', fontweight='bold')
+    ax3.set_title('Impact of Individual Player Weapon Quality\n(Solid=CT, Dashed=T)', fontweight='bold')
+    ax3.grid(True, alpha=0.3)
+    ax3.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+    ax3.set_ylim(0, 100)
+
+    # Scenario 4: Average CT vs T player impact comparison
+    ax4 = axes[1, 0]
+    
+    # Compare average impact of CT vs T players for health
+    health_values_coarse = list(range(0, 101, 20))
+    ct_avg_health_impact = []
+    t_avg_health_impact = []
+    
+    for health in health_values_coarse:
+        base_snapshot = create_balanced_scenario()
+        
+        # Test CT players average impact
+        ct_probs = []
+        for ct_id in range(5):
+            test_snapshot = base_snapshot.copy()
+            test_snapshot[f'player_{ct_id}_health'] = health
+            try:
+                prob = predict_scenario_probability(model_info, test_snapshot)
+                ct_probs.append(prob * 100)
+            except:
+                pass
+        
+        # Test T players average impact  
+        t_probs = []
+        for t_id in range(5, 10):
+            test_snapshot = base_snapshot.copy()
+            test_snapshot[f'player_{t_id}_health'] = health
+            try:
+                prob = predict_scenario_probability(model_info, test_snapshot)
+                t_probs.append(prob * 100)
+            except:
+                pass
+        
+        if ct_probs:
+            ct_avg_health_impact.append(np.mean(ct_probs))
+        if t_probs:
+            t_avg_health_impact.append(np.mean(t_probs))
+    
+    if ct_avg_health_impact and t_avg_health_impact:
+        ax4.plot(health_values_coarse[:len(ct_avg_health_impact)], ct_avg_health_impact, 
+                label='Average CT Player Impact', color='blue', linewidth=4, marker='o', markersize=8)
+        ax4.plot(health_values_coarse[:len(t_avg_health_impact)], t_avg_health_impact, 
+                label='Average T Player Impact', color='red', linewidth=4, marker='s', markersize=8)
+    
+    ax4.set_xlabel('Player Health', fontweight='bold')
+    ax4.set_ylabel('CT Win Probability (%)', fontweight='bold')
+    ax4.set_title('Average Side Impact: CT vs T Player Health', fontweight='bold')
+    ax4.grid(True, alpha=0.3)
+    ax4.legend(fontsize=12)
+    ax4.set_ylim(0, 100)
+
+    # Scenario 5: All players elimination impact (bar chart)
+    ax5 = axes[1, 1]
+    
+    base_scenario = create_balanced_scenario()
+    baseline_prob = predict_scenario_probability(model_info, base_scenario) * 100
+    
+    elimination_impacts = []
+    player_labels = []
+    colors_list = []
+    
+    for player_id in range(10):
+        player_side = "CT" if player_id < 5 else "T"
+        test_scenario = base_scenario.copy()
+        test_scenario[f'player_{player_id}_health'] = 0  # Eliminate player
+        
+        try:
+            prob = predict_scenario_probability(model_info, test_scenario) * 100
+            impact = prob - baseline_prob
+            elimination_impacts.append(impact)
+        except:
+            elimination_impacts.append(0)
+        
+        player_labels.append(f'P{player_id}\n({player_side})')
+        colors_list.append('blue' if player_id < 5 else 'red')
+    
+    bars = ax5.bar(player_labels, elimination_impacts, color=colors_list, alpha=0.7)
+    
+    ax5.set_ylabel('Change in CT Win Probability (%)', fontweight='bold')
+    ax5.set_title('Impact of Individual Player Elimination\n(Change from baseline)', fontweight='bold')
+    ax5.grid(True, alpha=0.3, axis='y')
+    ax5.axhline(y=0, color='black', linestyle='-', alpha=0.5)
+    
+    # Add value labels on bars
+    for bar, impact in zip(bars, elimination_impacts):
+        height = bar.get_height()
+        ax5.text(bar.get_x() + bar.get_width()/2., height + (0.5 if height >= 0 else -1),
+                f'{impact:.1f}%', ha='center', va='bottom' if height >= 0 else 'top', 
+                fontsize=10, fontweight='bold')
+
+    # Scenario 6: CT players defuser impact in post-plant scenario
+    ax6 = axes[1, 2]
+    
+    # Create post-plant base scenario
+    post_plant_base = create_balanced_scenario()
+    post_plant_base['bomb_planted'] = True
+    post_plant_base['time_left'] = 20  # 20 seconds left
+    
+    defuser_impacts = []
+    ct_labels = []
+    
+    for ct_id in range(5):
+        # Test without defuser
+        no_defuser_scenario = post_plant_base.copy()
+        no_defuser_scenario[f'player_{ct_id}_has_defuser'] = 0
+        no_defuser_scenario[f'player_{ct_id}_side'] = 1
+        
+        # Test with defuser
+        with_defuser_scenario = post_plant_base.copy()
+        with_defuser_scenario[f'player_{ct_id}_has_defuser'] = 1
+        with_defuser_scenario[f'player_{ct_id}_side'] = 1
+        
+        try:
+            prob_no_defuser = predict_scenario_probability(model_info, no_defuser_scenario) * 100
+            prob_with_defuser = predict_scenario_probability(model_info, with_defuser_scenario) * 100
+            impact = prob_with_defuser - prob_no_defuser
+            defuser_impacts.append(impact)
+        except:
+            defuser_impacts.append(0)
+        
+        ct_labels.append(f'Player {ct_id}')
+    
+    bars = ax6.bar(ct_labels, defuser_impacts, color=ct_colors, alpha=0.7)
+    
+    ax6.set_ylabel('CT Win Probability Increase (%)', fontweight='bold')
+    ax6.set_title('Individual CT Player Defuser Impact\n(Post-plant, 20s left)', fontweight='bold')
+    ax6.grid(True, alpha=0.3, axis='y')
+    
+    # Add value labels on bars
+    for bar, impact in zip(bars, defuser_impacts):
+        height = bar.get_height()
+        ax6.text(bar.get_x() + bar.get_width()/2., height + 0.5,
+                f'{impact:.1f}%', ha='center', va='bottom', 
+                fontsize=10, fontweight='bold')
+
+    plt.tight_layout()
+    filename = f'../../outputs/visualizations/combined_player_impact_analysis_{model_name}.png'
+    plt.savefig(filename, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"📊 Combined player impact analysis saved to {filename}")
+
+def create_balanced_scenario():
+    """
+    Create a balanced base scenario for player impact analysis.
+    """
+    base_snapshot = {
+        'time_left': 60,
+        'cts_alive': 5,
+        'ts_alive': 5,
+        'bomb_planted': False,
+        'hp_t': 500,
+        'hp_ct': 500,
+        "ct_main_weapons": 5,
+        "t_main_weapons": 5,
+        "ct_helmets": 5,
+        "t_helmets": 5,
+        "ct_armor": 500,
+        "t_armor": 500,
+        "defusers": 5,
+        "ct_smokes": 2,
+        "ct_flashes": 2,
+        "ct_he_nades": 2,
+        "ct_molotovs": 2,
+        "t_smokes": 2,
+        "t_flashes": 2,
+        "t_he_nades": 2,
+        "t_molotovs": 2,
+    }
+    
+    # Add default values for all individual players
+    for player_id in range(10):
+        player_prefix = f'player_{player_id}_'
+        default_side = 1 if player_id < 5 else 0
+        
+        base_snapshot[f'{player_prefix}health'] = 100
+        base_snapshot[f'{player_prefix}armor'] = 100
+        base_snapshot[f'{player_prefix}has_defuser'] = 1 if default_side == 1 else 0
+        base_snapshot[f'{player_prefix}has_helmet'] = 1
+        base_snapshot[f'{player_prefix}best_weapon_tier'] = 4
+        base_snapshot[f'{player_prefix}side'] = default_side
+    
+    return base_snapshot
+
+def predict_scenario_probability(model_info, snapshot_data):
+    """
+    Helper function to predict probability for a given scenario.
+    """
+    df = pd.DataFrame([snapshot_data])
+    df = create_features(df)
+    
+    feature_columns = model_info['data']['feature_columns']
+    X = df[feature_columns]
+    
+    scaler = model_info['data'].get('scaler')
+    if scaler is not None:
+        X = scaler.transform(X)
+    
+    model = model_info['data']['model']
+    ct_win_prob = model.predict_proba(X)[0, 1]
+    return ct_win_prob
+
+def create_player_heatmap_analysis(models, model_name):
+    """
+    Create focused heatmap showing team-level player attribute combinations.
+    More efficient analysis of how different attribute levels affect win probability.
+    """
+    model_info = models.get(model_name)
+    if not model_info:
+        print(f"Model {model_name} not found.")
+        return
+
+    print(f"🔥 Creating team-level player attribute heatmaps for model '{model_name}'...")
+
+    fig, axes = plt.subplots(2, 2, figsize=(20, 16))
+    fig.suptitle(f'Team-Level Player Attribute Impact - {model_name.replace("_", " ").title()}', 
+                 fontsize=16, fontweight='bold')
+
+    base_scenario = create_balanced_scenario()
+
+    # Heatmap 1: Team weapon tier combinations
+    ax1 = axes[0, 0]
+    weapon_tiers = [1, 2, 3, 4, 5]
+    weapon_heatmap_data = np.zeros((len(weapon_tiers), len(weapon_tiers)))
+    
+    for i, ct_weapon in enumerate(weapon_tiers):
+        for j, t_weapon in enumerate(weapon_tiers):
+            test_scenario = base_scenario.copy()
+            # Set all CT players to same weapon tier
+            for ct_id in range(5):
+                test_scenario[f'player_{ct_id}_best_weapon_tier'] = ct_weapon
+            # Set all T players to same weapon tier
+            for t_id in range(5, 10):
+                test_scenario[f'player_{t_id}_best_weapon_tier'] = t_weapon
+            
+            try:
+                prob = predict_scenario_probability(model_info, test_scenario)
+                weapon_heatmap_data[i, j] = prob * 100
+            except:
+                weapon_heatmap_data[i, j] = 50  # Default
+    
+    im1 = ax1.imshow(weapon_heatmap_data, cmap='RdYlBu', vmin=0, vmax=100)
+    ax1.set_xticks(range(len(weapon_tiers)))
+    ax1.set_yticks(range(len(weapon_tiers)))
+    ax1.set_xticklabels([f'Tier {t}' for t in weapon_tiers])
+    ax1.set_yticklabels([f'Tier {t}' for t in weapon_tiers])
+    ax1.set_xlabel('T Team Weapon Tier', fontweight='bold')
+    ax1.set_ylabel('CT Team Weapon Tier', fontweight='bold')
+    ax1.set_title('CT Win % - Team Weapon Tier Combinations', fontweight='bold')
+    
+    # Add text annotations
+    for i in range(len(weapon_tiers)):
+        for j in range(len(weapon_tiers)):
+            text = ax1.text(j, i, f'{weapon_heatmap_data[i, j]:.1f}%',
+                           ha="center", va="center", color="black", fontweight='bold')
+
+    # Heatmap 2: Team armor combinations
+    ax2 = axes[0, 1]
+    armor_levels = [0, 25, 50, 75, 100]
+    armor_heatmap_data = np.zeros((len(armor_levels), len(armor_levels)))
+    
+    for i, ct_armor in enumerate(armor_levels):
+        for j, t_armor in enumerate(armor_levels):
+            test_scenario = base_scenario.copy()
+            # Set all CT players to same armor level
+            for ct_id in range(5):
+                test_scenario[f'player_{ct_id}_armor'] = ct_armor
+            # Set all T players to same armor level
+            for t_id in range(5, 10):
+                test_scenario[f'player_{t_id}_armor'] = t_armor
+            
+            try:
+                prob = predict_scenario_probability(model_info, test_scenario)
+                armor_heatmap_data[i, j] = prob * 100
+            except:
+                armor_heatmap_data[i, j] = 50  # Default
+    
+    im2 = ax2.imshow(armor_heatmap_data, cmap='RdYlBu', vmin=0, vmax=100)
+    ax2.set_xticks(range(len(armor_levels)))
+    ax2.set_yticks(range(len(armor_levels)))
+    ax2.set_xticklabels([f'{a}%' for a in armor_levels])
+    ax2.set_yticklabels([f'{a}%' for a in armor_levels])
+    ax2.set_xlabel('T Team Armor', fontweight='bold')
+    ax2.set_ylabel('CT Team Armor', fontweight='bold')
+    ax2.set_title('CT Win % - Team Armor Combinations', fontweight='bold')
+    
+    # Add text annotations
+    for i in range(len(armor_levels)):
+        for j in range(len(armor_levels)):
+            text = ax2.text(j, i, f'{armor_heatmap_data[i, j]:.1f}%',
+                           ha="center", va="center", color="black", fontweight='bold')
+
+    # Heatmap 3: Team health combinations
+    ax3 = axes[1, 0]
+    health_levels = [25, 50, 75, 100]
+    health_heatmap_data = np.zeros((len(health_levels), len(health_levels)))
+    
+    for i, ct_health in enumerate(health_levels):
+        for j, t_health in enumerate(health_levels):
+            test_scenario = base_scenario.copy()
+            # Set all CT players to same health level
+            for ct_id in range(5):
+                test_scenario[f'player_{ct_id}_health'] = ct_health
+            # Set all T players to same health level
+            for t_id in range(5, 10):
+                test_scenario[f'player_{t_id}_health'] = t_health
+            
+            try:
+                prob = predict_scenario_probability(model_info, test_scenario)
+                health_heatmap_data[i, j] = prob * 100
+            except:
+                health_heatmap_data[i, j] = 50  # Default
+    
+    im3 = ax3.imshow(health_heatmap_data, cmap='RdYlBu', vmin=0, vmax=100)
+    ax3.set_xticks(range(len(health_levels)))
+    ax3.set_yticks(range(len(health_levels)))
+    ax3.set_xticklabels([f'{h}%' for h in health_levels])
+    ax3.set_yticklabels([f'{h}%' for h in health_levels])
+    ax3.set_xlabel('T Team Health', fontweight='bold')
+    ax3.set_ylabel('CT Team Health', fontweight='bold')
+    ax3.set_title('CT Win % - Team Health Combinations', fontweight='bold')
+    
+    # Add text annotations
+    for i in range(len(health_levels)):
+        for j in range(len(health_levels)):
+            text = ax3.text(j, i, f'{health_heatmap_data[i, j]:.1f}%',
+                           ha="center", va="center", color="black", fontweight='bold')
+
+    # Heatmap 4: CT defuser count vs time (post-plant scenario)
+    ax4 = axes[1, 1]
+    defuser_counts = [0, 1, 2, 3, 4, 5]
+    time_values = [5, 10, 15, 20, 25, 30]
+    defuser_time_heatmap = np.zeros((len(defuser_counts), len(time_values)))
+    
+    for i, defuser_count in enumerate(defuser_counts):
+        for j, time_left in enumerate(time_values):
+            test_scenario = base_scenario.copy()
+            test_scenario['bomb_planted'] = True
+            test_scenario['time_left'] = time_left
+            
+            # Set defuser count (first N CT players have defusers)
+            for ct_id in range(5):
+                if ct_id < defuser_count:
+                    test_scenario[f'player_{ct_id}_has_defuser'] = 1
+                else:
+                    test_scenario[f'player_{ct_id}_has_defuser'] = 0
+            
+            try:
+                prob = predict_scenario_probability(model_info, test_scenario)
+                defuser_time_heatmap[i, j] = prob * 100
+            except:
+                defuser_time_heatmap[i, j] = 50  # Default
+    
+    im4 = ax4.imshow(defuser_time_heatmap, cmap='RdYlBu', vmin=0, vmax=100)
+    ax4.set_xticks(range(len(time_values)))
+    ax4.set_yticks(range(len(defuser_counts)))
+    ax4.set_xticklabels([f'{t}s' for t in time_values])
+    ax4.set_yticklabels([f'{d}' for d in defuser_counts])
+    ax4.set_xlabel('Time Left (seconds)', fontweight='bold')
+    ax4.set_ylabel('Number of CT Defusers', fontweight='bold')
+    ax4.set_title('CT Win % - Defuser Count vs Time (Post-Plant)', fontweight='bold')
+    
+    # Add text annotations
+    for i in range(len(defuser_counts)):
+        for j in range(len(time_values)):
+            text = ax4.text(j, i, f'{defuser_time_heatmap[i, j]:.1f}%',
+                           ha="center", va="center", color="black", fontweight='bold')
+
+    # Add colorbars
+    fig.colorbar(im1, ax=ax1, fraction=0.046, pad=0.04)
+    fig.colorbar(im2, ax=ax2, fraction=0.046, pad=0.04)
+    fig.colorbar(im3, ax=ax3, fraction=0.046, pad=0.04)
+    fig.colorbar(im4, ax=ax4, fraction=0.046, pad=0.04)
+
+    plt.tight_layout()
+    filename = f'../../outputs/visualizations/team_attribute_heatmaps_{model_name}.png'
+    plt.savefig(filename, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"📊 Team attribute heatmaps saved to {filename}")
 
 def main():
     """Main function to run all tests and create visualizations"""
@@ -1849,13 +2560,32 @@ def main():
     except Exception as e:
         print(f"❌ Error creating additional time vs probability plots: {e}")
 
-    # Example of using the generic feature plotter
+    # Create feature plots - team level and combined player analysis
     try:
-        print("\n🎨 Creating generic feature plot example...")
+        print("\n🎨 Creating feature analysis plots...")
         top_model_name = sorted_models[0][0] if sorted_models else list(all_models.keys())[0]
-        generate_all_feature_plots(all_models, dataset_probs, top_model_name)
+        
+        # Generate team-level feature plots (traditional features)
+        generate_team_level_feature_plots(all_models, dataset_probs, top_model_name)
+        
+        # Generate combined player feature plots (all players together)
+        generate_combined_player_feature_plots(all_models, dataset_probs, top_model_name)
+        
     except Exception as e:
-        print(f"❌ Error creating generic feature plot: {e}")
+        print(f"❌ Error creating feature plots: {e}")
+    
+    # Create player-specific analysis for top performing models
+    try:
+        print("\n🔍 Creating player impact analysis...")
+        top_models_for_analysis = sorted_models[:3] if len(sorted_models) >= 3 else sorted_models
+        
+        for model_name, _ in top_models_for_analysis:
+            print(f"   Analyzing player impacts for {model_name}...")
+            create_player_impact_analysis(all_models, model_name)
+            create_player_heatmap_analysis(all_models, model_name)
+            
+    except Exception as e:
+        print(f"❌ Error creating player analysis: {e}")
     
     # Save model comparison summary
     summary_data = []

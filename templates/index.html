@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CS2 Win Probability Predictor</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="container">
+      <header class="header">
+        <h1>🎮 CS2 Win Probability Predictor</h1>
+        <p>
+          Predict CT team win probability using advanced machine learning models
+        </p>
+      </header>
+
+      <div class="main-content">
+        <!-- Model Selection Section -->
+        <section class="model-selection">
+          <h2>📊 Select Models for Comparison</h2>
+          <p class="selection-hint">
+            Select one or more models to compare their predictions
+          </p>
+          <div class="model-grid">
+            {% for model_name, model in models.items() %}
+            <div class="model-card" data-model="{{ model_name }}">
+              <div class="model-checkbox">
+                <input
+                  type="checkbox"
+                  id="model_{{ model_name }}"
+                  class="model-selector"
+                  data-model="{{ model_name }}"
+                />
+                <label
+                  for="model_{{ model_name }}"
+                  class="checkbox-overlay"
+                ></label>
+              </div>
+              <div class="model-header">
+                <h3>{{ model.display_name }}</h3>
+                <span class="model-badge"
+                  >{{ model.feature_count }} features</span
+                >
+              </div>
+              <div class="model-stats">
+                <div class="stat">
+                  <label>Accuracy:</label>
+                  <span>{{ "%.1f"|format(model.accuracy * 100) }}%</span>
+                </div>
+                <div class="stat">
+                  <label>AUC:</label>
+                  <span>{{ "%.3f"|format(model.auc) }}</span>
+                </div>
+              </div>
+              <div class="model-description">{{ model.description }}</div>
+            </div>
+            {% endfor %}
+          </div>
+        </section>
+
+        <!-- Feature Input Section -->
+        <section
+          class="feature-section"
+          id="feature-section"
+          style="display: none"
+        >
+          <h2>⚙️ Game State Features</h2>
+          <div class="loading" id="features-loading">Loading features...</div>
+          <div class="features-container" id="features-container"></div>
+        </section>
+
+        <!-- Prediction Section -->
+        <section
+          class="prediction-section"
+          id="prediction-section"
+          style="display: none"
+        >
+          <h2>🎯 Prediction</h2>
+          <button id="predict-btn" class="predict-button">
+            Predict Win Probability
+          </button>
+          <div class="prediction-result" id="prediction-result"></div>
+        </section>
+      </div>
+
+      <!-- Quick Scenarios -->
+      <section class="scenarios-section">
+        <h2>⚡ Quick Scenarios</h2>
+        <div class="scenario-buttons">
+          <button class="scenario-btn" data-scenario="default">
+            Balanced Round
+          </button>
+          <button class="scenario-btn" data-scenario="ct-advantage">
+            CT Advantage
+          </button>
+          <button class="scenario-btn" data-scenario="t-advantage">
+            T Advantage
+          </button>
+          <button class="scenario-btn" data-scenario="bomb-planted">
+            Bomb Planted
+          </button>
+          <button class="scenario-btn" data-scenario="retake">
+            Retake Situation
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      let selectedModels = [];
+      let currentFeatures = [];
+      let featureCompatibility = {};
+      let autoPredictTimeout = null;
+      let isManualPrediction = false;
+
+      // Auto prediction function with debounce
+      function scheduleAutoPrediction() {
+        if (selectedModels.length === 0 || currentFeatures.length === 0) return;
+
+        // Clear existing timeout
+        if (autoPredictTimeout) {
+          clearTimeout(autoPredictTimeout);
+        }
+
+        // Schedule new prediction after 500ms
+        autoPredictTimeout = setTimeout(() => {
+          if (!isManualPrediction) {
+            makePrediction(true); // true indicates auto prediction
+          }
+        }, 500);
+      }
+
+      // Model selection
+      document.querySelectorAll('.model-selector').forEach((checkbox) => {
+        checkbox.addEventListener('change', function () {
+          const modelName = this.dataset.model;
+          const card = this.closest('.model-card');
+
+          if (this.checked) {
+            selectedModels.push(modelName);
+            card.classList.add('selected');
+          } else {
+            selectedModels = selectedModels.filter((m) => m !== modelName);
+            card.classList.remove('selected');
+          }
+
+          // Load features for selected models
+          if (selectedModels.length > 0) {
+            loadModelFeatures(selectedModels);
+          } else {
+            // Hide sections if no models selected
+            document.getElementById('feature-section').style.display = 'none';
+            document.getElementById('prediction-section').style.display =
+              'none';
+          }
+        });
+      });
+
+      // Load features for selected models
+      async function loadModelFeatures(modelNames) {
+        const featureSection = document.getElementById('feature-section');
+        const featuresContainer = document.getElementById('features-container');
+        const loading = document.getElementById('features-loading');
+
+        featureSection.style.display = 'block';
+        loading.style.display = 'block';
+        featuresContainer.style.display = 'none';
+
+        try {
+          // Load features for all selected models
+          const featurePromises = modelNames.map(async (modelName) => {
+            const response = await fetch(`/api/model/${modelName}/features`);
+            const data = await response.json();
+            if (!data.success) throw new Error(data.error);
+            return { modelName, features: data.features };
+          });
+
+          const allModelFeatures = await Promise.all(featurePromises);
+
+          // Combine all features from all models
+          const allFeatures = combineAllFeatures(allModelFeatures);
+
+          if (allFeatures.length > 0) {
+            currentFeatures = allFeatures;
+            featureCompatibility = createFeatureCompatibilityMap(
+              allFeatures,
+              allModelFeatures
+            );
+            renderFeatures(allFeatures, modelNames, allModelFeatures);
+            document.getElementById('prediction-section').style.display =
+              'block';
+          } else {
+            throw new Error('No features found in selected models');
+          }
+        } catch (error) {
+          console.error('Error loading features:', error);
+          featuresContainer.innerHTML = `<div class="error">Error loading features: ${error.message}</div>`;
+        } finally {
+          loading.style.display = 'none';
+          featuresContainer.style.display = 'block';
+        }
+      }
+
+      // Combine all features from multiple models
+      function combineAllFeatures(allModelFeatures) {
+        if (allModelFeatures.length === 0) return [];
+        if (allModelFeatures.length === 1) return allModelFeatures[0].features;
+
+        const featureMap = new Map();
+
+        // Collect all unique features across all models
+        allModelFeatures.forEach((modelData) => {
+          modelData.features.forEach((feature) => {
+            if (!featureMap.has(feature.name)) {
+              featureMap.set(feature.name, feature);
+            }
+          });
+        });
+
+        return Array.from(featureMap.values());
+      }
+
+      // Create feature compatibility map
+      function createFeatureCompatibilityMap(features, allModelFeatures) {
+        const compatibility = {};
+
+        features.forEach((feature) => {
+          const supportingModels = [];
+          allModelFeatures.forEach((modelData) => {
+            if (modelData.features.some((f) => f.name === feature.name)) {
+              supportingModels.push(modelData.modelName);
+            }
+          });
+
+          compatibility[feature.name] = {
+            supportingModels,
+            modelCount: supportingModels.length,
+            isCommon: supportingModels.length === allModelFeatures.length,
+          };
+        });
+
+        return compatibility;
+      }
+
+      // Get CSS class for feature compatibility
+      function getCompatibilityClass(compatibility) {
+        if (!compatibility) return '';
+        if (compatibility.isCommon) return 'feature-common';
+        return 'feature-partial';
+      }
+
+      // Get compatibility indicator for display
+      function getCompatibilityIndicator(compatibility) {
+        if (!compatibility) return '';
+        if (compatibility.isCommon) return ' ✓';
+        return ` (${compatibility.modelCount})`;
+      }
+
+      // Get tooltip title for compatibility
+      function getCompatibilityTitle(compatibility) {
+        if (!compatibility) return '';
+        if (compatibility.isCommon) {
+          return 'Supported by all selected models';
+        }
+        return `Supported by ${
+          compatibility.modelCount
+        } model(s): ${compatibility.supportingModels.join(', ')}`;
+      }
+
+      // Render feature input fields
+      function renderFeatures(
+        features,
+        modelNames = [],
+        allModelFeatures = []
+      ) {
+        const container = document.getElementById('features-container');
+
+        // Create feature compatibility map
+        const featureCompatibility = createFeatureCompatibilityMap(
+          features,
+          allModelFeatures
+        );
+
+        // Show selected models info
+        let modelInfo = '';
+        if (modelNames.length > 1) {
+          const totalFeatures = features.length;
+          const commonFeatures = Object.values(featureCompatibility).filter(
+            (compat) => compat.modelCount === modelNames.length
+          ).length;
+
+          modelInfo = `<div class="selected-models-info">
+            <h3>Comparing ${modelNames.length} models:</h3>
+            <div class="selected-models-list">
+              ${modelNames
+                .map(
+                  (name) =>
+                    `<span class="model-tag">${name
+                      .replace('xgboost_', '')
+                      .replace('_', ' ')}</span>`
+                )
+                .join('')}
+            </div>
+            <p class="features-summary">
+              <span class="total-features">${totalFeatures} total features</span> | 
+              <span class="common-features">${commonFeatures} common</span> | 
+              <span class="partial-features">${
+                totalFeatures - commonFeatures
+              } model-specific</span>
+            </p>
+          </div>`;
+        } else if (modelNames.length === 1) {
+          modelInfo = `<div class="selected-models-info">
+            <h3>Model: ${modelNames[0]
+              .replace('xgboost_', '')
+              .replace('_', ' ')}</h3>
+            <p class="features-summary">Showing ${features.length} features</p>
+          </div>`;
+        }
+
+        // Group features by category
+        const groups = {
+          'Game State': [],
+          'Team Stats': [],
+          Equipment: [],
+          'Player Features': [],
+        };
+
+        features.forEach((feature) => {
+          if (feature.name.includes('player_')) {
+            groups['Player Features'].push(feature);
+          } else if (
+            feature.name.includes('time') ||
+            feature.name.includes('bomb') ||
+            feature.name.includes('alive')
+          ) {
+            groups['Game State'].push(feature);
+          } else if (
+            feature.name.includes('hp') ||
+            feature.name.includes('armor') ||
+            feature.name.includes('helmets')
+          ) {
+            groups['Team Stats'].push(feature);
+          } else {
+            groups['Equipment'].push(feature);
+          }
+        });
+
+        let html = modelInfo;
+
+        // Render compact groups first
+        ['Game State', 'Team Stats', 'Equipment'].forEach((groupName) => {
+          const groupFeatures = groups[groupName];
+          if (groupFeatures.length === 0) return;
+
+          html += `<div class="feature-group compact">
+                    <h3 class="group-title">${groupName}</h3>
+                    <div class="feature-grid compact">`;
+
+          groupFeatures.forEach((feature) => {
+            html += renderFeatureInput(feature, featureCompatibility);
+          });
+
+          html += `</div></div>`;
+        });
+
+        // Render player features as table if they exist
+        if (groups['Player Features'].length > 0) {
+          html += renderPlayerTable(
+            groups['Player Features'],
+            featureCompatibility
+          );
+        }
+
+        container.innerHTML = html;
+
+        // Add event listeners for auto prediction after rendering
+        addAutoPredictionListeners();
+      }
+
+      // Render player features as a table
+      function renderPlayerTable(playerFeatures, featureCompatibility = {}) {
+        // Group player features by player
+        const players = {};
+        playerFeatures.forEach((feature) => {
+          const match = feature.name.match(/player_(\d+)_(.+)/);
+          if (match) {
+            const playerId = match[1];
+            const featureType = match[2];
+            if (!players[playerId]) players[playerId] = {};
+            players[playerId][featureType] = feature;
+          }
+        });
+
+        if (Object.keys(players).length === 0) return '';
+
+        let html = `<div class="feature-group">
+                <h3 class="group-title">Player Features</h3>
+                <div class="player-table-container">
+                    <table class="player-table">
+                        <thead>
+                            <tr>
+                                <th>Player</th>
+                                <th>Side</th>
+                                <th>Health</th>
+                                <th>Armor</th>
+                                <th>Weapon Tier</th>
+                                <th>Defuser</th>
+                                <th>Helmet</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+        // Sort players by ID
+        const sortedPlayerIds = Object.keys(players).sort(
+          (a, b) => parseInt(a) - parseInt(b)
+        );
+
+        sortedPlayerIds.forEach((playerId) => {
+          const player = players[playerId];
+          html += `<tr>
+                    <td class="player-id">P${playerId}</td>
+                    <td class="player-side">
+                        ${renderTableInput(player.side, featureCompatibility)}
+                    </td>
+                    <td class="player-health">
+                        ${renderTableInput(player.health, featureCompatibility)}
+                    </td>
+                    <td class="player-armor">
+                        ${renderTableInput(player.armor, featureCompatibility)}
+                    </td>
+                    <td class="player-weapon">
+                        ${renderTableInput(
+                          player.best_weapon_tier,
+                          featureCompatibility
+                        )}
+                    </td>
+                    <td class="player-defuser">
+                        ${renderTableInput(
+                          player.has_defuser,
+                          featureCompatibility
+                        )}
+                    </td>
+                    <td class="player-helmet">
+                        ${renderTableInput(
+                          player.has_helmet,
+                          featureCompatibility
+                        )}
+                    </td>
+                </tr>`;
+        });
+
+        html += `</tbody></table></div></div>`;
+        return html;
+      }
+
+      // Render input for table cells
+      function renderTableInput(feature, featureCompatibility = {}) {
+        if (!feature) return '';
+
+        const constraints = feature.constraints;
+        const compatibility = featureCompatibility[feature.name];
+        const compatibilityClass = getCompatibilityClass(compatibility);
+        const compatibilityTitle = getCompatibilityTitle(compatibility);
+
+        if (constraints.type === 'checkbox') {
+          return `<input type="checkbox" 
+                               id="${feature.name}" 
+                               name="${feature.name}" 
+                               ${feature.default ? 'checked' : ''}
+                               class="table-checkbox ${compatibilityClass}"
+                               title="${compatibilityTitle}">`;
+        } else if (constraints.type === 'select') {
+          return `<select id="${feature.name}" name="${
+            feature.name
+          }" class="table-select ${compatibilityClass}" title="${compatibilityTitle}">
+                    ${constraints.options
+                      .map(
+                        ([value, label]) =>
+                          `<option value="${value}" ${
+                            value == feature.default ? 'selected' : ''
+                          }>${label}</option>`
+                      )
+                      .join('')}
+                </select>`;
+        } else {
+          return `<div class="table-range-container ${compatibilityClass}" title="${compatibilityTitle}">
+                    <span class="table-value-display" id="${feature.name}_value">${feature.default}</span>
+                    <input type="range" 
+                               id="${feature.name}" 
+                               name="${feature.name}" 
+                               min="${constraints.min}" 
+                               max="${constraints.max}" 
+                               step="${constraints.step}" 
+                               value="${feature.default}"
+                               class="table-input"
+                               oninput="updateTableValueDisplay('${feature.name}', this.value)">
+                  </div>`;
+        }
+      }
+
+      // Update value display for regular feature inputs
+      function updateValueDisplay(featureName, value) {
+        const label = document.getElementById(featureName + '_label');
+        if (label) {
+          const valueSpan = label.querySelector('.value-display');
+          if (valueSpan) {
+            valueSpan.textContent = value;
+          }
+        }
+      }
+
+      // Update value display for table inputs
+      function updateTableValueDisplay(featureName, value) {
+        const valueSpan = document.getElementById(featureName + '_value');
+        if (valueSpan) {
+          valueSpan.textContent = value;
+        }
+      }
+
+      // Add event listeners for auto prediction
+      function addAutoPredictionListeners() {
+        // Add listeners to all input elements
+        currentFeatures.forEach((feature) => {
+          const input = document.getElementById(feature.name);
+          if (input) {
+            if (input.type === 'checkbox') {
+              input.addEventListener('change', scheduleAutoPrediction);
+            } else {
+              input.addEventListener('input', scheduleAutoPrediction);
+              input.addEventListener('change', scheduleAutoPrediction);
+            }
+          }
+        });
+      }
+
+      // Render individual feature input
+      function renderFeatureInput(feature, featureCompatibility = {}) {
+        const constraints = feature.constraints;
+        const compatibility = featureCompatibility[feature.name];
+        const compatibilityClass = getCompatibilityClass(compatibility);
+        const compatibilityIndicator = getCompatibilityIndicator(compatibility);
+        let inputHtml = '';
+
+        if (constraints.type === 'checkbox') {
+          inputHtml = `
+                    <input type="checkbox" 
+                           id="${feature.name}" 
+                           name="${feature.name}" 
+                           ${feature.default ? 'checked' : ''}
+                           class="${compatibilityClass}">
+                    <label for="${feature.name}" class="checkbox-label">${
+            feature.display_name
+          }${compatibilityIndicator}</label>
+                `;
+        } else if (constraints.type === 'select') {
+          inputHtml = `
+                    <label for="${feature.name}">${
+            feature.display_name
+          }${compatibilityIndicator}:</label>
+                    <select id="${feature.name}" name="${
+            feature.name
+          }" class="${compatibilityClass}">
+                        ${constraints.options
+                          .map(
+                            ([value, label]) =>
+                              `<option value="${value}" ${
+                                value == feature.default ? 'selected' : ''
+                              }>${label}</option>`
+                          )
+                          .join('')}
+                    </select>
+                `;
+        } else {
+          inputHtml = `
+                    <label for="${feature.name}" id="${feature.name}_label">${feature.display_name}${compatibilityIndicator}: <span class="value-display">${feature.default}</span></label>
+                    <input type="range" 
+                           id="${feature.name}" 
+                           name="${feature.name}" 
+                           min="${constraints.min}" 
+                           max="${constraints.max}" 
+                           step="${constraints.step}" 
+                           value="${feature.default}"
+                           class="${compatibilityClass}"
+                           oninput="updateValueDisplay('${feature.name}', this.value)">
+                `;
+        }
+
+        return `<div class="feature-input ${
+          constraints.type === 'checkbox' ? 'checkbox-input' : ''
+        } ${compatibilityClass}">${inputHtml}</div>`;
+      }
+
+      // Predict button
+      document
+        .getElementById('predict-btn')
+        .addEventListener('click', async function () {
+          isManualPrediction = true;
+          await makePrediction(false); // false indicates manual prediction
+          isManualPrediction = false;
+        });
+
+      // Unified prediction function
+      async function makePrediction(isAuto = false) {
+        if (selectedModels.length === 0) {
+          if (!isAuto) alert('Please select at least one model first');
+          return;
+        }
+
+        const button = document.getElementById('predict-btn');
+        const resultDiv = document.getElementById('prediction-result');
+
+        // Update UI only for manual predictions
+        if (!isAuto) {
+          button.disabled = true;
+          button.textContent = 'Predicting...';
+          resultDiv.innerHTML = '';
+        } else {
+          // For auto predictions, just show a subtle indicator
+          button.textContent = 'Auto Predicting...';
+        }
+
+        try {
+          // Collect feature values
+          const features = {};
+          currentFeatures.forEach((feature) => {
+            const input = document.getElementById(feature.name);
+            if (input) {
+              if (input.type === 'checkbox') {
+                features[feature.name] = input.checked ? 1 : 0;
+              } else {
+                features[feature.name] = parseFloat(input.value) || 0;
+              }
+            }
+          });
+
+          // Make predictions for all selected models
+          const predictionPromises = selectedModels.map(async (modelName) => {
+            // Collect only features that this model supports
+            const modelFeatures = {};
+            currentFeatures.forEach((feature) => {
+              const input = document.getElementById(feature.name);
+              if (input) {
+                // Check if this model supports this feature (if compatibility info available)
+                const compatibility =
+                  featureCompatibility && featureCompatibility[feature.name];
+                const isSupported =
+                  !compatibility ||
+                  compatibility.supportingModels.includes(modelName);
+
+                if (isSupported) {
+                  if (input.type === 'checkbox') {
+                    modelFeatures[feature.name] = input.checked ? 1 : 0;
+                  } else {
+                    modelFeatures[feature.name] = parseFloat(input.value) || 0;
+                  }
+                }
+              }
+            });
+
+            const response = await fetch('/api/predict', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model_name: modelName,
+                features: modelFeatures,
+              }),
+            });
+
+            const data = await response.json();
+            if (!data.success) throw new Error(data.error);
+            return { modelName, ...data };
+          });
+
+          const predictions = await Promise.all(predictionPromises);
+          displayMultiplePredictions(predictions, isAuto);
+        } catch (error) {
+          console.error('Prediction error:', error);
+          if (!isAuto) {
+            resultDiv.innerHTML = `<div class="error">Prediction failed: ${error.message}</div>`;
+          }
+        } finally {
+          button.disabled = false;
+          button.textContent =
+            selectedModels.length > 1
+              ? 'Compare Model Predictions'
+              : 'Predict Win Probability';
+        }
+      }
+
+      // Display multiple prediction results
+      function displayMultiplePredictions(predictions, isAuto = false) {
+        const resultDiv = document.getElementById('prediction-result');
+
+        if (predictions.length === 1) {
+          // Single model - use original display
+          displayPrediction(
+            predictions[0].prediction,
+            predictions[0].model_info,
+            isAuto
+          );
+          return;
+        }
+
+        // Multiple models - comparison view
+        const autoIndicator = isAuto
+          ? '<span class="auto-indicator">Auto</span>'
+          : '';
+
+        let html = `<div class="comparison-container ${
+          isAuto ? 'auto-prediction' : ''
+        }">
+          <div class="comparison-header">
+            <h3>Model Comparison Results ${autoIndicator}</h3>
+            <p class="comparison-subtitle">${
+              predictions.length
+            } models compared</p>
+          </div>
+          <div class="comparison-grid">`;
+
+        predictions.forEach((result) => {
+          const ctProb = (result.prediction.ct_win_probability * 100).toFixed(
+            1
+          );
+          const tProb = (result.prediction.t_win_probability * 100).toFixed(1);
+          const confidence = (result.prediction.confidence * 100).toFixed(1);
+          const modelDisplayName = result.modelName
+            .replace('xgboost_', '')
+            .replace('_', ' ');
+
+          html += `
+            <div class="model-prediction-card">
+              <div class="model-prediction-header">
+                <h4>${modelDisplayName}</h4>
+                <div class="model-mini-stats">
+                  <span>Acc: ${(result.model_info.accuracy * 100).toFixed(
+                    1
+                  )}%</span>
+                  <span>AUC: ${result.model_info.auc.toFixed(3)}</span>
+                </div>
+              </div>
+              
+              <div class="prediction-winner">
+                <strong>${result.prediction.predicted_winner}</strong>
+                <span class="confidence-mini">Conf: ${confidence}%</span>
+              </div>
+              
+              <div class="probability-bars-mini">
+                <div class="prob-bar-mini">
+                  <label>CT</label>
+                  <div class="progress-bar-mini">
+                    <div class="progress ct-progress" style="width: ${ctProb}%"></div>
+                    <span class="percentage-mini">${ctProb}%</span>
+                  </div>
+                </div>
+                
+                <div class="prob-bar-mini">
+                  <label>T</label>
+                  <div class="progress-bar-mini">
+                    <div class="progress t-progress" style="width: ${tProb}%"></div>
+                    <span class="percentage-mini">${tProb}%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+
+        html += `</div></div>`;
+        resultDiv.innerHTML = html;
+      }
+
+      // Display prediction results (for single model)
+      function displayPrediction(prediction, modelInfo, isAuto = false) {
+        const resultDiv = document.getElementById('prediction-result');
+
+        const ctProb = (prediction.ct_win_probability * 100).toFixed(1);
+        const tProb = (prediction.t_win_probability * 100).toFixed(1);
+        const confidence = (prediction.confidence * 100).toFixed(1);
+
+        // Add auto indicator for automatic predictions
+        const autoIndicator = isAuto
+          ? '<span class="auto-indicator">Auto</span>'
+          : '';
+
+        resultDiv.innerHTML = `
+                <div class="prediction-card ${isAuto ? 'auto-prediction' : ''}">
+                    <div class="prediction-header">
+                        <h3>Prediction Results ${autoIndicator}</h3>
+                        <span class="model-name">${modelInfo.name
+                          .replace('xgboost_', '')
+                          .replace('_', ' ')}</span>
+                    </div>
+                    
+                    <div class="probability-bars">
+                        <div class="prob-bar">
+                            <label>CT Win Probability</label>
+                            <div class="progress-bar">
+                                <div class="progress ct-progress" style="width: ${ctProb}%"></div>
+                                <span class="percentage">${ctProb}%</span>
+                            </div>
+                        </div>
+                        
+                        <div class="prob-bar">
+                            <label>T Win Probability</label>
+                            <div class="progress-bar">
+                                <div class="progress t-progress" style="width: ${tProb}%"></div>
+                                <span class="percentage">${tProb}%</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="prediction-summary">
+                        <div class="winner">
+                            <strong>Predicted Winner: ${
+                              prediction.predicted_winner
+                            }</strong>
+                        </div>
+                        <div class="confidence">
+                            Confidence: ${confidence}%
+                        </div>
+                    </div>
+                    
+                    <div class="model-stats">
+                        <small>Model Accuracy: ${(
+                          modelInfo.accuracy * 100
+                        ).toFixed(1)}% | AUC: ${modelInfo.auc.toFixed(
+          3
+        )} | Features: ${modelInfo.feature_count}</small>
+                    </div>
+                </div>
+            `;
+      }
+
+      // Scenario buttons
+      document.querySelectorAll('.scenario-btn').forEach((btn) => {
+        btn.addEventListener('click', function () {
+          const scenario = this.dataset.scenario;
+          loadScenario(scenario);
+        });
+      });
+
+      // Load predefined scenarios
+      function loadScenario(scenario) {
+        if (selectedModels.length === 0 || currentFeatures.length === 0) {
+          alert('Please select at least one model first');
+          return;
+        }
+
+        const scenarios = {
+          default: {
+            round_time_left: 75,
+            bomb_time_left: 40,
+            cts_alive: 5,
+            ts_alive: 5,
+            bomb_planted: 0,
+            hp_ct: 500,
+            hp_t: 500,
+            ct_main_weapons: 3,
+            t_main_weapons: 3,
+            defusers: 2,
+            ct_armor: 4,
+            t_armor: 4,
+          },
+          'ct-advantage': {
+            round_time_left: 60,
+            cts_alive: 5,
+            ts_alive: 3,
+            bomb_planted: 0,
+            hp_ct: 450,
+            hp_t: 200,
+            ct_main_weapons: 5,
+            t_main_weapons: 2,
+            defusers: 3,
+          },
+          't-advantage': {
+            round_time_left: 45,
+            cts_alive: 2,
+            ts_alive: 4,
+            bomb_planted: 0,
+            hp_ct: 150,
+            hp_t: 350,
+            ct_main_weapons: 2,
+            t_main_weapons: 4,
+            defusers: 1,
+          },
+          'bomb-planted': {
+            round_time_left: 30,
+            bomb_time_left: 30,
+            cts_alive: 3,
+            ts_alive: 2,
+            bomb_planted: 1,
+            hp_ct: 250,
+            hp_t: 150,
+            defusers: 2,
+          },
+          retake: {
+            round_time_left: 20,
+            bomb_time_left: 20,
+            cts_alive: 4,
+            ts_alive: 1,
+            bomb_planted: 1,
+            hp_ct: 300,
+            hp_t: 80,
+            defusers: 3,
+          },
+        };
+
+        const scenarioData = scenarios[scenario];
+        if (scenarioData) {
+          // Apply scenario values to inputs
+          Object.entries(scenarioData).forEach(([feature, value]) => {
+            const input = document.getElementById(feature);
+            if (input) {
+              if (input.type === 'checkbox') {
+                input.checked = value === 1;
+              } else {
+                input.value = value;
+              }
+            }
+          });
+
+          // Highlight the scenario button
+          document
+            .querySelectorAll('.scenario-btn')
+            .forEach((b) => b.classList.remove('active'));
+          document
+            .querySelector(`[data-scenario="${scenario}"]`)
+            .classList.add('active');
+
+          // Trigger auto prediction after loading scenario
+          scheduleAutoPrediction();
+        }
+      }
+    </script>
+  </body>
+</html>

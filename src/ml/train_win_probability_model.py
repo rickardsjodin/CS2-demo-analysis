@@ -369,7 +369,8 @@ def train_models():
     
     # Load base dataset ONCE with full feature engineering
     print(f"\n📊 Loading and preparing base dataset...")
-    X_full, y, all_feature_columns, base_df = load_and_prepare_data()
+    json_file = PROJECT_ROOT / "data" / "datasets" / "all_snapshots.json"
+    X_full, y, all_feature_columns, base_df = load_and_prepare_data(data_file=json_file)
     
     print(f"✅ Base dataset loaded: {len(X_full)} samples with {len(all_feature_columns)} total features")
     
