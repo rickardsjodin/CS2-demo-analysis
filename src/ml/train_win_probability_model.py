@@ -136,15 +136,14 @@ def load_and_prepare_data(data_file=None):
         data_file = PROJECT_ROOT / "data" / "datasets" / "all_snapshots.parquet"
     
     if ".json" in str(data_file):
-        json_file = PROJECT_ROOT / "data" / "datasets" / "all_snapshots.json"
-    
-        print(f"📊 Loading data from {json_file}...")
-        with open(json_file, 'r') as f:
-            snapshots = json.load(f)
+        print("⚠️ JSON format detected. Consider converting to parquet for better performance.")
+        with open(data_file, 'r') as f:
+            data = json.load(f)
+    else:
+        # Load from parquet with proper data type handling
+        data = load_snapshots_from_parquet(data_file)
 
-    data = load_snapshots_from_parquet(data_file)
-    
-    # Convert to DataFrame
+    # Convert to DataFrame - data types should now be correct from source
     df = pd.DataFrame(data)
     
     print(f"✅ Loaded {len(df)} snapshots")
@@ -159,19 +158,42 @@ def load_and_prepare_data(data_file=None):
     # Select features for training based on the configured feature set
     try:
         feature_columns = feature_sets.FEATURE_SET
-        print(f"🧬 Using feature set '{FEATURE_SET}' with {len(feature_columns)} features.")
+        print(f"🧬 Using feature set with {len(feature_columns)} features.")
     except AttributeError:
-        print(f"⚠️ Feature set '{FEATURE_SET}' not found in feature_sets.py. Using default.")
-        feature_columns = feature_sets.DEFAULT_FEATURES
+        print(f"⚠️ Feature set not found in feature_sets.py. Using default.")
+        feature_columns = feature_sets.MINIMAL_FEATURES
 
     X = df[feature_columns]
     y = df['ct_wins']
+    
+    # Minimal validation - data should be clean from source processing
+    print("🔧 Final data validation...")
+    
+    # Quick check for any remaining issues
+    null_columns = []
+    for col in X.columns:
+        if X[col].isnull().any():
+            null_count = X[col].isnull().sum()
+            null_columns.append(f"{col}: {null_count}")
+            
+            # Fill remaining nulls with appropriate defaults
+            if X[col].dtype in ['int64', 'float64']:
+                X[col] = X[col].fillna(0)
+            elif X[col].dtype == 'bool':
+                X[col] = X[col].fillna(False)
+            elif X[col].dtype == 'object':
+                X[col] = X[col].fillna('unknown')
+    
+    if null_columns:
+        print(f"   ⚠️ Fixed remaining null values in: {', '.join(null_columns)}")
+    else:
+        print("   ✅ No null values found - data clean from source!")
     
     print(f"🎯 Target distribution:")
     print(f"   CT wins: {y.sum()} ({y.mean():.1%})")
     print(f"   T wins:  {len(y) - y.sum()} ({1 - y.mean():.1%})")
     
-    # Comprehensive data quality check
+    # Final data quality check
     data_issues = comprehensive_data_check(X)
     
     return X, y, feature_columns, df
@@ -238,6 +260,7 @@ def load_snapshots_from_parquet(parquet_file: str) -> List[Dict[str, Any]]:
     """
     Load snapshots from Parquet file and convert back to original nested structure.
     This function provides compatibility with the original JSON format.
+    Ensures proper data types are maintained for ML training.
     """
     
     df = pl.read_parquet(parquet_file)
@@ -255,23 +278,29 @@ def load_snapshots_from_parquet(parquet_file: str) -> List[Dict[str, Any]]:
     ]
 
     for row in tqdm(df.iter_rows(named=True), total=len(df)):
+        # Convert row to mutable dict to avoid Polars read-only issues
+        row_dict = dict(row)
+        
         alive_player_info = []
         for player_base_key in player_base_keys:
-            inventory_list = row[player_base_key + 'inventory']
+            inventory_list = row_dict[player_base_key + 'inventory']
 
+            # Handle missing/dead players with proper data types
             if inventory_list is None:
-                row[player_base_key + 'best_weapon_tier'] = 0
-                row[player_base_key + 'health'] = 0
-                row[player_base_key + 'has_defuser'] = False
-                row[player_base_key + 'has_helmet'] = False
-                row[player_base_key + 'armor'] = 0
-                row[player_base_key + 'side'] = -1
+                row_dict[player_base_key + 'best_weapon_tier'] = 0
+                row_dict[player_base_key + 'health'] = 0
+                row_dict[player_base_key + 'has_defuser'] = False  # Ensure bool type
+                row_dict[player_base_key + 'has_helmet'] = False   # Ensure bool type
+                row_dict[player_base_key + 'armor'] = 0
+                row_dict[player_base_key + 'side'] = -1
                 continue
 
+            # Process alive players
             inventory_list = json.loads(inventory_list)
-            row[player_base_key + 'inventory'] = inventory_list
-            row[player_base_key + 'side'] = 0 if row[player_base_key + 'side'] == 'ct' else 1
+            row_dict[player_base_key + 'inventory'] = inventory_list
+            row_dict[player_base_key + 'side'] = 0 if row_dict[player_base_key + 'side'] == 'ct' else 1
 
+            # Calculate best weapon tier
             best_weapon_tier = 0
             for item_name in inventory_list:
                 tier = WEAPON_TIERS.get(item_name)
@@ -279,19 +308,36 @@ def load_snapshots_from_parquet(parquet_file: str) -> List[Dict[str, Any]]:
                     if tier > best_weapon_tier:
                         best_weapon_tier = tier
 
-            row[player_base_key + 'best_weapon_tier'] = best_weapon_tier
+            row_dict[player_base_key + 'best_weapon_tier'] = best_weapon_tier
+            
+            # Ensure boolean columns are proper booleans
+            if row_dict[player_base_key + 'has_defuser'] is None:
+                row_dict[player_base_key + 'has_defuser'] = False
+            else:
+                row_dict[player_base_key + 'has_defuser'] = bool(row_dict[player_base_key + 'has_defuser'])
+                
+            if row_dict[player_base_key + 'has_helmet'] is None:
+                row_dict[player_base_key + 'has_helmet'] = False
+            else:
+                row_dict[player_base_key + 'has_helmet'] = bool(row_dict[player_base_key + 'has_helmet'])
+            
+            # Ensure numeric columns are proper numbers
+            if row_dict[player_base_key + 'health'] is None:
+                row_dict[player_base_key + 'health'] = 0
+            if row_dict[player_base_key + 'armor'] is None:
+                row_dict[player_base_key + 'armor'] = 0
 
             player_info = {}
             for feature in player_features:
                 feature_key = player_base_key + feature
-                player_info[feature] = row[feature_key]
+                player_info[feature] = row_dict[feature_key]
 
             alive_player_info.append(player_info)
         
         player_summaries = calculate_player_stats(alive_player_info) 
     
         snapshots.append({
-            **row,
+            **row_dict,
             **player_summaries
         })
     
