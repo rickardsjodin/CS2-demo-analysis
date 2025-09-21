@@ -16,8 +16,10 @@ TRAIN_MODELS = {
 }
 
 import json
+from typing import Any, Dict, List
 import numpy as np
 import pandas as pd
+import polars as pl
 from pathlib import Path
 from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
 from sklearn.ensemble import RandomForestClassifier, VotingClassifier
@@ -32,6 +34,16 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import joblib
 import warnings
+
+from tqdm import tqdm
+import sys
+
+project_root = Path(__file__).parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+from src.core.constants import FLASH_NADE, GRENADE_AND_BOMB_TYPES, HE_NADE, MOLOTOV_NADE, SMOKE_NADE, WEAPON_TIERS
+
 warnings.filterwarnings('ignore')
 
 # Handle imports for both module and script execution
@@ -69,18 +81,71 @@ except ImportError:
     LIGHTGBM_AVAILABLE = False
     print("⚠️ LightGBM not available. Install with: pip install lightgbm")
 
-def load_and_prepare_data(json_file=None):
+def comprehensive_data_check(df):
+    """Comprehensive check of data quality for ML training"""
+    print("\n🔍 Comprehensive Data Quality Check:")
+    print("=" * 60)
+    
+    # 1. Check data types
+    print("\n1. Data Types Analysis:")
+    dtype_counts = df.dtypes.value_counts()
+    for dtype, count in dtype_counts.items():
+        print(f"   {dtype}: {count} columns")
+    
+    # 2. Check for object columns that should be boolean
+    print("\n2. Potential Boolean Columns (stored as object):")
+    for col in df.columns:
+        if df[col].dtype == 'object':
+            unique_vals = df[col].dropna().unique()
+            if len(unique_vals) <= 5:  # Likely categorical/boolean
+                print(f"   {col}: {unique_vals}")
+    
+    # 3. Check for missing values
+    print("\n3. Missing Values:")
+    missing = df.isnull().sum()
+    missing = missing[missing > 0]
+    if len(missing) > 0:
+        for col, count in missing.items():
+            print(f"   {col}: {count} missing ({count/len(df)*100:.1f}%)")
+    else:
+        print("   ✅ No missing values found")
+    
+    # 4. Check for infinite values
+    print("\n4. Infinite Values:")
+    numeric_cols = df.select_dtypes(include=[np.number]).columns
+    inf_cols = []
+    for col in numeric_cols:
+        if np.isinf(df[col]).any():
+            inf_count = np.isinf(df[col]).sum()
+            print(f"   {col}: {inf_count} infinite values")
+            inf_cols.append(col)
+    
+    if not inf_cols:
+        print("   ✅ No infinite values found")
+    
+    return {
+        'object_columns': df.select_dtypes(include=['object']).columns.tolist(),
+        'missing_columns': missing.index.tolist() if len(missing) > 0 else [],
+        'infinite_columns': inf_cols
+    }
+
+def load_and_prepare_data(data_file=None):
     """Load snapshots and prepare features for ML training"""
     
-    if json_file is None:
+    if data_file is None:
+        data_file = PROJECT_ROOT / "data" / "datasets" / "all_snapshots.parquet"
+    
+    if ".json" in str(data_file):
         json_file = PROJECT_ROOT / "data" / "datasets" / "all_snapshots.json"
     
-    print(f"📊 Loading data from {json_file}...")
-    with open(json_file, 'r') as f:
-        snapshots = json.load(f)
+        print(f"📊 Loading data from {json_file}...")
+        with open(json_file, 'r') as f:
+            snapshots = json.load(f)
+
+    data = load_snapshots_from_parquet(data_file)
     
     # Convert to DataFrame
-    df = pd.DataFrame(snapshots)
+    df = pd.DataFrame(data)
     
     print(f"✅ Loaded {len(df)} snapshots")
     print(f"📈 Data shape: {df.shape}")
@@ -106,7 +171,132 @@ def load_and_prepare_data(json_file=None):
     print(f"   CT wins: {y.sum()} ({y.mean():.1%})")
     print(f"   T wins:  {len(y) - y.sum()} ({1 - y.mean():.1%})")
     
+    # Comprehensive data quality check
+    data_issues = comprehensive_data_check(X)
+    
     return X, y, feature_columns, df
+
+def calculate_player_stats(alive_players: List[Dict[str, Any]]) -> Dict[str, int]:
+    """Calculates equipment and stats for alive players at a specific tick."""
+    stats = {
+        "ct_main_weapons": 0, "t_main_weapons": 0,
+        "ct_helmets": 0, "t_helmets": 0,
+        "ct_armor": 0, "t_armor": 0,
+        "defusers": 0,
+        "ct_smokes": 0, "ct_flashes": 0, "ct_he_nades" : 0, "ct_molotovs": 0,
+        "t_smokes": 0, "t_flashes": 0, "t_he_nades" : 0, "t_molotovs": 0
+    }
+
+    for player_row in alive_players:
+        inventory = player_row.get('inventory', [])
+        player_side = player_row['side']
+        
+        best_weapon_tier = 0
+        for item_name in inventory:
+            tier = WEAPON_TIERS.get(item_name)
+            if tier is not None:
+                if tier > best_weapon_tier:
+                    best_weapon_tier = tier
+            elif (item_name not in GRENADE_AND_BOMB_TYPES) and ("Knife" not in item_name):
+                tqdm.write(f"Warning: Unknown weapon '{item_name}' not in WEAPON_TIERS.")
+        
+        if best_weapon_tier >= 5:
+            if player_side == 'ct':
+                stats["ct_main_weapons"] += 1
+            else:
+                stats["t_main_weapons"] += 1
+        
+        smoke_count = sum(1 for item in inventory if item == SMOKE_NADE)
+        molotov_count = sum(1 for item in inventory if item in MOLOTOV_NADE)
+        flash_count = sum(1 for item in inventory if item == FLASH_NADE)
+        he_count = sum(1 for item in inventory if item == HE_NADE)
+        
+
+        armor = player_row.get('armor', 0) or 0
+        has_armor = armor > 0
+
+        if player_side == 'ct':
+            stats["ct_smokes"] += smoke_count
+            stats["ct_flashes"] += flash_count
+            stats["ct_he_nades"] += he_count
+            stats["ct_molotovs"] += molotov_count
+            stats["ct_helmets"] += 1 if player_row.get('has_helmet') else 0
+            stats["ct_armor"] += has_armor
+        else:
+            stats["t_smokes"] += smoke_count
+            stats["t_flashes"] += flash_count
+            stats["t_he_nades"] += he_count
+            stats["t_molotovs"] += molotov_count
+            stats["t_helmets"] += 1 if player_row.get('has_helmet') else 0
+            stats["t_armor"] += has_armor
+
+        stats["defusers"] += 1 if player_row.get('has_defuser') else 0
+        
+    return stats
+
+def load_snapshots_from_parquet(parquet_file: str) -> List[Dict[str, Any]]:
+    """
+    Load snapshots from Parquet file and convert back to original nested structure.
+    This function provides compatibility with the original JSON format.
+    """
+    
+    df = pl.read_parquet(parquet_file)
+
+    snapshots = []
+    player_base_keys = [f'player_{i}_' for i in range(10)]
+
+    player_features = [
+        'inventory',
+        'health',
+        'has_defuser',
+        'has_helmet',
+        'armor',
+        'side',
+    ]
+
+    for row in tqdm(df.iter_rows(named=True), total=len(df)):
+        alive_player_info = []
+        for player_base_key in player_base_keys:
+            inventory_list = row[player_base_key + 'inventory']
+
+            if inventory_list is None:
+                row[player_base_key + 'best_weapon_tier'] = 0
+                row[player_base_key + 'health'] = 0
+                row[player_base_key + 'has_defuser'] = False
+                row[player_base_key + 'has_helmet'] = False
+                row[player_base_key + 'armor'] = 0
+                row[player_base_key + 'side'] = -1
+                continue
+
+            inventory_list = json.loads(inventory_list)
+            row[player_base_key + 'inventory'] = inventory_list
+            row[player_base_key + 'side'] = 0 if row[player_base_key + 'side'] == 'ct' else 1
+
+            best_weapon_tier = 0
+            for item_name in inventory_list:
+                tier = WEAPON_TIERS.get(item_name)
+                if tier is not None:
+                    if tier > best_weapon_tier:
+                        best_weapon_tier = tier
+
+            row[player_base_key + 'best_weapon_tier'] = best_weapon_tier
+
+            player_info = {}
+            for feature in player_features:
+                feature_key = player_base_key + feature
+                player_info[feature] = row[feature_key]
+
+            alive_player_info.append(player_info)
+        
+        player_summaries = calculate_player_stats(alive_player_info) 
+    
+        snapshots.append({
+            **row,
+            **player_summaries
+        })
+    
+    return snapshots
+    
 
 def train_models(X, y):
     """Train selected models based on TRAIN_MODELS configuration"""
@@ -120,9 +310,9 @@ def train_models(X, y):
     print(f"🧪 Test set: {len(X_test)} samples")
     
     # Scale features (needed for some models)
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
+    # scaler = StandardScaler()
+    # X_train_scaled = scaler.fit_transform(X_train)
+    # X_test_scaled = scaler.transform(X_test)
     
     models = {}
     
@@ -215,7 +405,7 @@ def train_models(X, y):
             print("\n🚀 Training XGBoost...")
             xgb_model = xgb.XGBClassifier(
                 n_estimators=200,
-                max_depth=5,
+                max_depth=4,
                 learning_rate=0.05,
                 subsample=0.8,
                 colsample_bytree=0.8,
@@ -226,15 +416,13 @@ def train_models(X, y):
             
             xgb_model.fit(X_train, y_train)
             # Calibrate XGBoost
-            print("   🎯 Calibrating XGBoost probabilities...")
-            xgb_calibrated = xgb_model# CalibratedClassifierCV(xgb_model, method='sigmoid', cv=5)
-            xgb_calibrated.fit(X_train, y_train)
+            xgb_model
             
-            xgb_pred = xgb_calibrated.predict(X_test)
-            xgb_pred_proba = xgb_calibrated.predict_proba(X_test)[:, 1]
+            xgb_pred = xgb_model.predict(X_test)
+            xgb_pred_proba = xgb_model.predict_proba(X_test)[:, 1]
             
-            models['xgboost'] = {
-                'model': xgb_calibrated,
+            models['xgboost_player_features'] = {
+                'model': xgb_model,
                 'original_model': xgb_model,
                 'scaler': None,
                 'predictions': xgb_pred,
@@ -672,6 +860,90 @@ def visualize_predictions(models, X_test, y_test):
     plt.close()  # Close the figure to free memory
     print(f"📊 Model performance plot saved as '{output_path}'")
 
+def load_existing_model_summary(summary_path):
+    """Load existing model summary if it exists, otherwise return empty structure"""
+    import json
+    
+    if summary_path.exists():
+        try:
+            with open(summary_path, 'r') as f:
+                existing_summary = json.load(f)
+            
+            # Handle migration from old format with global feature_columns
+            if 'feature_columns' in existing_summary and existing_summary['feature_columns']:
+                global_features = existing_summary['feature_columns']
+                # Add feature_columns to models that don't have them
+                for model_name, model_data in existing_summary.get('models', {}).items():
+                    if 'feature_columns' not in model_data:
+                        model_data['feature_columns'] = global_features
+                        print(f"📋 Migrated feature_columns for existing model: {model_name}")
+                # Remove global feature_columns after migration
+                del existing_summary['feature_columns']
+            
+            print(f"📋 Loaded existing model summary with {len(existing_summary.get('models', {}))} models")
+            return existing_summary
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"⚠️  Error reading existing model summary: {e}")
+            print("🔄 Will create new summary")
+    else:
+        print("📝 No existing model summary found, creating new one")
+    
+    return {
+        'models': {},
+        'best_model': None,
+        'total_models': 0
+    }
+
+def merge_model_summaries(existing_summary, new_models, sorted_models, feature_columns, saved_models):
+    """Merge existing model summary with newly trained models"""
+    import os
+    
+    # Start with existing models
+    merged_models = existing_summary.get('models', {}).copy()
+    
+    # Update or add newly trained models
+    for i, (name, model_info) in enumerate(sorted_models):
+        if name in saved_models:
+            # Check if model file actually exists
+            model_path = saved_models[name]
+            if os.path.exists(model_path):
+                merged_models[name] = {
+                    'filename': str(model_path),
+                    'accuracy': new_models[name]['accuracy'],
+                    'auc': new_models[name]['auc'],
+                    'log_loss': new_models[name]['log_loss'],
+                    'feature_columns': feature_columns,  # Each model stores its own feature columns
+                    'rank': i+1  # Will be recalculated later
+                }
+                print(f"✅ Updated model entry for '{name}'")
+            else:
+                print(f"⚠️  Model file not found for '{name}': {model_path}")
+    
+    # Re-rank all models by AUC (including existing ones)
+    # First, try to load performance metrics for existing models that weren't retrained
+    for model_name, model_data in merged_models.items():
+        if model_name not in new_models:
+            # This is an existing model that wasn't retrained
+            # Keep its existing metrics for ranking
+            print(f"📋 Preserving existing model: {model_name}")
+    
+    # Sort all models by AUC for proper ranking
+    sorted_all_models = sorted(merged_models.items(), 
+                              key=lambda x: x[1]['auc'], reverse=True)
+    
+    # Update ranks
+    for i, (name, model_data) in enumerate(sorted_all_models):
+        merged_models[name]['rank'] = i + 1
+    
+    # Determine best model (highest AUC)
+    best_model = sorted_all_models[0][0] if sorted_all_models else None
+    
+    return {
+        'models': merged_models,
+        'best_model': best_model,
+        'total_models': len(merged_models)
+    }
+
 def save_all_models(models, feature_columns):
     """Save all trained models individually and as a collection"""
     
@@ -753,26 +1025,19 @@ def save_all_models(models, feature_columns):
         joblib.dump(best_model_data, default_model_path)
         print(f"✅ Best model ({best_model_name}) saved as default '{default_model_path}'")
     
-    # Save model summary
-    model_summary = {
-        'models': {name: {
-            'filename': str(saved_models[name]),  # Convert Path to string for JSON serialization
-            'accuracy': models[name]['accuracy'],
-            'auc': models[name]['auc'],
-            'log_loss': models[name]['log_loss'],
-            'rank': i+1
-        } for i, (name, _) in enumerate(sorted_models) if name in saved_models},
-        'best_model': sorted_models[0][0],
-        'feature_columns': feature_columns,
-        'total_models': len(models)
-    }
-    
-    import json
+    # Load existing model summary and merge with new models
     summary_path = PROJECT_ROOT / "data" / "models" / "model_summary.json"
     summary_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    existing_summary = load_existing_model_summary(summary_path)
+    model_summary = merge_model_summaries(existing_summary, models, sorted_models, feature_columns, saved_models)
+    
+    import json
     with open(summary_path, 'w') as f:
         json.dump(model_summary, f, indent=2)
     print(f"✅ Model summary saved as '{summary_path}'")
+    print(f"📊 Total models in summary: {model_summary['total_models']}")
+    print(f"🏆 Best model: {model_summary['best_model']}")
     
     return saved_models, sorted_models[0]
 

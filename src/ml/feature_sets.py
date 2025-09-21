@@ -3,6 +3,14 @@ Defines feature sets for the CS2 win probability model.
 This allows for easy switching between different feature combinations for training and prediction.
 """
 
+HLTV_FEATURES = [
+    'cts_alive',
+    'ts_alive',
+    "ct_main_weapons",
+    "t_main_weapons",
+    'bomb_planted',
+]
+
 # A minimal set of core features
 MINIMAL_FEATURES = [
     'round_time_left',
@@ -14,41 +22,38 @@ MINIMAL_FEATURES = [
     'hp_ct',
     "ct_main_weapons",
     "t_main_weapons",
-    "ct_grenades",
-    "t_grenades",
-    "ct_helmets",
-    "t_helmets",
+    "defusers",
     "ct_armor",
     "t_armor",
-    "defusers",
+    "ct_helmets",
+    "t_helmets",
+    "ct_smokes",
+    "ct_flashes",
+    "ct_he_nades",
+    "ct_molotovs",
+    "t_smokes",
+    "t_flashes",
+    "t_he_nades",
+    "t_molotovs",
 ]
 
-# Features including player advantage and ratios
-EXTENDED_FEATURES = MINIMAL_FEATURES + [
-    'player_advantage',
-    'ct_alive_ratio',
+player_base_keys = [f'player_{i}_' for i in range(10)]
+
+BASE_PLAYER_FEATURES = [
+    'best_weapon_tier',
+    'health',
+    'has_defuser',
+    'has_helmet',
+    'armor',
+    'side',
 ]
 
-# Features including time pressure
-TIME_PRESSURE_FEATURES = MINIMAL_FEATURES + [
-    'time_pressure_ct',
-    'time_pressure_t',
-]
+all_player_keys = []
+for player_base_key in player_base_keys:
+    for feature in BASE_PLAYER_FEATURES:
+        all_player_keys.append(player_base_key + feature)
 
-# All engineered features combined
-ALL_FEATURES = [
-    'round_time_left',
-    'bomb_time_left',
-    'cts_alive',
-    'ts_alive',
-    'bomb_planted',
-    'player_advantage',
-    'ct_alive_ratio',
-    'time_pressure_ct',
-    'time_pressure_t',
-]
+PLAYER_FEATURES = MINIMAL_FEATURES + all_player_keys
 
-FEATURE_SET = MINIMAL_FEATURES
+FEATURE_SET = PLAYER_FEATURES #MINIMAL_FEATURES
 
-# Default feature set to be used if not specified otherwise
-DEFAULT_FEATURES = EXTENDED_FEATURES

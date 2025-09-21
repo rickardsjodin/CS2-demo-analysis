@@ -1056,10 +1056,12 @@ def compare_individual_impacts_vertical(dem, player1_name, player2_name):
             event_index = 0
             for round_num in all_rounds:
                 impacts_in_round = round_impacts.get(round_num, [])
-                for event in impacts_in_round:
+                for i, event in enumerate(impacts_in_round):
                     pos = x_positions[event_index]
                     impact = impact_values[event_index]
                     game_state = event['game_state']
+                    pre_win = event['pre_win']
+                    post_win = event['post_win']
                     
                     # Simplify post-plant notation
                     if 'post-plant' in game_state:
@@ -1068,7 +1070,7 @@ def compare_individual_impacts_vertical(dem, player1_name, player2_name):
                         game_state_short = game_state
                     
                     # Combined label: impact value + game state
-                    combined_label = f'{impact:+.1f}\n{game_state_short}'
+                    combined_label = f'{impact:+.1f}\n{game_state_short}\n{int(round(pre_win * 100))}%-{int(round(post_win*100))}%'
                     
                     ax.text(pos, impact + (2.0 if impact > 0 else -2.0), combined_label, 
                             ha='center', va='bottom' if impact > 0 else 'top', 
@@ -1159,12 +1161,12 @@ def compare_individual_impacts_vertical(dem, player1_name, player2_name):
     print(f"{player1_name}:")
     print(f"  Total Events: {len(impacts1)}")
     print(f"  Net Impact: {total_impact1:+.1f}")
-    print(f"  Avg Impact/Event: {total_impact1/len(impacts1):+.1f}")
+    print(f"  Avg Impact/Round: {total_impact1/len(all_rounds):+.1f}")
     
     print(f"\n{player2_name}:")
     print(f"  Total Events: {len(impacts2)}")
     print(f"  Net Impact: {total_impact2:+.1f}")
-    print(f"  Avg Impact/Event: {total_impact2/len(impacts2):+.1f}")
+    print(f"  Avg Impact/Round: {total_impact2/len(all_rounds):+.1f}")
     
     print(f"\n🏆 Winner: {player1_name if total_impact1 > total_impact2 else player2_name}")
     print(f"Impact Difference: {abs(total_impact1 - total_impact2):.1f}")

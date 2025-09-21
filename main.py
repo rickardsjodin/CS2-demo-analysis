@@ -2,8 +2,11 @@
 Simple and clean main script for CS2 demo analysis
 """
 
+from pathlib import Path
+import sys
 from matplotlib import pyplot as plt
 import config
+
 
 # Import our custom modules
 from src.core.analysis import get_player_kill_death_analysis
@@ -17,12 +20,11 @@ from src.utils.cache_utils import load_demo, clear_cache
 # ================================
 # You can edit config.py for project-wide settings, or override them here:
 
-DEMO_FILE = str("G:\\CS2\\demos\\fissure-playground-2-falcons-vs-virtuspro-bo3-qivzNI2LmnWi0RrHw-7sxj\\falcons-vs-virtus-pro-m1-mirage.dem")  # or set your own path
+DEMO_FILE = str("demos/the-mongolz-vs-vitality-m1-mirage.dem")  # or set your own path
 PLAYER_TO_ANALYZE = "NiKo"  # or set your own player name
 
-# Optional: Set these for player comparison (leave as None to skip comparison)
-COMPARE_PLAYER1 = "NiKo"  # e.g., "Kursy"
-COMPARE_PLAYER2 = "m0NESY"  # e.g., "REZ"
+player1 = "mezii"
+player2 = "bLitz"
 
 # Cache settings
 USE_CACHE = config.USE_CACHE
@@ -42,7 +44,7 @@ def main():
         return
     
     # # Display available players
-    # all_players = display_available_players(dem)
+    all_players = display_available_players(dem)
     # if not all_players:
     #     print("❌ No players found in demo")
     #     return
@@ -57,25 +59,8 @@ def main():
     # Display player analysis
     display_player_header(PLAYER_TO_ANALYZE)
     
-    # Generate the analysis
-    # stats = get_player_kill_death_analysis(dem, PLAYER_TO_ANALYZE, debug=False)
     
-    # if stats is not None and not stats.empty:
-    #     # Display formatted analysis
-    #     format_player_analysis(stats, PLAYER_TO_ANALYZE)
-    #     display_summary_stats(stats)
-        
-    #     # Generate plots
-    #     print(f"\n📊 Generating visualizations for {PLAYER_TO_ANALYZE}...")
-        # plot_kill_death_analysis(stats, PLAYER_TO_ANALYZE)
-        # plot_positive_negative_impact(stats, PLAYER_TO_ANALYZE)
-        # plot_impact_difference_per_round(stats, PLAYER_TO_ANALYZE)
-        # plot_individual_impacts_by_round(dem, PLAYER_TO_ANALYZE)
-        
-    # else:
-    #     print(f"❌ No data found for player: {PLAYER_TO_ANALYZE}")
-    #     print("Available players listed above ↑")
-    
+
     # Display all players stats table
     print("\n" + "="*80)
     print("📊 GENERATING ALL PLAYERS STATISTICS TABLE")
@@ -86,19 +71,13 @@ def main():
     print("\n" + "="*80)
     # create_probability_scenarios_table()
     
-    # Optional player comparison
-    if COMPARE_PLAYER1 and COMPARE_PLAYER2:
-        print(f"\n🔥 Comparing {COMPARE_PLAYER1} vs {COMPARE_PLAYER2}...")
-        compare_players(dem, COMPARE_PLAYER1, COMPARE_PLAYER2)
-
-
-def compare_players(dem, player1, player2):
     """Compare two players' individual impacts"""
     print("\n" + "="*80)
     print(f"INDIVIDUAL IMPACT COMPARISON: {player1.upper()} vs {player2.upper()}")
     print("="*80)
     
     compare_individual_impacts_vertical(dem, player1, player2)
+
 
 
 if __name__ == "__main__":

@@ -37,17 +37,22 @@ if __name__ == '__main__':
         'hp_ct': 201,
         'hp_t': 161,
         'bomb_planted': False,
-        'winner': 'ct',
         'ct_main_weapons': 3,
         't_main_weapons': 3,
-        'ct_grenades': 0,
-        't_grenades': 3,
         'ct_helmets': 3,
         't_helmets': 2,
-        'ct_armor': 286,
-        't_armor': 269,
-        'defusers': 3
-    }
+        'defusers': 3,
+        "ct_smokes":0,
+        "ct_flashes":0,
+        "ct_he_nades":0,
+        "ct_molotovs":0,
+        "ct_armor":3,
+        "t_smokes":0,
+        "t_flashes":0,
+        "t_he_nades":0,
+        "t_molotovs":0,
+        "t_armor":3
+        }
         
 
     res = float(predict(pred_model, sample_data))

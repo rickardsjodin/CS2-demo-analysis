@@ -53,65 +53,6 @@ def load_demo_data(parsed_demo_file: str) -> Optional[Dict[str, pl.DataFrame]]:
         data[name] = df
     return data
 
-def calculate_player_stats(alive_players: pl.DataFrame) -> Dict[str, int]:
-    """Calculates equipment and stats for alive players at a specific tick."""
-    stats = {
-        "ct_main_weapons": 0, "t_main_weapons": 0,
-        "ct_helmets": 0, "t_helmets": 0,
-        "ct_armor": 0, "t_armor": 0,
-        "defusers": 0,
-        "ct_smokes": 0, "ct_flashes": 0, "ct_he_nades" : 0, "ct_molotovs": 0,
-        "t_smokes": 0, "t_flashes": 0, "t_he_nades" : 0, "t_molotovs": 0
-    }
-
-    for player_row in alive_players.iter_rows(named=True):
-        inventory = player_row.get('inventory', [])
-        player_side = player_row['side']
-        
-        best_weapon_tier = 0
-        if inventory:
-            for item_name in inventory:
-                tier = WEAPON_TIERS.get(item_name)
-                if tier is not None:
-                    if tier > best_weapon_tier:
-                        best_weapon_tier = tier
-                elif (item_name not in GRENADE_AND_BOMB_TYPES) and ("Knife" not in item_name):
-                    tqdm.write(f"Warning: Unknown weapon '{item_name}' not in WEAPON_TIERS.")
-        
-        if best_weapon_tier >= 5:
-            if player_side == 'ct':
-                stats["ct_main_weapons"] += 1
-            else:
-                stats["t_main_weapons"] += 1
-        
-        smoke_count = sum(1 for item in inventory if item == SMOKE_NADE)
-        molotov_count = sum(1 for item in inventory if item in MOLOTOV_NADE)
-        flash_count = sum(1 for item in inventory if item == FLASH_NADE)
-        he_count = sum(1 for item in inventory if item == HE_NADE)
-        
-
-        armor = player_row.get('armor', 0) or 0
-        has_armor = armor > 0
-
-        if player_side == 'ct':
-            stats["ct_smokes"] += smoke_count
-            stats["ct_flashes"] += flash_count
-            stats["ct_he_nades"] += he_count
-            stats["ct_molotovs"] += molotov_count
-            stats["ct_helmets"] += 1 if player_row.get('has_helmet') else 0
-            stats["ct_armor"] += has_armor
-        else:
-            stats["t_smokes"] += smoke_count
-            stats["t_flashes"] += flash_count
-            stats["t_he_nades"] += he_count
-            stats["t_molotovs"] += molotov_count
-            stats["t_helmets"] += 1 if player_row.get('has_helmet') else 0
-            stats["t_armor"] += has_armor
-
-        stats["defusers"] += 1 if player_row.get('has_defuser') else 0
-        
-    return stats
-
 def create_snapshot(
     current_tick: int, round_row: Dict, demo_data: Dict, tick_rate: int, file_name: str
 ) -> Optional[Dict[str, Any]]:
@@ -147,11 +88,13 @@ def create_snapshot(
     hp_t = current_details.filter(pl.col('side') == 't')['health'].sum()
     hp_ct = current_details.filter(pl.col('side') == 'ct')['health'].sum()
 
-    player_stats = {}
-    if 'inventory' in current_details.columns:
-        dead_player_steamids = deaths_so_far['victim_steamid'].unique().to_list()
-        alive_players = current_details.filter(~pl.col('steamid').is_in(dead_player_steamids))
-        player_stats = calculate_player_stats(alive_players)
+
+    dead_player_steamids = deaths_so_far['victim_steamid'].unique().to_list()
+    alive_players = current_details.filter(~pl.col('steamid').is_in(dead_player_steamids))
+
+    alive_player_info = []
+    for player_row in alive_players.iter_rows(named=True):
+        alive_player_info.append(player_row)
 
     return {
         "source": f"Round {round_row['round_num']} in {file_name}",
@@ -162,7 +105,7 @@ def create_snapshot(
         "hp_t": int(hp_t) if hp_t is not None else 0,
         "bomb_planted": bomb_planted,
         "winner": round_row['winner'],
-        **player_stats
+        "alive_player_details": alive_player_info
     }
 
 def extract_snapshots_from_demo(parsed_demo_file: str, tick_rate=64) -> List[Dict[str, Any]]:
@@ -223,7 +166,7 @@ def main():
         print(f"Cache directory not found at {cache_path}")
         return
 
-    demo_files = [os.path.join(cache_path, f) for f in os.listdir(cache_path) if f.endswith('.pkl')]
+    demo_files = [os.path.join(cache_path, f) for f in os.listdir(cache_path) if f.endswith('.pkl')][:3]
     if not demo_files:
         print("No processed demo files found in cache.")
         return
