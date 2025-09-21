@@ -7,12 +7,15 @@ Trains a model to predict CT team win probability using game state snapshots
 # MODEL SELECTION - Edit this to choose which models to train
 # ============================================================================
 TRAIN_MODELS = {
-    'random_forest': False,      # Fast, good baseline
-    'xgboost': True,           # High performance (needs: pip install xgboost)
-    'lightgbm': False,          # Fast, good performance (needs: pip install lightgbm)
-    'logistic_regression': False, # Very fast, interpretable
-    'neural_network': False,    # Slower, can overfit
-    'ensemble': False           # Combines all models (automatic if >1 model)
+    'random_forest': False,          # Fast, good baseline
+    'xgboost_hltv': True,           # HLTV-style minimal features
+    'xgboost_minimal': True,        # Core game state features
+    'xgboost_player_features': True, # Complete feature set with player data
+    'xgboost_all': True,            # All available features
+    'lightgbm': False,              # Fast, good performance (needs: pip install lightgbm)
+    'logistic_regression': False,   # Very fast, interpretable
+    'neural_network': False,        # Slower, can overfit
+    'ensemble': False               # Combines all models (automatic if >1 model)
 }
 
 import json
@@ -129,7 +132,7 @@ def comprehensive_data_check(df):
         'infinite_columns': inf_cols
     }
 
-def load_and_prepare_data(data_file=None):
+def load_and_prepare_data(data_file=None, feature_set=None):
     """Load snapshots and prepare features for ML training"""
     
     if data_file is None:
@@ -155,13 +158,17 @@ def load_and_prepare_data(data_file=None):
     # Engineer features using the centralized function
     df = create_features(df)
     
-    # Select features for training based on the configured feature set
-    try:
-        feature_columns = feature_sets.FEATURE_SET
-        print(f"🧬 Using feature set with {len(feature_columns)} features.")
-    except AttributeError:
-        print(f"⚠️ Feature set not found in feature_sets.py. Using default.")
-        feature_columns = feature_sets.MINIMAL_FEATURES
+    # Use provided feature set or default
+    if feature_set is None:
+        try:
+            feature_columns = feature_sets.FEATURE_SET
+            print(f"🧬 Using default feature set with {len(feature_columns)} features.")
+        except AttributeError:
+            print(f"⚠️ Feature set not found in feature_sets.py. Using minimal features.")
+            feature_columns = feature_sets.MINIMAL_FEATURES
+    else:
+        feature_columns = feature_set
+        print(f"🧬 Using custom feature set with {len(feature_columns)} features.")
 
     X = df[feature_columns]
     y = df['ct_wins']
@@ -344,23 +351,10 @@ def load_snapshots_from_parquet(parquet_file: str) -> List[Dict[str, Any]]:
     return snapshots
     
 
-def train_models(X, y):
+def train_models():
     """Train selected models based on TRAIN_MODELS configuration"""
     
-    # Split data
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
-    )
-    
-    print(f"🔄 Training set: {len(X_train)} samples")
-    print(f"🧪 Test set: {len(X_test)} samples")
-    
-    # Scale features (needed for some models)
-    # scaler = StandardScaler()
-    # X_train_scaled = scaler.fit_transform(X_train)
-    # X_test_scaled = scaler.transform(X_test)
-    
-    models = {}
+    print(f"\n🔄 Preparing to train models...")
     
     # Check which models are selected for training
     selected_models = [name for name, selected in TRAIN_MODELS.items() if selected and name != 'ensemble']
@@ -371,103 +365,66 @@ def train_models(X, y):
     
     if not selected_models:
         print("⚠️ No models selected for training! Please set at least one model to True in TRAIN_MODELS")
-        return {}, X_test, y_test
+        return {}, None, None
     
-    # 1. Random Forest (if selected)
-    if TRAIN_MODELS.get('random_forest', False):
-        print("\n🌲 Training High-Complexity Random Forest...")
-        # Parameters tuned to reduce underfitting - more complex model
-        rf_model = RandomForestClassifier(
-            n_estimators=50,         # Many more trees for better learning
-            max_depth=5,            # No depth limit - let trees grow fully
-            min_samples_split=2,       # Allow very granular splits
-            min_samples_leaf=1,        # Allow single-sample leaf nodes
-            max_features=0.8,          # Use 80% of features for better pattern capture
-            random_state=41, 
-            class_weight='balanced',   # Handle class imbalance
-            bootstrap=False,            # Enable bootstrap sampling
-            n_jobs=-1
-        )
-
-        rf_model.fit(X_train, y_train)
-        
-        # CALIBRATION ANALYSIS - Compare before and after calibration
-        print("   📊 Analyzing calibration effectiveness...")
-        
-        
-        # Calibrate Random Forest
-        print("   🎯 Calibrating Random Forest probabilities...")
-        rf_calibrated = rf_model # CalibratedClassifierCV(rf_model, method='isotonic', cv=5)
-        rf_calibrated.fit(X_train, y_train)
-        
-        # Get calibrated probabilities
-        rf_pred = rf_calibrated.predict(X_test)
-        rf_pred_proba = rf_calibrated.predict_proba(X_test)[:, 1]
-        
-        # Calibration quality metrics
-        from sklearn.calibration import calibration_curve
-        
-        # Calculate calibration curves for both versions
-        fraction_pos_cal, mean_pred_cal = calibration_curve(y_test, rf_pred_proba, n_bins=10)
-        
-        # Calculate Brier Score (lower is better)
-        from sklearn.metrics import brier_score_loss
-        brier_calibrated = brier_score_loss(y_test, rf_pred_proba)
-        
-        # Calculate reliability (how close predicted probabilities are to actual frequencies)
-        def calculate_reliability(y_true, y_prob, n_bins=10):
-            bin_boundaries = np.linspace(0, 1, n_bins + 1)
-            bin_lowers = bin_boundaries[:-1]
-            bin_uppers = bin_boundaries[1:]
+    # Load base dataset ONCE with full feature engineering
+    print(f"\n📊 Loading and preparing base dataset...")
+    X_full, y, all_feature_columns, base_df = load_and_prepare_data()
+    
+    print(f"✅ Base dataset loaded: {len(X_full)} samples with {len(all_feature_columns)} total features")
+    
+    models = {}
+    
+    # Group XGBoost models to train them efficiently
+    xgboost_models = [name for name in selected_models if name.startswith('xgboost_')]
+    other_models = [name for name in selected_models if not name.startswith('xgboost_')]
+    
+    if xgboost_models and XGBOOST_AVAILABLE:
+        print(f"\n🚀 Training {len(xgboost_models)} XGBoost variants...")
+        for model_name in xgboost_models:
+            config = feature_sets.get_xgboost_config(model_name)
+            features = config['features']
+            hyperparams = config['hyperparams']
             
-            reliability = 0
-            for bin_lower, bin_upper in zip(bin_lowers, bin_uppers):
-                in_bin = (y_prob > bin_lower) & (y_prob <= bin_upper)
-                prop_in_bin = in_bin.mean()
-                
-                if prop_in_bin > 0:
-                    accuracy_in_bin = y_true[in_bin].mean()
-                    avg_confidence_in_bin = y_prob[in_bin].mean()
-                    reliability += np.abs(avg_confidence_in_bin - accuracy_in_bin) * prop_in_bin
+            print(f"\n  🔧 Training {model_name}:")
+            print(f"     Features: {len(features)} ({config['description']})")
+            print(f"     Hyperparams: {hyperparams}")
             
-            return reliability
-        
-        reliability_cal = calculate_reliability(y_test, rf_pred_proba)
-        
-        models['random_forest'] = {
-            'model': rf_calibrated,
-            'original_model': rf_model,
-            'scaler': None,
-            'predictions': rf_pred,
-            'probabilities': rf_pred_proba,
-            'accuracy': accuracy_score(y_test, rf_pred),
-            'auc': roc_auc_score(y_test, rf_pred_proba),
-            'log_loss': log_loss(y_test, rf_pred_proba),
-            'brier_score_calibrated': brier_calibrated,
-            'reliability_calibrated': reliability_cal
-        }    # 2. XGBoost (if available and selected)
-    if TRAIN_MODELS.get('xgboost', False):
-        if XGBOOST_AVAILABLE:
-            print("\n🚀 Training XGBoost...")
+            # Slice the specific features for this model from the full dataset
+            try:
+                X_model = X_full[features]
+                feature_columns = features
+                print(f"     ✅ Selected {len(features)} features from base dataset")
+            except KeyError as e:
+                missing_features = [f for f in features if f not in X_full.columns]
+                print(f"     ❌ Missing features for {model_name}: {missing_features}")
+                print(f"     Available features: {list(X_full.columns)}")
+                continue
+            
+            # Split data with consistent random state for fair comparison
+            X_train, X_test, y_train, y_test = train_test_split(
+                X_model, y, test_size=0.2, random_state=42, stratify=y
+            )
+            
+            print(f"     Training set: {len(X_train)} samples")
+            print(f"     Test set: {len(X_test)} samples")
+            
+            # Train XGBoost with model-specific hyperparameters
             xgb_model = xgb.XGBClassifier(
-                n_estimators=200,
-                max_depth=4,
-                learning_rate=0.05,
-                subsample=0.8,
-                colsample_bytree=0.8,
                 random_state=42,
                 eval_metric='logloss',
-                use_label_encoder=False
+                use_label_encoder=False,
+                **hyperparams
             )
             
             xgb_model.fit(X_train, y_train)
-            # Calibrate XGBoost
-            xgb_model
             
+            # Make predictions
             xgb_pred = xgb_model.predict(X_test)
             xgb_pred_proba = xgb_model.predict_proba(X_test)[:, 1]
             
-            models['xgboost_player_features'] = {
+            # Store model results
+            models[model_name] = {
                 'model': xgb_model,
                 'original_model': xgb_model,
                 'scaler': None,
@@ -475,205 +432,309 @@ def train_models(X, y):
                 'probabilities': xgb_pred_proba,
                 'accuracy': accuracy_score(y_test, xgb_pred),
                 'auc': roc_auc_score(y_test, xgb_pred_proba),
-                'log_loss': log_loss(y_test, xgb_pred_proba)
+                'log_loss': log_loss(y_test, xgb_pred_proba),
+                'feature_columns': feature_columns,
+                'X_test': X_test,
+                'y_test': y_test,
+                'config': config
             }
-        else:
-            print("\n⚠️ XGBoost selected but not available. Install with: pip install xgboost")
-
-    # 3. LightGBM (if available and selected)
-    if TRAIN_MODELS.get('lightgbm', False):
-        if LIGHTGBM_AVAILABLE:
-            print("\n⚡ Training LightGBM...")
-            lgb_model = lgb.LGBMClassifier(
+            
+            print(f"     ✅ {model_name} - AUC: {models[model_name]['auc']:.3f}, Acc: {models[model_name]['accuracy']:.3f}")
+    
+    elif xgboost_models and not XGBOOST_AVAILABLE:
+        print("\n⚠️ XGBoost models selected but XGBoost not available. Install with: pip install xgboost")
+    
+    # Train other model types
+    if other_models:
+        print(f"\n🎲 Training other model types: {', '.join(other_models)}")
+        
+        # Use the full feature set from the base dataset for non-XGBoost models
+        X_other = X_full  # Use all available features for non-XGBoost models
+        feature_columns = all_feature_columns
+        
+        print(f"     Using {len(feature_columns)} features for other models")
+        
+        # Split data for non-XGBoost models (same random state for consistency)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X_other, y, test_size=0.2, random_state=42, stratify=y
+        )
+        
+        # Scale features (needed for some models)
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+        
+        # 1. Random Forest (if selected)
+        if 'random_forest' in other_models:
+            print("\n🌲 Training High-Complexity Random Forest...")
+            rf_model = RandomForestClassifier(
                 n_estimators=50,
                 max_depth=5,
-                learning_rate=0.1,
-                subsample=0.8,
-                colsample_bytree=0.8,
-                random_state=42,
-                verbose=-1
+                min_samples_split=2,
+                min_samples_leaf=1,
+                max_features=0.8,
+                random_state=41, 
+                class_weight='balanced',
+                bootstrap=False,
+                n_jobs=-1
             )
 
-            lgb_model.fit(X_train, y_train)
+            rf_model.fit(X_train, y_train)
+            rf_calibrated = rf_model
             
-            # Calibrate LightGBM
-            print("   🎯 Calibrating LightGBM probabilities...")
-            lgb_calibrated = lgb_model# CalibratedClassifierCV(lgb_model, method='sigmoid', cv=5)
-            lgb_calibrated.fit(X_train, y_train)
+            rf_pred = rf_calibrated.predict(X_test)
+            rf_pred_proba = rf_calibrated.predict_proba(X_test)[:, 1]
             
-            lgb_pred = lgb_calibrated.predict(X_test)
-            lgb_pred_proba = lgb_calibrated.predict_proba(X_test)[:, 1]
-            
-            models['lightgbm'] = {
-                'model': lgb_calibrated,
-                'original_model': lgb_model,
+            models['random_forest'] = {
+                'model': rf_calibrated,
+                'original_model': rf_model,
                 'scaler': None,
-                'predictions': lgb_pred,
-                'probabilities': lgb_pred_proba,
-                'accuracy': accuracy_score(y_test, lgb_pred),
-                'auc': roc_auc_score(y_test, lgb_pred_proba),
-                'log_loss': log_loss(y_test, lgb_pred_proba)
+                'predictions': rf_pred,
+                'probabilities': rf_pred_proba,
+                'accuracy': accuracy_score(y_test, rf_pred),
+                'auc': roc_auc_score(y_test, rf_pred_proba),
+                'log_loss': log_loss(y_test, rf_pred_proba),
+                'feature_columns': feature_columns,
+                'X_test': X_test,
+                'y_test': y_test
             }
-        else:
-            print("\n⚠️ LightGBM selected but not available. Install with: pip install lightgbm")
+        
+        # 2. LightGBM (if available and selected)
+        if 'lightgbm' in other_models:
+            if LIGHTGBM_AVAILABLE:
+                print("\n⚡ Training LightGBM...")
+                lgb_model = lgb.LGBMClassifier(
+                    n_estimators=50,
+                    max_depth=5,
+                    learning_rate=0.1,
+                    subsample=0.8,
+                    colsample_bytree=0.8,
+                    random_state=42,
+                    verbose=-1
+                )
+
+                lgb_model.fit(X_train, y_train)
+                lgb_calibrated = lgb_model
+                
+                lgb_pred = lgb_calibrated.predict(X_test)
+                lgb_pred_proba = lgb_calibrated.predict_proba(X_test)[:, 1]
+                
+                models['lightgbm'] = {
+                    'model': lgb_calibrated,
+                    'original_model': lgb_model,
+                    'scaler': None,
+                    'predictions': lgb_pred,
+                    'probabilities': lgb_pred_proba,
+                    'accuracy': accuracy_score(y_test, lgb_pred),
+                    'auc': roc_auc_score(y_test, lgb_pred_proba),
+                    'log_loss': log_loss(y_test, lgb_pred_proba),
+                    'feature_columns': feature_columns,
+                    'X_test': X_test,
+                    'y_test': y_test
+                }
+            else:
+                print("\n⚠️ LightGBM selected but not available. Install with: pip install lightgbm")
+        
+        # 3. Logistic Regression (if selected)
+        if 'logistic_regression' in other_models:
+            print("\n📊 Training Logistic Regression...")
+            lr_model = LogisticRegression(
+                random_state=42,
+                max_iter=1000,
+                class_weight='balanced'
+            )
+            lr_model.fit(X_train_scaled, y_train)
+            lr_calibrated = lr_model
+            
+            lr_pred = lr_calibrated.predict(X_test_scaled)
+            lr_pred_proba = lr_calibrated.predict_proba(X_test_scaled)[:, 1]
+            
+            models['logistic_regression'] = {
+                'model': lr_calibrated,
+                'original_model': lr_model,
+                'scaler': scaler,
+                'predictions': lr_pred,
+                'probabilities': lr_pred_proba,
+                'accuracy': accuracy_score(y_test, lr_pred),
+                'auc': roc_auc_score(y_test, lr_pred_proba),
+                'log_loss': log_loss(y_test, lr_pred_proba),
+                'feature_columns': feature_columns,
+                'X_test': X_test,
+                'y_test': y_test
+            }
+        
+        # 4. Neural Network (MLP) (if selected)
+        if 'neural_network' in other_models:
+            print("\n🧠 Training Neural Network (MLP)...")
+            mlp_model = MLPClassifier(
+                hidden_layer_sizes=(100, 50),
+                random_state=42,
+                max_iter=500,
+                alpha=0.01
+            )
+            mlp_model.fit(X_train_scaled, y_train)
+            mlp_calibrated = CalibratedClassifierCV(mlp_model, method='sigmoid', cv=5)
+            mlp_calibrated.fit(X_train_scaled, y_train)
+            
+            mlp_pred = mlp_calibrated.predict(X_test_scaled)
+            mlp_pred_proba = mlp_calibrated.predict_proba(X_test_scaled)[:, 1]
+            
+            models['neural_network'] = {
+                'model': mlp_calibrated,
+                'original_model': mlp_model,
+                'scaler': scaler,
+                'predictions': mlp_pred,
+                'probabilities': mlp_pred_proba,
+                'accuracy': accuracy_score(y_test, mlp_pred),
+                'auc': roc_auc_score(y_test, mlp_pred_proba),
+                'log_loss': log_loss(y_test, mlp_pred_proba),
+                'feature_columns': feature_columns,
+                'X_test': X_test,
+                'y_test': y_test
+            }
     
-    # 4. Logistic Regression (if selected)
-    if TRAIN_MODELS.get('logistic_regression', False):
-        print("\n📊 Training Logistic Regression...")
-        lr_model = LogisticRegression(
-            random_state=42,
-            max_iter=1000,
-            class_weight='balanced'
-        )
-        lr_model.fit(X_train_scaled, y_train)
-        
-        # Calibrate Logistic Regression
-        print("   🎯 Calibrating Logistic Regression probabilities...")
-        lr_calibrated = lr_model# CalibratedClassifierCV(lr_model, method='sigmoid', cv=5)
-        lr_calibrated.fit(X_train_scaled, y_train)
-        
-        lr_pred = lr_calibrated.predict(X_test_scaled)
-        lr_pred_proba = lr_calibrated.predict_proba(X_test_scaled)[:, 1]
-        
-        models['logistic_regression'] = {
-            'model': lr_calibrated,
-            'original_model': lr_model,
-            'scaler': scaler,
-            'predictions': lr_pred,
-            'probabilities': lr_pred_proba,
-            'accuracy': accuracy_score(y_test, lr_pred),
-            'auc': roc_auc_score(y_test, lr_pred_proba),
-            'log_loss': log_loss(y_test, lr_pred_proba)
-        }
-    
-    # 5. Neural Network (MLP) (if selected)
-    if TRAIN_MODELS.get('neural_network', False):
-        print("\n🧠 Training Neural Network (MLP)...")
-        mlp_model = MLPClassifier(
-            hidden_layer_sizes=(100, 50),
-            random_state=42,
-            max_iter=500,
-            alpha=0.01
-        )
-        mlp_model.fit(X_train_scaled, y_train)
-        
-        # Calibrate Neural Network
-        print("   🎯 Calibrating Neural Network probabilities...")
-        mlp_calibrated =  CalibratedClassifierCV(mlp_model, method='sigmoid', cv=5)
-        mlp_calibrated.fit(X_train_scaled, y_train)
-        
-        mlp_pred = mlp_calibrated.predict(X_test_scaled)
-        mlp_pred_proba = mlp_calibrated.predict_proba(X_test_scaled)[:, 1]
-        
-        models['neural_network'] = {
-            'model': mlp_calibrated,
-            'original_model': mlp_model,
-            'scaler': scaler,
-            'predictions': mlp_pred,
-            'probabilities': mlp_pred_proba,
-            'accuracy': accuracy_score(y_test, mlp_pred),
-            'auc': roc_auc_score(y_test, mlp_pred_proba),
-            'log_loss': log_loss(y_test, mlp_pred_proba)
-        }
-    
-    # 6. Ensemble Model (if selected and multiple models are trained)
+    # 5. Ensemble Model (if selected and multiple models are trained)
     if TRAIN_MODELS.get('ensemble', False) and len(models) > 1:
         print("\n🏆 Training Ensemble Model with all trained models...")
         
+        # For ensemble, we'll use a consistent test set based on the full feature set
+        # Create a test set from the full dataset for fair ensemble evaluation
+        X_ensemble, _, y_ensemble, _ = train_test_split(
+            X_full, y, test_size=0.2, random_state=42, stratify=y
+        )
+        
         # Create ensemble predictions by averaging probabilities
-        ensemble_proba = np.zeros(len(y_test))
+        ensemble_proba = np.zeros(len(y_ensemble))
+        ensemble_count = 0
+        
+        print(f"     Creating ensemble from {len(models)} models...")
         
         for name, model_info in models.items():
-            if model_info['scaler'] is not None:
-                # Use scaled features
-                model_proba = model_info['model'].predict_proba(X_test_scaled)[:, 1]
-            else:
-                # Use unscaled features
-                model_proba = model_info['model'].predict_proba(X_test)[:, 1]
-            ensemble_proba += model_proba
+            try:
+                # Get the features this model needs
+                model_features = model_info['feature_columns']
+                X_model_test = X_ensemble[model_features]
+                
+                if model_info['scaler'] is not None:
+                    # Scale the features if needed
+                    X_model_test_scaled = model_info['scaler'].transform(X_model_test)
+                    model_proba = model_info['model'].predict_proba(X_model_test_scaled)[:, 1]
+                else:
+                    # Use unscaled features
+                    model_proba = model_info['model'].predict_proba(X_model_test)[:, 1]
+                
+                ensemble_proba += model_proba
+                ensemble_count += 1
+                print(f"       ✅ Added {name} to ensemble")
+                
+            except Exception as e:
+                print(f"       ⚠️ Could not add {name} to ensemble: {e}")
         
-        # Average the probabilities
-        ensemble_proba /= len(models)
-        ensemble_predictions = (ensemble_proba > 0.5).astype(int)
-        
-        # Store component model names (exclude ensemble itself)
-        component_models = list(models.keys())
-        
-        models['ensemble'] = {
-            'model': None,  # Custom ensemble logic
-            'original_model': None,
-            'scaler': None,
-            'predictions': ensemble_predictions,
-            'probabilities': ensemble_proba,
-            'accuracy': accuracy_score(y_test, ensemble_predictions),
-            'auc': roc_auc_score(y_test, ensemble_proba),
-            'log_loss': log_loss(y_test, ensemble_proba),
-            'component_models': component_models
-        }
+        if ensemble_count > 0:
+            # Average the probabilities
+            ensemble_proba /= ensemble_count
+            ensemble_predictions = (ensemble_proba > 0.5).astype(int)
+            
+            # Store component model names
+            component_models = list(models.keys())
+            
+            models['ensemble'] = {
+                'model': None,  # Custom ensemble logic
+                'original_model': None,
+                'scaler': None,
+                'predictions': ensemble_predictions,
+                'probabilities': ensemble_proba,
+                'accuracy': accuracy_score(y_ensemble, ensemble_predictions),
+                'auc': roc_auc_score(y_ensemble, ensemble_proba),
+                'log_loss': log_loss(y_ensemble, ensemble_proba),
+                'component_models': component_models,
+                'feature_columns': all_feature_columns,  # Use full features for reference
+                'X_test': X_ensemble,
+                'y_test': y_ensemble
+            }
+            
+            print(f"     ✅ Ensemble created with {ensemble_count} models")
+        else:
+            print("⚠️ Could not create ensemble - no compatible models found")
     elif TRAIN_MODELS.get('ensemble', False) and len(models) <= 1:
         print("\n⚠️ Ensemble selected but only one model trained. Ensemble needs at least 2 models.")
     
     # Print comprehensive results
     if not models:
         print("\n❌ No models were successfully trained!")
-        return models, X_test, y_test
+        return models, None, None
     
     print(f"\n📊 Model Performance Comparison ({len(models)} models trained):")
-    print("   All models calibrated with CalibratedClassifierCV for better probability estimates")
     print("-" * 80)
-    print(f"{'Model':<20} {'Accuracy':<10} {'AUC':<8} {'Log Loss':<10}")
+    print(f"{'Model':<25} {'Accuracy':<10} {'AUC':<8} {'Log Loss':<10} {'Features':<10}")
     print("-" * 80)
     
     for name, model_info in models.items():
-        print(f"{name.replace('_', ' ').title():<20} "
+        feature_count = len(model_info['feature_columns']) if model_info['feature_columns'] else 0
+        print(f"{name.replace('_', ' ').title():<25} "
               f"{model_info['accuracy']:.3f}    "
               f"{model_info['auc']:.3f}  "
-              f"{model_info['log_loss']:.3f}")
+              f"{model_info['log_loss']:.3f}    "
+              f"{feature_count:<10}")
     
-    # Detailed classification reports
-    print(f"\n📋 Detailed Classification Reports:")
+    # Detailed classification reports for best models
+    print(f"\n📋 Detailed Classification Reports (Top 3 Models):")
     
-    for name, model_info in models.items():
+    # Sort by AUC and show top 3
+    sorted_models = sorted(models.items(), key=lambda x: x[1]['auc'], reverse=True)
+    
+    for name, model_info in sorted_models[:3]:
         print(f"\n{name.replace('_', ' ').title()}:")
-        print(classification_report(y_test, model_info['predictions'], 
+        print(classification_report(model_info['y_test'], model_info['predictions'], 
                                   target_names=['T wins', 'CT wins']))
     
-    return models, X_test, y_test
+    # Return the best model's test data for further analysis
+    best_model = sorted_models[0][1]
+    return models, best_model['X_test'], best_model['y_test']
 
-def analyze_feature_importance(models, feature_columns):
+def analyze_feature_importance(models, default_feature_columns):
     """Analyze and visualize feature importance from multiple models"""
     
     # Collect feature importances from different models
     importance_data = {}
     
-    # Random Forest
-    if 'random_forest' in models:
-        # Use original model for feature importance since calibrated wrapper doesn't have this attribute
-        original_rf = models['random_forest']['original_model']
-        importance_data['Random Forest'] = original_rf.feature_importances_
-    
-    # XGBoost
-    if 'xgboost' in models and XGBOOST_AVAILABLE:
-        # Use original model for feature importance
-        original_xgb = models['xgboost']['original_model']
-        importance_data['XGBoost'] = original_xgb.feature_importances_
-    
-    # LightGBM
-    if 'lightgbm' in models and LIGHTGBM_AVAILABLE:
-        # Use original model for feature importance
-        original_lgb = models['lightgbm']['original_model']
-        importance_data['LightGBM'] = original_lgb.feature_importances_
-    
-    # Logistic Regression (use absolute coefficients)
-    if 'logistic_regression' in models:
-        # Use original model for coefficients
-        original_lr = models['logistic_regression']['original_model']
-        lr_coef = np.abs(original_lr.coef_[0])
-        # Normalize to 0-1 scale for comparison
-        importance_data['Logistic Regression'] = lr_coef / lr_coef.sum()
-    
-    # Neural Network - doesn't have easily interpretable feature importance
-    # We could implement permutation importance but that's computationally expensive
+    # Process all models, including multiple XGBoost variants
+    for model_name, model_info in models.items():
+        if model_name == 'ensemble':
+            continue  # Skip ensemble for feature importance
+        
+        feature_columns = model_info.get('feature_columns', default_feature_columns)
+        
+        if model_name.startswith('xgboost_') and XGBOOST_AVAILABLE:
+            # Use original model for feature importance
+            original_model = model_info['original_model']
+            importance_data[model_name] = {
+                'importances': original_model.feature_importances_,
+                'features': feature_columns
+            }
+        elif model_name == 'random_forest' and 'random_forest' in models:
+            # Use original model for feature importance
+            original_rf = model_info['original_model']
+            importance_data[model_name] = {
+                'importances': original_rf.feature_importances_,
+                'features': feature_columns
+            }
+        elif model_name == 'lightgbm' and LIGHTGBM_AVAILABLE:
+            # Use original model for feature importance
+            original_lgb = model_info['original_model']
+            importance_data[model_name] = {
+                'importances': original_lgb.feature_importances_,
+                'features': feature_columns
+            }
+        elif model_name == 'logistic_regression':
+            # Use original model for coefficients
+            original_lr = model_info['original_model']
+            lr_coef = np.abs(original_lr.coef_[0])
+            # Normalize to 0-1 scale for comparison
+            importance_data[model_name] = {
+                'importances': lr_coef / lr_coef.sum(),
+                'features': feature_columns
+            }
     
     # Create visualization
     n_models = len(importance_data)
@@ -687,7 +748,7 @@ def analyze_feature_importance(models, feature_columns):
         fig, ax = plt.subplots(1, 1, figsize=(12, 6))
         axes = [ax]
     else:
-        cols = min(2, n_models)
+        cols = min(3, n_models)  # Max 3 columns
         rows = (n_models + cols - 1) // cols
         fig, axes = plt.subplots(rows, cols, figsize=(15, 5 * rows))
         
@@ -700,22 +761,30 @@ def analyze_feature_importance(models, feature_columns):
             axes = [axes]
     
     # Plot feature importance for each model
-    for idx, (model_name, importances) in enumerate(importance_data.items()):
+    for idx, (model_name, model_data) in enumerate(importance_data.items()):
         ax = axes[idx]
         
+        importances = model_data['importances']
+        features = model_data['features']
+        
+        # Create DataFrame for this model's features
         feature_df = pd.DataFrame({
-            'feature': feature_columns,
+            'feature': features,
             'importance': importances
         }).sort_values('importance', ascending=True)
         
+        # Take top 15 features to keep plot readable
+        if len(feature_df) > 15:
+            feature_df = feature_df.tail(15)
+        
         bars = ax.barh(feature_df['feature'], feature_df['importance'])
-        ax.set_title(f'{model_name} - Feature Importance')
+        ax.set_title(f'{model_name.replace("_", " ").title()} - Feature Importance\n({len(features)} total features)')
         ax.set_xlabel('Importance')
         
         # Add value labels on bars
         for bar, value in zip(bars, feature_df['importance']):
             ax.text(bar.get_width() + 0.001, bar.get_y() + bar.get_height()/2, 
-                   f'{value:.3f}', ha='left', va='center', fontsize=9)
+                   f'{value:.3f}', ha='left', va='center', fontsize=8)
     
     # Hide empty subplots if any
     for idx in range(n_models, len(axes)):
@@ -730,27 +799,64 @@ def analyze_feature_importance(models, feature_columns):
     
     # Print feature importance summary
     print("\n🎯 Feature Importance Summary:")
-    for model_name, importances in importance_data.items():
-        print(f"\n{model_name} - Top 3 Features:")
+    for model_name, model_data in importance_data.items():
+        importances = model_data['importances']
+        features = model_data['features']
+        
+        print(f"\n{model_name.replace('_', ' ').title()} - Top 5 Features ({len(features)} total):")
+        
         feature_df = pd.DataFrame({
-            'feature': feature_columns,
+            'feature': features,
             'importance': importances
         }).sort_values('importance', ascending=False)
         
-        for i, (feature, importance) in enumerate(feature_df.head(3)[['feature', 'importance']].values):
+        for i, (feature, importance) in enumerate(feature_df.head(5)[['feature', 'importance']].values):
             print(f"  {i+1}. {feature}: {importance:.3f}")
     
-    # Calculate average importance across models (where available)
-    if len(importance_data) > 1:
-        avg_importance = np.mean([imp for imp in importance_data.values()], axis=0)
-        feature_df = pd.DataFrame({
-            'feature': feature_columns,
-            'avg_importance': avg_importance
-        }).sort_values('avg_importance', ascending=False)
+    # Compare XGBoost models specifically
+    xgb_models = {k: v for k, v in importance_data.items() if k.startswith('xgboost_')}
+    if len(xgb_models) > 1:
+        print(f"\n🚀 XGBoost Models Feature Comparison:")
         
-        print(f"\n🏆 Overall Top 3 Features (averaged across models):")
-        for i, (feature, importance) in enumerate(feature_df.head(3)[['feature', 'avg_importance']].values):
-            print(f"  {i+1}. {feature}: {importance:.3f}")
+        # Find common features across XGBoost models
+        all_features = set()
+        for model_data in xgb_models.values():
+            all_features.update(model_data['features'])
+        
+        # Create comparison for top features
+        print(f"   Total unique features across XGBoost models: {len(all_features)}")
+        
+        # Show how each model performs with different feature counts
+        print(f"   Model complexity comparison:")
+        for model_name in sorted(xgb_models.keys()):
+            model_info = models[model_name]
+            feature_count = len(xgb_models[model_name]['features'])
+            print(f"     {model_name}: {feature_count} features, AUC={model_info['auc']:.3f}")
+    
+    # Calculate average importance across models (where features overlap)
+    if len(importance_data) > 1:
+        # Find features that appear in multiple models
+        feature_counts = {}
+        feature_sums = {}
+        
+        for model_name, model_data in importance_data.items():
+            for feature, importance in zip(model_data['features'], model_data['importances']):
+                if feature not in feature_counts:
+                    feature_counts[feature] = 0
+                    feature_sums[feature] = 0
+                feature_counts[feature] += 1
+                feature_sums[feature] += importance
+        
+        # Calculate averages for features that appear in multiple models
+        common_features = {feature: feature_sums[feature] / feature_counts[feature] 
+                          for feature, count in feature_counts.items() if count > 1}
+        
+        if common_features:
+            print(f"\n🏆 Top 5 Features (averaged across {len(importance_data)} models):")
+            sorted_common = sorted(common_features.items(), key=lambda x: x[1], reverse=True)
+            for i, (feature, avg_importance) in enumerate(sorted_common[:5]):
+                model_count = feature_counts[feature]
+                print(f"  {i+1}. {feature}: {avg_importance:.3f} (appears in {model_count} models)")
 
 def visualize_calibration(models, y_test):
     """Create calibration plots to show how well probabilities are calibrated"""
@@ -940,7 +1046,7 @@ def load_existing_model_summary(summary_path):
         'total_models': 0
     }
 
-def merge_model_summaries(existing_summary, new_models, sorted_models, feature_columns, saved_models):
+def merge_model_summaries(existing_summary, new_models, sorted_models, saved_models):
     """Merge existing model summary with newly trained models"""
     import os
     
@@ -953,15 +1059,23 @@ def merge_model_summaries(existing_summary, new_models, sorted_models, feature_c
             # Check if model file actually exists
             model_path = saved_models[name]
             if os.path.exists(model_path):
+                # Use model-specific feature columns
+                model_feature_columns = model_info.get('feature_columns', [])
+                
                 merged_models[name] = {
                     'filename': str(model_path),
                     'accuracy': new_models[name]['accuracy'],
                     'auc': new_models[name]['auc'],
                     'log_loss': new_models[name]['log_loss'],
-                    'feature_columns': feature_columns,  # Each model stores its own feature columns
+                    'feature_columns': model_feature_columns,
                     'rank': i+1  # Will be recalculated later
                 }
-                print(f"✅ Updated model entry for '{name}'")
+                
+                # Add config info if this is an XGBoost model
+                if 'config' in model_info:
+                    merged_models[name]['config'] = model_info['config']
+                
+                print(f"✅ Updated model entry for '{name}' with {len(model_feature_columns)} features")
             else:
                 print(f"⚠️  Model file not found for '{name}': {model_path}")
     
@@ -990,7 +1104,7 @@ def merge_model_summaries(existing_summary, new_models, sorted_models, feature_c
         'total_models': len(merged_models)
     }
 
-def save_all_models(models, feature_columns):
+def save_all_models(models, default_feature_columns):
     """Save all trained models individually and as a collection"""
     
     print(f"\n💾 Saving all {len(models)} trained models...")
@@ -998,10 +1112,11 @@ def save_all_models(models, feature_columns):
     # Sort models by AUC score for ranking
     sorted_models = sorted(models.items(), key=lambda x: x[1]['auc'], reverse=True)
     
-    print(f"\n� Model Performance Ranking (by AUC):")
+    print(f"\n🏆 Model Performance Ranking (by AUC):")
     for i, (name, info) in enumerate(sorted_models):
+        feature_count = len(info['feature_columns']) if info['feature_columns'] else 0
         print(f"  {i+1}. {name.replace('_', ' ').title()}: "
-              f"AUC={info['auc']:.3f}, Acc={info['accuracy']:.3f}, LogLoss={info['log_loss']:.3f}")
+              f"AUC={info['auc']:.3f}, Acc={info['accuracy']:.3f}, LogLoss={info['log_loss']:.3f}, Features={feature_count}")
     
     # Save each model individually
     saved_models = {}
@@ -1010,17 +1125,24 @@ def save_all_models(models, feature_columns):
         if name == 'ensemble':
             continue
             
+        # Use model-specific feature columns if available
+        model_feature_columns = model_info.get('feature_columns', default_feature_columns)
+        
         model_data = {
             'model': model_info['model'],
             'original_model': model_info.get('original_model'),
             'scaler': model_info['scaler'],
-            'feature_columns': feature_columns,
+            'feature_columns': model_feature_columns,
             'model_type': name,
             'accuracy': model_info['accuracy'],
             'auc': model_info['auc'],
             'log_loss': model_info['log_loss'],
             'is_calibrated': True
         }
+        
+        # Add XGBoost configuration if available
+        if 'config' in model_info:
+            model_data['config'] = model_info['config']
         
         # Save individual model
         model_filename = PROJECT_ROOT / "data" / "models" / f"ct_win_probability_{name}.pkl"
@@ -1033,7 +1155,7 @@ def save_all_models(models, feature_columns):
     if 'ensemble' in models:
         ensemble_data = {
             'component_models': saved_models,  # Reference to individual model files
-            'feature_columns': feature_columns,
+            'feature_columns': models['ensemble']['feature_columns'],
             'model_type': 'ensemble',
             'accuracy': models['ensemble']['accuracy'],
             'auc': models['ensemble']['auc'],
@@ -1050,17 +1172,23 @@ def save_all_models(models, feature_columns):
     # Save the best model as the default
     best_model_name, best_model_info = sorted_models[0]
     if best_model_name != 'ensemble':
+        best_model_feature_columns = best_model_info.get('feature_columns', default_feature_columns)
+        
         best_model_data = {
             'model': best_model_info['model'],
             'original_model': best_model_info.get('original_model'),
             'scaler': best_model_info['scaler'],
-            'feature_columns': feature_columns,
+            'feature_columns': best_model_feature_columns,
             'model_type': best_model_name,
             'accuracy': best_model_info['accuracy'],
             'auc': best_model_info['auc'],
             'log_loss': best_model_info['log_loss'],
             'is_calibrated': True
         }
+        
+        # Add XGBoost configuration if available
+        if 'config' in best_model_info:
+            best_model_data['config'] = best_model_info['config']
         
         # Add ensemble component info if applicable
         if 'component_models' in best_model_info:
@@ -1076,7 +1204,7 @@ def save_all_models(models, feature_columns):
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     
     existing_summary = load_existing_model_summary(summary_path)
-    model_summary = merge_model_summaries(existing_summary, models, sorted_models, feature_columns, saved_models)
+    model_summary = merge_model_summaries(existing_summary, models, sorted_models, saved_models)
     
     import json
     with open(summary_path, 'w') as f:
@@ -1093,7 +1221,7 @@ def main():
     
     try:
         print("🎮 CS2 Win Probability Model Training")
-        print("🎯 All models will be calibrated with CalibratedClassifierCV for better probability estimates")
+        print("🎯 Support for multiple XGBoost models with different feature sets")
         print("=" * 80)
         
         # Display selected models
@@ -1101,25 +1229,34 @@ def main():
         print(f"📋 Selected models for training: {', '.join(selected_models)}")
         
         if not selected_models:
-            print("❌ No models selected! Please configure MODELS_TO_TRAIN in the script.")
+            print("❌ No models selected! Please configure TRAIN_MODELS in the script.")
             return
+        
+        # Show XGBoost configurations
+        xgboost_models = [name for name in selected_models if name.startswith('xgboost_')]
+        if xgboost_models:
+            print(f"\n🚀 XGBoost Models Configuration:")
+            for model_name in xgboost_models:
+                config = feature_sets.get_xgboost_config(model_name)
+                print(f"   {model_name}: {len(config['features'])} features - {config['description']}")
         
         print("=" * 80)
         
-        # Load and prepare data
-        X, y, feature_columns, df = load_and_prepare_data()
-        
         # Train models
-        models, X_test, y_test = train_models(X, y)
+        models, X_test, y_test = train_models()
         
         if not models:
             print("❌ No models were successfully trained!")
             return
         
+        # Use the first model's feature columns for analysis (or could be best model's)
+        first_model = list(models.values())[0]
+        feature_columns = first_model['feature_columns']
+        
         # Analyze feature importance
         analyze_feature_importance(models, feature_columns)
         
-        # Visualize calibration effectiveness
+        # Visualize calibration effectiveness (if data available)
         visualize_calibration(models, y_test)
         
         # Visualize results
@@ -1130,6 +1267,14 @@ def main():
         
         print(f"\n✅ Training complete! Best model: {best_model_name}")
         print(f"📊 Total models trained: {len(models)}")
+        
+        # Show final summary of XGBoost models
+        xgb_models = {k: v for k, v in models.items() if k.startswith('xgboost_')}
+        if xgb_models:
+            print(f"\n🚀 XGBoost Models Summary:")
+            for name, info in sorted(xgb_models.items(), key=lambda x: x[1]['auc'], reverse=True):
+                feature_count = len(info['feature_columns'])
+                print(f"   {name}: AUC={info['auc']:.3f}, Features={feature_count}")
         
     except Exception as e:
         print(f"❌ Error during training: {e}")
