@@ -8,10 +8,14 @@ import joblib
 import numpy as np
 import pandas as pd
 from flask import Flask, render_template, request, jsonify
+from flask_cors import CORS
 from pathlib import Path
 import traceback
 
 app = Flask(__name__)
+
+# Enable CORS for all routes
+CORS(app, origins=['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'])
 
 # Project configuration
 PROJECT_ROOT = Path(__file__).parent
@@ -82,7 +86,7 @@ def load_model(model_name):
 def get_feature_defaults(features):
     """Get reasonable default values for features"""
     defaults = {}
-    
+    player_side_i = 0
     for feature in features:
         if 'time_left' in feature.lower():
             if 'bomb' in feature.lower():
@@ -125,7 +129,8 @@ def get_feature_defaults(features):
         elif 'player_' in feature.lower() and 'armor' in feature.lower():
             defaults[feature] = 90  # Armor value
         elif 'player_' in feature.lower() and 'side' in feature.lower():
-            defaults[feature] = 0  # 0 = CT, 1 = T
+            defaults[feature] = 0 if player_side_i < 5 else 1  # 0 = CT, 1 = T
+            player_side_i += 1
         else:
             defaults[feature] = 0  # Default to 0 for unknown features
     

@@ -161,7 +161,7 @@ def load_and_prepare_data(data_file=None, feature_set=None):
     # Use provided feature set or default
     if feature_set is None:
         try:
-            feature_columns = feature_sets.FEATURE_SET
+            feature_columns = feature_sets.ALL_FEATURES
             print(f"🧬 Using default feature set with {len(feature_columns)} features.")
         except AttributeError:
             print(f"⚠️ Feature set not found in feature_sets.py. Using minimal features.")
@@ -220,15 +220,8 @@ def calculate_player_stats(alive_players: List[Dict[str, Any]]) -> Dict[str, int
         inventory = player_row.get('inventory', [])
         player_side = player_row['side']
         
-        best_weapon_tier = 0
-        for item_name in inventory:
-            tier = WEAPON_TIERS.get(item_name)
-            if tier is not None:
-                if tier > best_weapon_tier:
-                    best_weapon_tier = tier
-            elif (item_name not in GRENADE_AND_BOMB_TYPES) and ("Knife" not in item_name):
-                tqdm.write(f"Warning: Unknown weapon '{item_name}' not in WEAPON_TIERS.")
-        
+        best_weapon_tier = player_row['best_weapon_tier']
+
         if best_weapon_tier >= 5:
             if player_side == 'ct':
                 stats["ct_main_weapons"] += 1
@@ -239,7 +232,6 @@ def calculate_player_stats(alive_players: List[Dict[str, Any]]) -> Dict[str, int
         molotov_count = sum(1 for item in inventory if item in MOLOTOV_NADE)
         flash_count = sum(1 for item in inventory if item == FLASH_NADE)
         he_count = sum(1 for item in inventory if item == HE_NADE)
-        
 
         armor = player_row.get('armor', 0) or 0
         has_armor = armor > 0
@@ -275,15 +267,6 @@ def load_snapshots_from_parquet(parquet_file: str) -> List[Dict[str, Any]]:
     snapshots = []
     player_base_keys = [f'player_{i}_' for i in range(10)]
 
-    player_features = [
-        'inventory',
-        'health',
-        'has_defuser',
-        'has_helmet',
-        'armor',
-        'side',
-    ]
-
     for row in tqdm(df.iter_rows(named=True), total=len(df)):
         # Convert row to mutable dict to avoid Polars read-only issues
         row_dict = dict(row)
@@ -293,7 +276,7 @@ def load_snapshots_from_parquet(parquet_file: str) -> List[Dict[str, Any]]:
             inventory_list = row_dict[player_base_key + 'inventory']
 
             # Handle missing/dead players with proper data types
-            if inventory_list is None:
+            if inventory_list is None or inventory_list == '[]':
                 row_dict[player_base_key + 'best_weapon_tier'] = 0
                 row_dict[player_base_key + 'health'] = 0
                 row_dict[player_base_key + 'has_defuser'] = False  # Ensure bool type
@@ -302,12 +285,8 @@ def load_snapshots_from_parquet(parquet_file: str) -> List[Dict[str, Any]]:
                 row_dict[player_base_key + 'side'] = -1
                 continue
 
-            # Process alive players
             inventory_list = json.loads(inventory_list)
-            row_dict[player_base_key + 'inventory'] = inventory_list
-            row_dict[player_base_key + 'side'] = 0 if row_dict[player_base_key + 'side'] == 'ct' else 1
 
-            # Calculate best weapon tier
             best_weapon_tier = 0
             for item_name in inventory_list:
                 tier = WEAPON_TIERS.get(item_name)
@@ -315,30 +294,24 @@ def load_snapshots_from_parquet(parquet_file: str) -> List[Dict[str, Any]]:
                     if tier > best_weapon_tier:
                         best_weapon_tier = tier
 
-            row_dict[player_base_key + 'best_weapon_tier'] = best_weapon_tier
-            
-            # Ensure boolean columns are proper booleans
             if row_dict[player_base_key + 'has_defuser'] is None:
-                row_dict[player_base_key + 'has_defuser'] = False
-            else:
-                row_dict[player_base_key + 'has_defuser'] = bool(row_dict[player_base_key + 'has_defuser'])
-                
-            if row_dict[player_base_key + 'has_helmet'] is None:
-                row_dict[player_base_key + 'has_helmet'] = False
-            else:
-                row_dict[player_base_key + 'has_helmet'] = bool(row_dict[player_base_key + 'has_helmet'])
-            
-            # Ensure numeric columns are proper numbers
-            if row_dict[player_base_key + 'health'] is None:
-                row_dict[player_base_key + 'health'] = 0
-            if row_dict[player_base_key + 'armor'] is None:
-                row_dict[player_base_key + 'armor'] = 0
+                pass
+
+            row_dict[player_base_key + 'side'] = 0 if row_dict[player_base_key + 'side'] == 'ct' else 1
+            row_dict[player_base_key + 'best_weapon_tier'] = best_weapon_tier
+            row_dict[player_base_key + 'has_defuser'] = bool(row_dict[player_base_key + 'has_defuser'])
+            row_dict[player_base_key + 'has_helmet'] = bool(row_dict[player_base_key + 'has_helmet'])
 
             player_info = {}
-            for feature in player_features:
-                feature_key = player_base_key + feature
-                player_info[feature] = row_dict[feature_key]
+            armor = row_dict[player_base_key + 'armor']
 
+            player_info['best_weapon_tier'] = best_weapon_tier
+            player_info['has_defuser'] = row_dict[player_base_key + 'has_defuser']
+            player_info['has_helmet'] = row_dict[player_base_key + 'has_helmet']
+            player_info['health'] = row_dict[player_base_key + 'health']
+            player_info['side'] = row_dict[player_base_key + 'side']
+            player_info['armor'] = 1 if armor > 0 else 0
+            
             alive_player_info.append(player_info)
         
         player_summaries = calculate_player_stats(alive_player_info) 
@@ -369,8 +342,8 @@ def train_models():
     
     # Load base dataset ONCE with full feature engineering
     print(f"\n📊 Loading and preparing base dataset...")
-    json_file = PROJECT_ROOT / "data" / "datasets" / "all_snapshots.json"
-    X_full, y, all_feature_columns, base_df = load_and_prepare_data(data_file=json_file)
+    # json_file = PROJECT_ROOT / "data" / "datasets" / "all_snapshots.json"
+    X_full, y, all_feature_columns, base_df = load_and_prepare_data(data_file=None)
     
     print(f"✅ Base dataset loaded: {len(X_full)} samples with {len(all_feature_columns)} total features")
     

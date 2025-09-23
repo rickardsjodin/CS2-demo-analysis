@@ -29,6 +29,12 @@ export default function ModelSelection({
             className={`model-card ${
               selectedModels.includes(modelName) ? 'selected' : ''
             }`}
+            onClick={() => {
+              handleCheckboxChange(
+                modelName,
+                !selectedModels.includes(modelName)
+              );
+            }}
           >
             <div className='model-checkbox'>
               <input
