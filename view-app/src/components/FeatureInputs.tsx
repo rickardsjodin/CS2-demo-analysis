@@ -1,4 +1,5 @@
 import type { Feature, FeatureValues } from '../types';
+import { isCalculatedTeamStat } from '../utils/playerStatsCalculator';
 import './FeatureInputs.css';
 
 interface FeatureInputsProps {
@@ -41,9 +42,13 @@ export default function FeatureInputs({
     'Player Features': [] as Feature[],
   };
 
+  let hasPlayerFeatures = false;
+  let hasCalculatedFeatures = false;
+
   features.forEach((feature) => {
     if (feature.name.includes('player_')) {
       groups['Player Features'].push(feature);
+      hasPlayerFeatures = true;
     } else if (
       feature.name.includes('time') ||
       feature.name.includes('bomb') ||
@@ -56,17 +61,29 @@ export default function FeatureInputs({
       feature.name.includes('helmets')
     ) {
       groups['Team Stats'].push(feature);
+      if (isCalculatedTeamStat(feature.name)) {
+        hasCalculatedFeatures = true;
+      }
     } else {
       groups['Equipment'].push(feature);
+      if (isCalculatedTeamStat(feature.name)) {
+        hasCalculatedFeatures = true;
+      }
     }
   });
 
   const renderFeatureInput = (feature: Feature) => {
     const currentValue = featureValues[feature.name] ?? feature.default;
+    const isCalculated = isCalculatedTeamStat(feature.name);
 
     if (feature.constraints.type === 'checkbox') {
       return (
-        <div key={feature.name} className='feature-input checkbox-input'>
+        <div
+          key={feature.name}
+          className={`feature-input checkbox-input ${
+            isCalculated ? 'calculated' : ''
+          }`}
+        >
           <input
             type='checkbox'
             id={feature.name}
@@ -74,9 +91,18 @@ export default function FeatureInputs({
             onChange={(e) =>
               handleCheckboxChange(feature.name, e.target.checked)
             }
+            disabled={isCalculated}
+            title={
+              isCalculated
+                ? 'This value is automatically calculated from player data'
+                : ''
+            }
           />
           <label htmlFor={feature.name} className='checkbox-label'>
             {feature.display_name}
+            {isCalculated && (
+              <span className='calculated-indicator'> (auto)</span>
+            )}
           </label>
         </div>
       );
@@ -84,13 +110,27 @@ export default function FeatureInputs({
 
     if (feature.constraints.type === 'select') {
       return (
-        <div key={feature.name} className='feature-input'>
-          <label htmlFor={feature.name}>{feature.display_name}:</label>
+        <div
+          key={feature.name}
+          className={`feature-input ${isCalculated ? 'calculated' : ''}`}
+        >
+          <label htmlFor={feature.name}>
+            {feature.display_name}:
+            {isCalculated && (
+              <span className='calculated-indicator'> (auto)</span>
+            )}
+          </label>
           <select
             id={feature.name}
             value={currentValue}
             onChange={(e) =>
               onFeatureValueChange(feature.name, parseFloat(e.target.value))
+            }
+            disabled={isCalculated}
+            title={
+              isCalculated
+                ? 'This value is automatically calculated from player data'
+                : ''
             }
           >
             {feature.constraints.options?.map(([value, label]) => (
@@ -105,10 +145,16 @@ export default function FeatureInputs({
 
     // Range input
     return (
-      <div key={feature.name} className='feature-input'>
+      <div
+        key={feature.name}
+        className={`feature-input ${isCalculated ? 'calculated' : ''}`}
+      >
         <label htmlFor={feature.name}>
           {feature.display_name}:{' '}
           <span className='value-display'>{currentValue}</span>
+          {isCalculated && (
+            <span className='calculated-indicator'> (auto)</span>
+          )}
         </label>
         <input
           type='range'
@@ -118,6 +164,12 @@ export default function FeatureInputs({
           step={feature.constraints.step}
           value={currentValue}
           onChange={(e) => handleRangeChange(feature.name, e.target.value)}
+          disabled={isCalculated}
+          title={
+            isCalculated
+              ? 'This value is automatically calculated from player data'
+              : ''
+          }
         />
       </div>
     );
@@ -145,6 +197,12 @@ export default function FeatureInputs({
           </div>
         )}
         <p className='features-summary'>Showing {features.length} features</p>
+        {hasPlayerFeatures && hasCalculatedFeatures && (
+          <div className='auto-calculation-info'>
+            <span className='info-icon'>ℹ️</span>
+            Team stats are automatically calculated from individual player data
+          </div>
+        )}
       </div>
 
       {Object.entries(groups).map(([groupName, groupFeatures]) => {

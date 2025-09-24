@@ -46,6 +46,14 @@ body {
   border-radius: 16px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 120px); /* Leave space for header */
+}
+
+.scrollable-content {
+  flex: 1;
+  overflow-y: auto;
 }
 
 section {
@@ -67,6 +75,9 @@ section h2 {
 /* Prediction Section */
 .prediction-section {
   padding: 20px 25px;
+  background: white;
+  border-top: 2px solid #e2e8f0;
+  flex-shrink: 0;
 }
 
 .predict-button {

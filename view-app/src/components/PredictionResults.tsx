@@ -11,6 +11,7 @@ export default function PredictionResults({
   if (predictions.length === 0) {
     return null;
   }
+  console.log({ predictions });
 
   if (predictions.length === 1) {
     const result = predictions[0];

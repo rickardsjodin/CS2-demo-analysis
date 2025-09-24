@@ -49,6 +49,23 @@
   margin: 0;
 }
 
+.auto-calculation-info {
+  background: #e6fffa;
+  color: #234e52;
+  font-size: 0.85rem;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #81e6d9;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.info-icon {
+  font-size: 0.9rem;
+}
+
 .feature-group {
   margin-bottom: 25px;
 }
@@ -164,6 +181,62 @@
   font-size: 0.9rem;
   border: 1px solid #e2e8f0;
   margin-left: 4px;
+}
+
+/* Calculated features styling */
+.feature-input.calculated {
+  opacity: 0.7;
+  position: relative;
+}
+
+.feature-input.calculated input,
+.feature-input.calculated select {
+  background: #f7fafc;
+  color: #4a5568;
+  cursor: not-allowed;
+  border-color: #cbd5e0;
+}
+
+.feature-input.calculated input[type='range'] {
+  background: #cbd5e0;
+  cursor: not-allowed;
+}
+
+.feature-input.calculated input[type='range']::-webkit-slider-thumb {
+  background: #a0aec0;
+  cursor: not-allowed;
+}
+
+.feature-input.calculated input[type='range']::-webkit-slider-thumb:hover {
+  background: #a0aec0;
+  transform: none;
+}
+
+.feature-input.calculated input[type='range']::-moz-range-thumb {
+  background: #a0aec0;
+  cursor: not-allowed;
+}
+
+.feature-input.calculated input[type='range']::-moz-range-thumb:hover {
+  background: #a0aec0;
+  transform: none;
+}
+
+.calculated-indicator {
+  font-size: 0.75rem;
+  color: #38a169;
+  font-weight: 500;
+  background: #f0fff4;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid #9ae6b4;
+  margin-left: 4px;
+}
+
+.feature-input.calculated .value-display {
+  background: #f0fff4;
+  color: #38a169;
+  border-color: #9ae6b4;
 }
 
 @media (max-width: 768px) {

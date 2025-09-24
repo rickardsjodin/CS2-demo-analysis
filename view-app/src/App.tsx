@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import './App.css';
 import ModelSelection from './components/ModelSelection';
 import FeatureInputs from './components/FeatureInputs';
 import PredictionResults from './components/PredictionResults';
 import ScenarioButtons from './components/ScenarioButtons';
 import { API_ENDPOINTS } from './config/api';
+import { updateCalculatedStats } from './utils/playerStatsCalculator';
 import type { Model, Feature, PredictionResult, FeatureValues } from './types';
 
 function App() {
@@ -13,8 +14,8 @@ function App() {
   const [features, setFeatures] = useState<Feature[]>([]);
   const [featureValues, setFeatureValues] = useState<FeatureValues>({});
   const [predictions, setPredictions] = useState<PredictionResult[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const timeout = useRef<any>(null);
 
   // Load models on component mount
   useEffect(() => {
@@ -45,7 +46,6 @@ function App() {
       return;
     }
 
-    setIsLoading(true);
     const featurePromises = selectedModels.map(async (modelName) => {
       const response = await fetch(API_ENDPOINTS.modelFeatures(modelName));
       const data = await response.json();
@@ -78,14 +78,15 @@ function App() {
                 : 0
               : Number(feature.default);
         });
-        setFeatureValues(initialValues);
+
+        // Calculate team stats from initial player data
+        const calculatedInitialValues = updateCalculatedStats(initialValues);
+        setFeatureValues(calculatedInitialValues);
       })
       .catch((err) => {
         setError('Error loading features: ' + err.message);
       })
-      .finally(() => {
-        setIsLoading(false);
-      });
+      .finally(() => {});
   }, [selectedModels]);
 
   const handleModelSelectionChange = (modelName: string, selected: boolean) => {
@@ -97,16 +98,24 @@ function App() {
   };
 
   const handleFeatureValueChange = (featureName: string, value: number) => {
-    setFeatureValues((prev) => ({
-      ...prev,
+    const newVals = {
+      ...featureValues,
       [featureName]: value,
-    }));
+    };
+
+    const updatedVals = updateCalculatedStats(newVals);
+    setFeatureValues(updatedVals);
+
+    if (timeout.current) clearTimeout(timeout.current);
+
+    timeout.current = setTimeout(() => {
+      handlePredict(updatedVals);
+    }, 200);
   };
 
-  const handlePredict = async () => {
+  const handlePredict = async (inputFeatureVals?: FeatureValues) => {
     if (selectedModels.length === 0) return;
 
-    setIsLoading(true);
     setError(null);
 
     try {
@@ -118,7 +127,7 @@ function App() {
           },
           body: JSON.stringify({
             model_name: modelName,
-            features: featureValues,
+            features: inputFeatureVals ?? featureValues,
           }),
         });
 
@@ -132,15 +141,19 @@ function App() {
     } catch (err) {
       setError('Prediction failed: ' + (err as Error).message);
     } finally {
-      setIsLoading(false);
     }
   };
 
   const handleScenarioLoad = (scenarioData: { [key: string]: number }) => {
-    setFeatureValues((prev) => ({
-      ...prev,
-      ...scenarioData,
-    }));
+    setFeatureValues((prev) => {
+      const updated = {
+        ...prev,
+        ...scenarioData,
+      };
+
+      // Automatically calculate team stats from player data
+      return updateCalculatedStats(updated);
+    });
   };
 
   return (
@@ -153,47 +166,49 @@ function App() {
       </header>
 
       <main className='main-content'>
-        <ModelSelection
-          models={models}
-          selectedModels={selectedModels}
-          onSelectionChange={handleModelSelectionChange}
-        />
+        <div className='scrollable-content'>
+          <ModelSelection
+            models={models}
+            selectedModels={selectedModels}
+            onSelectionChange={handleModelSelectionChange}
+          />
+
+          {selectedModels.length > 0 && (
+            <>
+              <FeatureInputs
+                features={features}
+                featureValues={featureValues}
+                selectedModels={selectedModels}
+                onFeatureValueChange={handleFeatureValueChange}
+                isLoading={false}
+              />
+
+              <ScenarioButtons
+                onScenarioLoad={handleScenarioLoad}
+                disabled={selectedModels.length === 0}
+              />
+            </>
+          )}
+        </div>
 
         {selectedModels.length > 0 && (
-          <>
-            <FeatureInputs
-              features={features}
-              featureValues={featureValues}
-              selectedModels={selectedModels}
-              onFeatureValueChange={handleFeatureValueChange}
-              isLoading={isLoading}
-            />
+          <section className='prediction-section'>
+            <h2>🎯 Prediction</h2>
+            <button
+              className={`predict-button`}
+              onClick={() => handlePredict()}
+              disabled={selectedModels.length === 0}
+            >
+              {selectedModels.length > 1
+                ? 'Compare Model Predictions'
+                : 'Predict Win Probability'}
+            </button>
 
-            <section className='prediction-section'>
-              <h2>🎯 Prediction</h2>
-              <button
-                className={`predict-button ${isLoading ? 'loading' : ''}`}
-                onClick={handlePredict}
-                disabled={isLoading || selectedModels.length === 0}
-              >
-                {isLoading
-                  ? 'Predicting...'
-                  : selectedModels.length > 1
-                  ? 'Compare Model Predictions'
-                  : 'Predict Win Probability'}
-              </button>
+            {error && <div className='error'>{error}</div>}
 
-              {error && <div className='error'>{error}</div>}
-
-              <PredictionResults predictions={predictions} />
-            </section>
-          </>
+            <PredictionResults predictions={predictions} />
+          </section>
         )}
-
-        <ScenarioButtons
-          onScenarioLoad={handleScenarioLoad}
-          disabled={selectedModels.length === 0}
-        />
       </main>
     </div>
   );
