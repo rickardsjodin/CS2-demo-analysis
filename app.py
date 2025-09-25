@@ -106,7 +106,7 @@ def get_feature_defaults(features):
             defaults[feature] = 3  # Number of main weapons
         elif 'defusers' in feature.lower():
             defaults[feature] = 2  # Number of defuse kits
-        elif 'armor' in feature.lower():
+        elif 'armor' in feature.lower() and 'player_' not in feature.lower():
             defaults[feature] = 4  # Number of players with armor
         elif 'helmets' in feature.lower():
             defaults[feature] = 4  # Number of players with helmets
@@ -127,7 +127,7 @@ def get_feature_defaults(features):
         elif 'player_' in feature.lower() and 'has_helmet' in feature.lower():
             defaults[feature] = 1  # Boolean
         elif 'player_' in feature.lower() and 'armor' in feature.lower():
-            defaults[feature] = 90  # Armor value
+            defaults[feature] = 1  # Armor value
         elif 'player_' in feature.lower() and 'side' in feature.lower():
             defaults[feature] = 0 if player_side_i < 5 else 1  # 0 = CT, 1 = T
             player_side_i += 1
@@ -173,7 +173,7 @@ def get_feature_constraints(feature):
     elif 'player_' in feature.lower() and ('has_defuser' in feature.lower() or 'has_helmet' in feature.lower()):
         constraints.update({'type': 'checkbox'})
     elif 'player_' in feature.lower() and 'armor' in feature.lower():
-        constraints.update({'min': 0, 'max': 100, 'step': 1})
+        constraints.update({'type': 'checkbox'})
     elif 'player_' in feature.lower() and 'side' in feature.lower():
         constraints.update({'type': 'select', 'options': [('0', 'CT'), ('1', 'T'), ('-1', 'Dead')]})
     
