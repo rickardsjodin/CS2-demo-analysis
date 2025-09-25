@@ -223,7 +223,7 @@ def calculate_player_stats(alive_players: List[Dict[str, Any]]) -> Dict[str, int
         best_weapon_tier = player_row['best_weapon_tier']
 
         if best_weapon_tier >= 5:
-            if player_side == 'ct':
+            if player_side == 0:
                 stats["ct_main_weapons"] += 1
             else:
                 stats["t_main_weapons"] += 1
@@ -236,7 +236,7 @@ def calculate_player_stats(alive_players: List[Dict[str, Any]]) -> Dict[str, int
         armor = player_row.get('armor', 0) or 0
         has_armor = armor > 0
 
-        if player_side == 'ct':
+        if player_side == 0:
             stats["ct_smokes"] += smoke_count
             stats["ct_flashes"] += flash_count
             stats["ct_he_nades"] += he_count
@@ -270,6 +270,9 @@ def load_snapshots_from_parquet(parquet_file: str) -> List[Dict[str, Any]]:
     for row in tqdm(df.iter_rows(named=True), total=len(df)):
         # Convert row to mutable dict to avoid Polars read-only issues
         row_dict = dict(row)
+
+        if row_dict['after_end']:
+            continue
         
         alive_player_info = []
         for player_base_key in player_base_keys:
