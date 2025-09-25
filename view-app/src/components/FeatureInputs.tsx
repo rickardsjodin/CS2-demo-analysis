@@ -74,7 +74,8 @@ export default function FeatureInputs({
 
   const renderFeatureInput = (feature: Feature) => {
     const currentValue = featureValues[feature.name] ?? feature.default;
-    const isCalculated = isCalculatedTeamStat(feature.name);
+    const isCalculated =
+      isCalculatedTeamStat(feature.name) && hasPlayerFeatures;
 
     if (feature.constraints.type === 'checkbox') {
       return (

@@ -12,10 +12,12 @@ function App() {
   const [models, setModels] = useState<{ [key: string]: Model }>({});
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [features, setFeatures] = useState<Feature[]>([]);
-  const [featureValues, setFeatureValues] = useState<FeatureValues>({});
+  const [featureValuesRaw, setFeatureValues] = useState<FeatureValues>({});
   const [predictions, setPredictions] = useState<PredictionResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const timeout = useRef<any>(null);
+
+  const featureValues = updateCalculatedStats(featureValuesRaw);
 
   // Load models on component mount
   useEffect(() => {
@@ -36,6 +38,13 @@ function App() {
         setError('Error loading models: ' + err.message);
       });
   }, []);
+
+  const predictDebounce = (featureVals: FeatureValues) => {
+    if (timeout.current) clearTimeout(timeout.current);
+    timeout.current = setTimeout(() => {
+      handlePredict(featureVals);
+    }, 200);
+  };
 
   // Load features when models are selected
   useEffect(() => {
@@ -80,8 +89,8 @@ function App() {
         });
 
         // Calculate team stats from initial player data
-        const calculatedInitialValues = updateCalculatedStats(initialValues);
-        setFeatureValues(calculatedInitialValues);
+        setFeatureValues(initialValues);
+        predictDebounce(updateCalculatedStats(initialValues));
       })
       .catch((err) => {
         setError('Error loading features: ' + err.message);
@@ -99,18 +108,18 @@ function App() {
 
   const handleFeatureValueChange = (featureName: string, value: number) => {
     const newVals = {
-      ...featureValues,
+      ...featureValuesRaw,
       [featureName]: value,
     };
 
-    const updatedVals = updateCalculatedStats(newVals);
-    setFeatureValues(updatedVals);
+    setFeatureValues(newVals);
 
-    if (timeout.current) clearTimeout(timeout.current);
-
-    timeout.current = setTimeout(() => {
-      handlePredict(updatedVals);
-    }, 200);
+    predictDebounce(
+      updateCalculatedStats({
+        ...featureValuesRaw,
+        [featureName]: value,
+      })
+    );
   };
 
   const handlePredict = async (inputFeatureVals?: FeatureValues) => {
@@ -145,14 +154,13 @@ function App() {
   };
 
   const handleScenarioLoad = (scenarioData: { [key: string]: number }) => {
-    setFeatureValues((prev) => {
-      const updated = {
-        ...prev,
-        ...scenarioData,
-      };
-
-      // Automatically calculate team stats from player data
-      return updateCalculatedStats(updated);
+    setFeatureValues((prev) => ({
+      ...prev,
+      ...scenarioData,
+    }));
+    predictDebounce({
+      ...featureValues,
+      ...scenarioData,
     });
   };
 
@@ -194,15 +202,6 @@ function App() {
         {selectedModels.length > 0 && (
           <section className='prediction-section'>
             <h2>🎯 Prediction</h2>
-            <button
-              className={`predict-button`}
-              onClick={() => handlePredict()}
-              disabled={selectedModels.length === 0}
-            >
-              {selectedModels.length > 1
-                ? 'Compare Model Predictions'
-                : 'Predict Win Probability'}
-            </button>
 
             {error && <div className='error'>{error}</div>}
 

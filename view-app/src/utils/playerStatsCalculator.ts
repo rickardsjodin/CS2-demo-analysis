@@ -181,11 +181,47 @@ export function isCalculatedTeamStat(featureName: string): boolean {
 export function updateCalculatedStats(
   featureValues: FeatureValues
 ): FeatureValues {
-  const players = extractPlayerData(featureValues);
+  const updatedValues = { ...featureValues };
+
+  Object.entries(featureValues).forEach(([statName, value]) => {
+    if (statName === 'bomb_planted') {
+      if (value) {
+        updatedValues['round_time_left'] = 0;
+      } else {
+        updatedValues['bomb_time_left'] = 0;
+      }
+    }
+
+    if (statName === 'cts_alive') {
+      updatedValues['hp_ct'] = Math.min(value * 100, updatedValues['hp_ct']);
+      updatedValues['ct_armor'] = Math.min(value, updatedValues['ct_armor']);
+      updatedValues['ct_helmets'] = Math.min(
+        value,
+        updatedValues['ct_helmets']
+      );
+      updatedValues['ct_main_weapons'] = Math.min(
+        value,
+        updatedValues['ct_main_weapons']
+      );
+    }
+    if (statName === 'ts_alive') {
+      updatedValues['hp_t'] = Math.min(value * 100, updatedValues['hp_t']);
+      updatedValues['t_armor'] = Math.min(value, updatedValues['t_armor']);
+      updatedValues['t_helmets'] = Math.min(value, updatedValues['t_helmets']);
+      updatedValues['t_main_weapons'] = Math.min(
+        value,
+        updatedValues['t_main_weapons']
+      );
+    }
+  });
+
+  const players = extractPlayerData(updatedValues);
+
+  if (players.length === 0) return updatedValues;
+
   const teamStats = calculateTeamStats(players);
 
   // Create a copy of feature values and update calculated stats
-  const updatedValues = { ...featureValues };
 
   // Update all calculated team stats
   Object.entries(teamStats).forEach(([statName, value]) => {
