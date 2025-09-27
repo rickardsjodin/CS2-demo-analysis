@@ -3,16 +3,13 @@ import './App.css';
 import ModelSelection from './components/ModelSelection';
 import FeatureInputs from './components/FeatureInputs';
 import PredictionResults from './components/PredictionResults';
-import ScenarioButtons from './components/ScenarioButtons';
 import { API_ENDPOINTS } from './config/api';
 import { updateCalculatedStats } from './utils/playerStatsCalculator';
 import type {
   Model,
   Feature,
-  PredictionResult,
   FeatureValues,
   BinningValues,
-  SliceDatasetResponse,
   PredictionWithBinning,
 } from './types';
 
@@ -228,17 +225,6 @@ function App() {
     }
   };
 
-  const handleScenarioLoad = (scenarioData: { [key: string]: number }) => {
-    setFeatureValues((prev) => ({
-      ...prev,
-      ...scenarioData,
-    }));
-    predictDebounce({
-      ...featureValues,
-      ...scenarioData,
-    });
-  };
-
   return (
     <div className='app'>
       <header className='header'>
@@ -266,11 +252,6 @@ function App() {
                 onFeatureValueChange={handleFeatureValueChange}
                 onBinningValueChange={handleBinningValueChange}
                 isLoading={false}
-              />
-
-              <ScenarioButtons
-                onScenarioLoad={handleScenarioLoad}
-                disabled={selectedModels.length === 0}
               />
             </>
           )}
