@@ -46,7 +46,7 @@ function App() {
       });
   }, []);
 
-  const predictDebounce = (featureVals: FeatureValues) => {
+  const predictDebounce = () => {
     if (timeout.current) clearTimeout(timeout.current);
     timeout.current = setTimeout(() => {
       setShouldPredict((v) => v + 1);
@@ -108,7 +108,7 @@ function App() {
         // Calculate team stats from initial player data
         setFeatureValues(initialValues);
         setBinningValues(initialBinning);
-        predictDebounce(updateCalculatedStats(initialValues));
+        predictDebounce();
       })
       .catch((err) => {
         setError('Error loading features: ' + err.message);
@@ -132,12 +132,7 @@ function App() {
 
     setFeatureValues(newVals);
 
-    predictDebounce(
-      updateCalculatedStats({
-        ...featureValuesRaw,
-        [featureName]: value,
-      })
-    );
+    predictDebounce();
   };
 
   const handleBinningValueChange = (featureName: string, value: number) => {
@@ -147,7 +142,7 @@ function App() {
     }));
 
     // Trigger prediction with updated binning
-    predictDebounce(featureValues);
+    predictDebounce();
   };
 
   useEffect(() => {
