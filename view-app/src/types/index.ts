@@ -65,10 +65,24 @@ export interface FeatureValues {
   [key: string]: number;
 }
 
+export interface BinningValues {
+  [key: string]: number;
+}
+
 export interface ScenarioData {
   [key: string]: number;
 }
 
 export interface Scenarios {
   [key: string]: ScenarioData;
+}
+
+export interface SliceDatasetResponse {
+  ct_win_probability: number;
+  t_win_probability: number;
+  n_samples: number;
+}
+
+export interface PredictionWithBinning extends PredictionResult {
+  binningData?: SliceDatasetResponse;
 }

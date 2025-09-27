@@ -11,4 +11,5 @@ export const API_ENDPOINTS = {
   modelFeatures: (modelName: string) =>
     `${API_BASE_URL}/api/model/${modelName}/features`,
   predict: `${API_BASE_URL}/api/predict`,
+  sliceDataset: `${API_BASE_URL}/api/slice_dataset`,
 } as const;

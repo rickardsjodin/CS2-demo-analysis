@@ -11,6 +11,7 @@ from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 from pathlib import Path
 import traceback
+from src.ml.train_win_probability_model import load_and_prepare_data
 
 app = Flask(__name__)
 
@@ -30,6 +31,37 @@ STATIC_DIR.mkdir(exist_ok=True)
 # Global variables for loaded models and features
 loaded_models = {}
 model_summary = {}
+
+_, _, _, dataset_df = load_and_prepare_data(data_file=None)
+
+
+@app.route('/api/slice_dataset', methods=['POST'])
+def slice_dataset():
+    data = request.json
+    features_with_bins = data.get('features_with_bins', {})
+
+    mask = pd.Series(True, index=dataset_df.index)
+    for key, cfg in features_with_bins.items():
+        v, bs = cfg['value'], cfg['bin_size']
+        if bs < 0:
+            continue
+        mask &= dataset_df[key].between(v - bs, v + bs)
+
+    df_filtered = dataset_df[mask]
+
+    n_samples = len(df_filtered)
+
+    probability = len(df_filtered[df_filtered['winner'] == 'ct']) / n_samples if n_samples > 0 else -1
+
+    return jsonify({
+        'ct_win_probability': float(probability),
+        't_win_probability': float(1 - probability),
+        'n_samples': n_samples
+    })
+        
+
+
+
 
 def load_model_summary():
     """Load the model summary containing available models and their info"""

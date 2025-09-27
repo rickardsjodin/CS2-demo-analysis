@@ -221,6 +221,100 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
+/* Binning comparison styles */
+.prediction-comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.prediction-column {
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.prediction-column h4 {
+  font-size: 1.1rem;
+  color: #2d3748;
+  margin: 0 0 15px 0;
+  text-align: center;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.binning-info {
+  text-align: center;
+  margin-top: 8px;
+}
+
+.binning-info small {
+  color: #666;
+  font-size: 0.8rem;
+}
+
+.low-sample-warning {
+  color: #e53e3e;
+  font-weight: 600;
+}
+
+.sample-count {
+  font-size: 0.9rem;
+  color: #666;
+  margin-top: 4px;
+}
+
+.binning-summary {
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.binning-summary h4 {
+  font-size: 1.1rem;
+  color: #2d3748;
+  margin: 0 0 8px 0;
+}
+
+.binning-stats {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.binning-stats span {
+  font-weight: 600;
+  color: #4a5568;
+  font-size: 0.9rem;
+}
+
+.diff-indicator {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 8px;
+}
+
+.diff-indicator.positive {
+  background: #c6f6d5;
+  color: #22543d;
+  border: 1px solid #9ae6b4;
+}
+
+.diff-indicator.negative {
+  background: #fed7d7;
+  color: #742a2a;
+  border: 1px solid #feb2b2;
+}
+
 @media (max-width: 768px) {
   .prediction-header {
     flex-direction: column;
@@ -230,5 +324,15 @@
 
   .comparison-grid {
     grid-template-columns: 1fr;
+  }
+
+  .prediction-comparison {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .binning-stats {
+    flex-direction: column;
+    gap: 8px;
   }
 }

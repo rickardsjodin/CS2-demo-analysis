@@ -308,6 +308,7 @@ def load_snapshots_from_parquet(parquet_file: str) -> List[Dict[str, Any]]:
             player_info = {}
             armor = row_dict[player_base_key + 'armor']
 
+            player_info['inventory'] = inventory_list
             player_info['best_weapon_tier'] = best_weapon_tier
             player_info['has_defuser'] = row_dict[player_base_key + 'has_defuser']
             player_info['has_helmet'] = row_dict[player_base_key + 'has_helmet']

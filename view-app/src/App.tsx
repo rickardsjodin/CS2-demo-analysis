@@ -6,15 +6,25 @@ import PredictionResults from './components/PredictionResults';
 import ScenarioButtons from './components/ScenarioButtons';
 import { API_ENDPOINTS } from './config/api';
 import { updateCalculatedStats } from './utils/playerStatsCalculator';
-import type { Model, Feature, PredictionResult, FeatureValues } from './types';
+import type {
+  Model,
+  Feature,
+  PredictionResult,
+  FeatureValues,
+  BinningValues,
+  SliceDatasetResponse,
+  PredictionWithBinning,
+} from './types';
 
 function App() {
   const [models, setModels] = useState<{ [key: string]: Model }>({});
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [features, setFeatures] = useState<Feature[]>([]);
   const [featureValuesRaw, setFeatureValues] = useState<FeatureValues>({});
-  const [predictions, setPredictions] = useState<PredictionResult[]>([]);
+  const [binningValues, setBinningValues] = useState<BinningValues>({});
+  const [predictions, setPredictions] = useState<PredictionWithBinning[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [shouldPredict, setShouldPredict] = useState<number>(0);
   const timeout = useRef<any>(null);
 
   const featureValues = updateCalculatedStats(featureValuesRaw);
@@ -42,7 +52,7 @@ function App() {
   const predictDebounce = (featureVals: FeatureValues) => {
     if (timeout.current) clearTimeout(timeout.current);
     timeout.current = setTimeout(() => {
-      handlePredict(featureVals);
+      setShouldPredict((v) => v + 1);
     }, 200);
   };
 
@@ -79,6 +89,7 @@ function App() {
 
         // Initialize feature values with defaults
         const initialValues: FeatureValues = {};
+        const initialBinning: BinningValues = {};
         allFeatures.forEach((feature) => {
           initialValues[feature.name] =
             typeof feature.default === 'boolean'
@@ -86,10 +97,20 @@ function App() {
                 ? 1
                 : 0
               : Number(feature.default);
+
+          // Initialize binning values with reasonable defaults
+          if (feature.constraints.type === 'number') {
+            const range =
+              (feature.constraints.max || 100) - (feature.constraints.min || 0);
+            initialBinning[feature.name] = Math.max(1, Math.round(range * 0.1)); // 10% of range
+          } else {
+            initialBinning[feature.name] = feature.default; // No binning for non-numeric features
+          }
         });
 
         // Calculate team stats from initial player data
         setFeatureValues(initialValues);
+        setBinningValues(initialBinning);
         predictDebounce(updateCalculatedStats(initialValues));
       })
       .catch((err) => {
@@ -122,31 +143,85 @@ function App() {
     );
   };
 
+  const handleBinningValueChange = (featureName: string, value: number) => {
+    setBinningValues((prev) => ({
+      ...prev,
+      [featureName]: value,
+    }));
+
+    // Trigger prediction with updated binning
+    predictDebounce(featureValues);
+  };
+
+  useEffect(() => {
+    handlePredict();
+  }, [shouldPredict]);
+
   const handlePredict = async (inputFeatureVals?: FeatureValues) => {
     if (selectedModels.length === 0) return;
+    console.log(binningValues['bomb_planted']);
 
     setError(null);
 
     try {
-      const predictionPromises = selectedModels.map(async (modelName) => {
-        const response = await fetch(API_ENDPOINTS.predict, {
+      // Prepare features for binning comparison
+      const currentFeatures = inputFeatureVals ?? featureValues;
+
+      // Create features with bins for slice_dataset call
+      const featuresWithBins: {
+        [key: string]: { value: number; bin_size: number };
+      } = {};
+      Object.keys(currentFeatures).forEach((featureName) => {
+        if (isNaN(currentFeatures[featureName])) return;
+        featuresWithBins[featureName] = {
+          value: currentFeatures[featureName],
+          bin_size: binningValues[featureName] ?? 0,
+        };
+      });
+
+      // Make both prediction and slice_dataset calls
+      const [predictionResults, sliceDatasetResponse] = await Promise.all([
+        // ML Model predictions
+        Promise.all(
+          selectedModels.map(async (modelName) => {
+            const response = await fetch(API_ENDPOINTS.predict, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model_name: modelName,
+                features: currentFeatures,
+              }),
+            });
+
+            const data = await response.json();
+            if (!data.success) throw new Error(data.error);
+            return { modelName, ...data };
+          })
+        ),
+
+        // Raw dataset slice
+        fetch(API_ENDPOINTS.sliceDataset, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model_name: modelName,
-            features: inputFeatureVals ?? featureValues,
+            features_with_bins: featuresWithBins,
           }),
-        });
+        }).then((response) => response.json()),
+      ]);
 
-        const data = await response.json();
-        if (!data.success) throw new Error(data.error);
-        return { modelName, ...data };
-      });
+      // Combine predictions with binning data
+      const combinedResults: PredictionWithBinning[] = predictionResults.map(
+        (result) => ({
+          ...result,
+          binningData: sliceDatasetResponse,
+        })
+      );
 
-      const results = await Promise.all(predictionPromises);
-      setPredictions(results);
+      setPredictions(combinedResults);
     } catch (err) {
       setError('Prediction failed: ' + (err as Error).message);
     } finally {
@@ -186,8 +261,10 @@ function App() {
               <FeatureInputs
                 features={features}
                 featureValues={featureValues}
+                binningValues={binningValues}
                 selectedModels={selectedModels}
                 onFeatureValueChange={handleFeatureValueChange}
+                onBinningValueChange={handleBinningValueChange}
                 isLoading={false}
               />
 

@@ -2,9 +2,9 @@
   "models": {
     "xgboost_hltv": {
       "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_xgboost_hltv.pkl",
-      "accuracy": 0.7723779242382768,
-      "auc": 0.8732183581182696,
-      "log_loss": 0.43230401810825014,
+      "accuracy": 0.7946371771491582,
+      "auc": 0.8914264589559856,
+      "log_loss": 0.4059901242488331,
       "feature_columns": [
         "cts_alive",
         "ts_alive",
@@ -33,9 +33,9 @@
     },
     "xgboost_all": {
       "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_xgboost_all.pkl",
-      "accuracy": 0.8014781748120696,
-      "auc": 0.8979049232826172,
-      "log_loss": 0.3949779249211726,
+      "accuracy": 0.804253785147801,
+      "auc": 0.9020768208911771,
+      "log_loss": 0.3853845283398587,
       "feature_columns": [
         "round_time_left",
         "bomb_time_left",
@@ -218,9 +218,9 @@
     },
     "xgboost_player_features": {
       "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_xgboost_player_features.pkl",
-      "accuracy": 0.8083952748941905,
-      "auc": 0.9045812038540453,
-      "log_loss": 0.38115671721810507,
+      "accuracy": 0.8073391577250943,
+      "auc": 0.905296441278433,
+      "log_loss": 0.3783647424675587,
       "feature_columns": [
         "round_time_left",
         "bomb_time_left",
@@ -403,9 +403,9 @@
     },
     "xgboost_minimal": {
       "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_xgboost_minimal.pkl",
-      "accuracy": 0.8008991177275694,
-      "auc": 0.8973763776997827,
-      "log_loss": 0.3938963905737068,
+      "accuracy": 0.8058971966580432,
+      "auc": 0.9032614398501823,
+      "log_loss": 0.3822562355705609,
       "feature_columns": [
         "round_time_left",
         "bomb_time_left",
@@ -430,7 +430,7 @@
         "t_he_nades",
         "t_molotovs"
       ],
-      "rank": 4,
+      "rank": 2,
       "config": {
         "features": [
           "round_time_left",
@@ -495,7 +495,7 @@
         "t_he_nades",
         "t_molotovs"
       ],
-      "rank": 2,
+      "rank": 4,
       "config": {
         "features": [
           "round_time_left",

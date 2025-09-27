@@ -1,20 +1,24 @@
-import type { Feature, FeatureValues } from '../types';
+import type { Feature, FeatureValues, BinningValues } from '../types';
 import { isCalculatedTeamStat } from '../utils/playerStatsCalculator';
 import './FeatureInputs.css';
 
 interface FeatureInputsProps {
   features: Feature[];
   featureValues: FeatureValues;
+  binningValues: BinningValues;
   selectedModels: string[];
   onFeatureValueChange: (featureName: string, value: number) => void;
+  onBinningValueChange: (featureName: string, value: number) => void;
   isLoading: boolean;
 }
 
 export default function FeatureInputs({
   features,
   featureValues,
+  binningValues,
   selectedModels,
   onFeatureValueChange,
+  onBinningValueChange,
   isLoading,
 }: FeatureInputsProps) {
   const handleRangeChange = (featureName: string, value: string) => {
@@ -23,6 +27,10 @@ export default function FeatureInputs({
 
   const handleCheckboxChange = (featureName: string, checked: boolean) => {
     onFeatureValueChange(featureName, checked ? 1 : 0);
+  };
+
+  const handleBinningChange = (featureName: string, value: string) => {
+    onBinningValueChange(featureName, parseFloat(value));
   };
 
   if (isLoading) {
@@ -78,6 +86,8 @@ export default function FeatureInputs({
       isCalculatedTeamStat(feature.name) && hasPlayerFeatures;
 
     if (feature.constraints.type === 'checkbox') {
+      const currentBinValue = binningValues[feature.name] ?? 0;
+
       return (
         <div
           key={feature.name}
@@ -85,13 +95,113 @@ export default function FeatureInputs({
             isCalculated ? 'calculated' : ''
           }`}
         >
+          <div className='feature-main-control'>
+            <input
+              type='checkbox'
+              id={feature.name}
+              checked={currentValue === 1}
+              onChange={(e) =>
+                handleCheckboxChange(feature.name, e.target.checked)
+              }
+              disabled={isCalculated}
+              title={
+                isCalculated
+                  ? 'This value is automatically calculated from player data'
+                  : ''
+              }
+            />
+            <label htmlFor={feature.name} className='checkbox-label'>
+              {feature.display_name}
+              {isCalculated && (
+                <span className='calculated-indicator'> (auto)</span>
+              )}
+            </label>
+          </div>
+          <div className='binning-control'>
+            <span className='binning-info'>
+              {currentBinValue === 0
+                ? 'Exact match only'
+                : 'No binning for boolean'}
+            </span>
+          </div>
+        </div>
+      );
+    }
+
+    if (feature.constraints.type === 'select') {
+      const currentBinValue = binningValues[feature.name] ?? 0;
+
+      return (
+        <div
+          key={feature.name}
+          className={`feature-input ${isCalculated ? 'calculated' : ''}`}
+        >
+          <div className='feature-main-control'>
+            <label htmlFor={feature.name}>
+              {feature.display_name}:
+              {isCalculated && (
+                <span className='calculated-indicator'> (auto)</span>
+              )}
+            </label>
+            <select
+              id={feature.name}
+              value={currentValue}
+              onChange={(e) =>
+                onFeatureValueChange(feature.name, parseFloat(e.target.value))
+              }
+              disabled={isCalculated}
+              title={
+                isCalculated
+                  ? 'This value is automatically calculated from player data'
+                  : ''
+              }
+            >
+              {feature.constraints.options?.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className='binning-control'>
+            <span className='binning-info'>
+              {currentBinValue === 0
+                ? 'Exact match only'
+                : 'No binning for select'}
+            </span>
+          </div>
+        </div>
+      );
+    }
+
+    // Range input
+    const currentBinValue = binningValues[feature.name] ?? 0;
+    const maxBinSize =
+      ((feature.constraints.max || 100) - (feature.constraints.min || 0)) / 2;
+
+    return (
+      <div
+        key={feature.name}
+        className={`feature-input feature-input-with-binning ${
+          isCalculated ? 'calculated' : ''
+        }`}
+      >
+        <div className='feature-main-control'>
+          <label htmlFor={feature.name}>
+            {feature.display_name}:{' '}
+            <span className='value-display'>{currentValue}</span>
+            {isCalculated && (
+              <span className='calculated-indicator'> (auto)</span>
+            )}
+          </label>
           <input
-            type='checkbox'
+            type='range'
             id={feature.name}
-            checked={currentValue === 1}
-            onChange={(e) =>
-              handleCheckboxChange(feature.name, e.target.checked)
-            }
+            min={feature.constraints.min}
+            max={feature.constraints.max}
+            step={feature.constraints.step}
+            value={currentValue}
+            onChange={(e) => handleRangeChange(feature.name, e.target.value)}
             disabled={isCalculated}
             title={
               isCalculated
@@ -99,79 +209,23 @@ export default function FeatureInputs({
                 : ''
             }
           />
-          <label htmlFor={feature.name} className='checkbox-label'>
-            {feature.display_name}
-            {isCalculated && (
-              <span className='calculated-indicator'> (auto)</span>
-            )}
-          </label>
         </div>
-      );
-    }
-
-    if (feature.constraints.type === 'select') {
-      return (
-        <div
-          key={feature.name}
-          className={`feature-input ${isCalculated ? 'calculated' : ''}`}
-        >
-          <label htmlFor={feature.name}>
-            {feature.display_name}:
-            {isCalculated && (
-              <span className='calculated-indicator'> (auto)</span>
-            )}
+        <div className='binning-control'>
+          <label htmlFor={`${feature.name}_bin`} className='binning-label'>
+            Bin size: <span className='bin-display'>{currentBinValue}</span>
           </label>
-          <select
-            id={feature.name}
-            value={currentValue}
-            onChange={(e) =>
-              onFeatureValueChange(feature.name, parseFloat(e.target.value))
-            }
-            disabled={isCalculated}
-            title={
-              isCalculated
-                ? 'This value is automatically calculated from player data'
-                : ''
-            }
-          >
-            {feature.constraints.options?.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+          <input
+            type='range'
+            id={`${feature.name}_bin`}
+            min={-1}
+            max={maxBinSize}
+            step={feature.constraints.step || 1}
+            value={currentBinValue}
+            onChange={(e) => handleBinningChange(feature.name, e.target.value)}
+            className='binning-slider'
+            title='Range around the value to include in dataset comparison (±bin size)'
+          />
         </div>
-      );
-    }
-
-    // Range input
-    return (
-      <div
-        key={feature.name}
-        className={`feature-input ${isCalculated ? 'calculated' : ''}`}
-      >
-        <label htmlFor={feature.name}>
-          {feature.display_name}:{' '}
-          <span className='value-display'>{currentValue}</span>
-          {isCalculated && (
-            <span className='calculated-indicator'> (auto)</span>
-          )}
-        </label>
-        <input
-          type='range'
-          id={feature.name}
-          min={feature.constraints.min}
-          max={feature.constraints.max}
-          step={feature.constraints.step}
-          value={currentValue}
-          onChange={(e) => handleRangeChange(feature.name, e.target.value)}
-          disabled={isCalculated}
-          title={
-            isCalculated
-              ? 'This value is automatically calculated from player data'
-              : ''
-          }
-        />
       </div>
     );
   };
