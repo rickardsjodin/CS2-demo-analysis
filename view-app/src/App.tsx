@@ -3,14 +3,17 @@ import './App.css';
 import ModelSelection from './components/ModelSelection';
 import FeatureInputs from './components/FeatureInputs';
 import PredictionResults from './components/PredictionResults';
+import FeatureRangeAnalyzer from './components/FeatureRangeAnalyzer';
+import Plot2D from './components/Plot2D';
 import { API_ENDPOINTS } from './config/api';
-import { updateCalculatedStats } from './utils/playerStatsCalculator';
+import { applyContraints } from './utils/playerStatsCalculator';
 import type {
   Model,
   Feature,
   FeatureValues,
   BinningValues,
   PredictionWithBinning,
+  FeatureRangeAnalysis,
 } from './types';
 
 function App() {
@@ -22,9 +25,11 @@ function App() {
   const [predictions, setPredictions] = useState<PredictionWithBinning[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [shouldPredict, setShouldPredict] = useState<number>(0);
+  const [rangeAnalysis, setRangeAnalysis] =
+    useState<FeatureRangeAnalysis | null>(null);
   const timeout = useRef<any>(null);
 
-  const featureValues = updateCalculatedStats(featureValuesRaw);
+  const featureValues = applyContraints(featureValuesRaw);
 
   // Load models on component mount
   useEffect(() => {
@@ -99,7 +104,7 @@ function App() {
           if (feature.constraints.type === 'number') {
             const range =
               (feature.constraints.max || 100) - (feature.constraints.min || 0);
-            initialBinning[feature.name] = Math.max(1, Math.round(range * 0.1)); // 10% of range
+            initialBinning[feature.name] = -1; // Math.max(1, Math.round(range * 0.1)); // 10% of range
           } else {
             initialBinning[feature.name] = feature.default; // No binning for non-numeric features
           }
@@ -151,7 +156,6 @@ function App() {
 
   const handlePredict = async (inputFeatureVals?: FeatureValues) => {
     if (selectedModels.length === 0) return;
-    console.log(binningValues['bomb_planted']);
 
     setError(null);
 
@@ -220,6 +224,174 @@ function App() {
     }
   };
 
+  const handleRangeAnalysis = async (
+    featureName: string
+  ): Promise<FeatureRangeAnalysis> => {
+    if (selectedModels.length === 0) {
+      throw new Error('No models selected');
+    }
+
+    // Find the selected feature to get its constraints
+    const selectedFeature = features.find((f) => f.name === featureName);
+    if (!selectedFeature || selectedFeature.constraints.type !== 'number') {
+      throw new Error('Only numeric features can be analyzed');
+    }
+
+    // Determine range and step size
+    const minVal = selectedFeature.constraints.min ?? 0;
+    const maxVal = selectedFeature.constraints.max ?? 100;
+    const step = selectedFeature.constraints.step ?? 1;
+    const featureValueRange: number[] = [];
+
+    for (let i = minVal; i <= maxVal; i += step) {
+      featureValueRange.push(i);
+    }
+
+    const analysis: FeatureRangeAnalysis = {
+      featureName: featureName,
+      models: [],
+      datasetReference: undefined,
+    };
+
+    // Analyze each model
+    for (const modelName of selectedModels) {
+      const modelResults = {
+        modelName: modelName,
+        model_info: {
+          name: modelName,
+          accuracy: 0,
+          auc: 0,
+          feature_count: 0,
+        },
+        data: [] as Array<{
+          featureValue: number;
+          ct_win_probability: number;
+          t_win_probability: number;
+        }>,
+      };
+
+      // Make predictions for each feature value
+      for (const featureVal of featureValueRange) {
+        try {
+          // Create feature set with the varying feature
+          const testFeatures = {
+            ...featureValues,
+            [featureName]: featureVal,
+          };
+
+          const response = await fetch(API_ENDPOINTS.predict, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model_name: modelName,
+              features: applyContraints(testFeatures),
+            }),
+          });
+
+          const data = await response.json();
+          if (!data.success) {
+            console.warn(
+              `Prediction failed for ${modelName} at ${featureName}=${featureVal}: ${data.error}`
+            );
+            continue;
+          }
+
+          // Store model info from first successful prediction
+          if (modelResults.model_info.accuracy === 0) {
+            modelResults.model_info = data.model_info;
+          }
+
+          modelResults.data.push({
+            featureValue: featureVal,
+            ct_win_probability: data.prediction.ct_win_probability,
+            t_win_probability: data.prediction.t_win_probability,
+          });
+        } catch (err) {
+          console.warn(
+            `Error predicting for ${modelName} at ${featureName}=${featureVal}:`,
+            err
+          );
+        }
+      }
+
+      if (modelResults.data.length > 0) {
+        analysis.models.push(modelResults);
+      }
+    }
+
+    // Generate dataset reference using slice_dataset calls
+    try {
+      const datasetResults = {
+        data: [] as Array<{
+          featureValue: number;
+          ct_win_probability: number;
+          t_win_probability: number;
+        }>,
+        totalSamples: 0,
+      };
+
+      // Create features with bins for slice_dataset call
+      const featuresWithBins: {
+        [key: string]: { value: number; bin_size: number };
+      } = {};
+      Object.keys(featureValues).forEach((featureName) => {
+        if (isNaN(featureValues[featureName])) return;
+        featuresWithBins[featureName] = {
+          value: featureValues[featureName],
+          bin_size: binningValues[featureName] ?? 0,
+        };
+      });
+
+      const binSize = binningValues[featureName] ?? 0;
+
+      for (const featureVal of featureValueRange) {
+        try {
+          // Add the varying feature with its bin
+          featuresWithBins[featureName] = {
+            value: featureVal,
+            bin_size: binSize,
+          };
+
+          const response = await fetch(API_ENDPOINTS.sliceDataset, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              features_with_bins: featuresWithBins,
+            }),
+          });
+
+          const data = await response.json();
+          if (data.n_samples > 0) {
+            datasetResults.data.push({
+              featureValue: featureVal,
+              ct_win_probability: data.ct_win_probability,
+              t_win_probability: data.t_win_probability,
+            });
+            datasetResults.totalSamples += data.n_samples;
+          }
+        } catch (err) {
+          console.warn(
+            `Error getting dataset reference for ${featureName}=${featureVal}:`,
+            err
+          );
+        }
+      }
+
+      if (datasetResults.data.length > 0) {
+        analysis.datasetReference = datasetResults;
+      }
+    } catch (err) {
+      console.warn('Error generating dataset reference:', err);
+    }
+
+    setRangeAnalysis(analysis);
+    return analysis;
+  };
+
   return (
     <div className='app'>
       <header className='header'>
@@ -248,6 +420,16 @@ function App() {
                 onBinningValueChange={handleBinningValueChange}
                 isLoading={false}
               />
+
+              <div>
+                <FeatureRangeAnalyzer
+                  features={features}
+                  featureValues={featureValues}
+                  selectedModels={selectedModels}
+                  onAnalyze={handleRangeAnalysis}
+                />
+                <Plot2D analysis={rangeAnalysis} />
+              </div>
             </>
           )}
         </div>

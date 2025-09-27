@@ -86,3 +86,27 @@ export interface SliceDatasetResponse {
 export interface PredictionWithBinning extends PredictionResult {
   binningData?: SliceDatasetResponse;
 }
+
+// Feature Range Analysis Types
+export interface FeatureRangePoint {
+  featureValue: number;
+  ct_win_probability: number;
+  t_win_probability: number;
+}
+
+export interface ModelRangeResult {
+  modelName: string;
+  model_info: ModelInfo;
+  data: FeatureRangePoint[];
+}
+
+export interface DatasetRangeResult {
+  data: FeatureRangePoint[];
+  totalSamples: number;
+}
+
+export interface FeatureRangeAnalysis {
+  featureName: string;
+  models: ModelRangeResult[];
+  datasetReference?: DatasetRangeResult;
+}

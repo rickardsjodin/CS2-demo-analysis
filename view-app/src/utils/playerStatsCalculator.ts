@@ -178,9 +178,7 @@ export function isCalculatedTeamStat(featureName: string): boolean {
 /**
  * Main function to update calculated team stats based on player data
  */
-export function updateCalculatedStats(
-  featureValues: FeatureValues
-): FeatureValues {
+export function applyContraints(featureValues: FeatureValues): FeatureValues {
   const updatedValues = { ...featureValues };
 
   Object.entries(featureValues).forEach(([statName, value]) => {

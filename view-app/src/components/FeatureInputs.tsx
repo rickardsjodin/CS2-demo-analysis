@@ -234,32 +234,6 @@ export default function FeatureInputs({
     <section className='feature-section'>
       <h2>⚙️ Game State Features</h2>
 
-      <div className='selected-models-info'>
-        <h3>
-          {selectedModels.length > 1
-            ? `Comparing ${selectedModels.length} models:`
-            : `Model: ${selectedModels[0]
-                ?.replace('xgboost_', '')
-                .replace('_', ' ')}`}
-        </h3>
-        {selectedModels.length > 1 && (
-          <div className='selected-models-list'>
-            {selectedModels.map((name) => (
-              <span key={name} className='model-tag'>
-                {name.replace('xgboost_', '').replace('_', ' ')}
-              </span>
-            ))}
-          </div>
-        )}
-        <p className='features-summary'>Showing {features.length} features</p>
-        {hasPlayerFeatures && hasCalculatedFeatures && (
-          <div className='auto-calculation-info'>
-            <span className='info-icon'>ℹ️</span>
-            Team stats are automatically calculated from individual player data
-          </div>
-        )}
-      </div>
-
       {Object.entries(groups).map(([groupName, groupFeatures]) => {
         if (groupFeatures.length === 0) return null;
 

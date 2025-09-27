@@ -1,0 +1,131 @@
+.feature-range-analyzer {
+  background: var(--card-bg, #f8f9fa);
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.analyzer-header h3 {
+  margin: 0 0 0.5rem 0;
+  color: var(--text-primary, #333);
+}
+
+.analyzer-header p {
+  margin: 0 0 1rem 0;
+  color: var(--text-secondary, #666);
+  font-size: 0.9rem;
+}
+
+.analyzer-controls {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+}
+
+.feature-selection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 200px;
+}
+
+.feature-selection label {
+  font-weight: 500;
+  color: var(--text-primary, #333);
+  font-size: 0.9rem;
+}
+
+.feature-selection select {
+  padding: 0.5rem;
+  border: 1px solid var(--border-color, #ccc);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  background: white;
+}
+
+.feature-selection select:disabled {
+  background: var(--disabled-bg, #f5f5f5);
+  color: var(--disabled-text, #999);
+}
+
+.analyze-button {
+  background: var(--primary-color, #007bff);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color 0.2s;
+}
+
+.analyze-button:hover:not(:disabled) {
+  background: var(--primary-hover, #0056b3);
+}
+
+.analyze-button:disabled {
+  background: var(--disabled-bg, #ccc);
+  color: var(--disabled-text, #666);
+  cursor: not-allowed;
+}
+
+.feature-info {
+  display: flex;
+  gap: 2rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: var(--info-bg, #f0f8ff);
+  border-radius: 4px;
+  border-left: 4px solid var(--info-border, #007bff);
+}
+
+.current-value,
+.feature-range {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.feature-info .label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary, #666);
+  text-transform: uppercase;
+}
+
+.feature-info .value,
+.feature-info .range {
+  font-weight: 600;
+  color: var(--text-primary, #333);
+}
+
+.analyzer-error {
+  background: var(--error-bg, #ffe6e6);
+  color: var(--error-text, #d32f2f);
+  padding: 0.75rem;
+  border-radius: 4px;
+  border-left: 4px solid var(--error-border, #d32f2f);
+  font-size: 0.9rem;
+}
+
+.analyzer-message {
+  text-align: center;
+  color: var(--text-secondary, #666);
+  font-style: italic;
+  padding: 2rem;
+}
+
+@media (max-width: 640px) {
+  .analyzer-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .feature-info {
+    flex-direction: column;
+    gap: 1rem;
+  }
+}
