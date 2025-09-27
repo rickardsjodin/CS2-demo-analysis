@@ -3,7 +3,8 @@
  * Automatically calculates team-level stats and equipment from individual player features
  */
 
-import type { FeatureValues } from '../types';
+import { useDebugValue } from 'react';
+import type { BinningValues, FeatureValues } from '../types';
 
 // Constants for weapon tiers
 const MAIN_WEAPON_TIER_THRESHOLD = 5;

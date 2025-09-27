@@ -49,6 +49,16 @@ function App() {
       .catch((err) => {
         setError('Error loading models: ' + err.message);
       });
+
+    const featureValsStr = localStorage.getItem('featureValuesRaw');
+    if (featureValsStr) {
+      const featureVals = JSON.parse(featureValsStr) as FeatureValues;
+      setFeatureValues(featureVals);
+    }
+    const binningValsStr = localStorage.getItem('binningValues');
+    if (binningValsStr) {
+      setBinningValues(JSON.parse(binningValsStr) as BinningValues);
+    }
   }, []);
 
   const predictDebounce = () => {
@@ -61,9 +71,6 @@ function App() {
   // Load features when models are selected
   useEffect(() => {
     if (selectedModels.length === 0) {
-      setFeatures([]);
-      setFeatureValues({});
-      setPredictions([]);
       return;
     }
 
@@ -102,8 +109,6 @@ function App() {
 
           // Initialize binning values with reasonable defaults
           if (feature.constraints.type === 'number') {
-            const range =
-              (feature.constraints.max || 100) - (feature.constraints.min || 0);
             initialBinning[feature.name] = -1; // Math.max(1, Math.round(range * 0.1)); // 10% of range
           } else {
             initialBinning[feature.name] = feature.default; // No binning for non-numeric features
@@ -111,8 +116,12 @@ function App() {
         });
 
         // Calculate team stats from initial player data
-        setFeatureValues(initialValues);
-        setBinningValues(initialBinning);
+        setFeatureValues((v) => ({
+          ...initialValues,
+          ...v,
+        }));
+
+        setBinningValues((v) => ({ ...initialBinning, ...v }));
         predictDebounce();
       })
       .catch((err) => {
@@ -158,6 +167,10 @@ function App() {
     if (selectedModels.length === 0) return;
 
     setError(null);
+
+    // Save in localstorage
+    localStorage.setItem('featureValuesRaw', JSON.stringify(featureValues));
+    localStorage.setItem('binningValues', JSON.stringify(binningValues));
 
     try {
       // Prepare features for binning comparison
@@ -333,26 +346,43 @@ function App() {
       };
 
       // Create features with bins for slice_dataset call
-      const featuresWithBins: {
-        [key: string]: { value: number; bin_size: number };
-      } = {};
-      Object.keys(featureValues).forEach((featureName) => {
-        if (isNaN(featureValues[featureName])) return;
-        featuresWithBins[featureName] = {
-          value: featureValues[featureName],
-          bin_size: binningValues[featureName] ?? 0,
-        };
-      });
 
       const binSize = binningValues[featureName] ?? 0;
 
       for (const featureVal of featureValueRange) {
         try {
+          const featuresWithBins: {
+            [key: string]: { value: number; bin_size: number };
+          } = {};
+          Object.keys(featureValues).forEach((featureName) => {
+            if (isNaN(featureValues[featureName])) return;
+            featuresWithBins[featureName] = {
+              value: featureValues[featureName],
+              bin_size: binningValues[featureName] ?? 0,
+            };
+          });
           // Add the varying feature with its bin
           featuresWithBins[featureName] = {
             value: featureVal,
             bin_size: binSize,
           };
+
+          // Map back to featureValues
+          const featureValuesTemp: FeatureValues = {};
+          Object.entries(featuresWithBins).forEach(
+            ([fname, fval]) => (featureValuesTemp[fname] = fval.value)
+          );
+          // Apply contraints
+          const featureValuesTempContrained =
+            applyContraints(featureValuesTemp);
+          // Map back to bins
+          Object.entries(featureValuesTempContrained).forEach(
+            ([featureName, fval]) =>
+              (featuresWithBins[featureName] = {
+                ...featuresWithBins[featureName],
+                value: fval,
+              })
+          );
 
           const response = await fetch(API_ENDPOINTS.sliceDataset, {
             method: 'POST',

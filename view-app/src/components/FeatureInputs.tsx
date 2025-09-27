@@ -241,7 +241,7 @@ export default function FeatureInputs({
           <div key={groupName} className='feature-group'>
             <h3 className='group-title'>{groupName}</h3>
             <div className='feature-grid'>
-              {groupFeatures.map(renderFeatureInput)}
+              {groupFeatures.sort().map(renderFeatureInput)}
             </div>
           </div>
         );
