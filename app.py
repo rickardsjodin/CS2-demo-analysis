@@ -32,7 +32,6 @@ STATIC_DIR.mkdir(exist_ok=True)
 loaded_models = {}
 model_summary = {}
 
-_, _, _, dataset_df = load_and_prepare_data(data_file=None)
 
 
 @app.route('/api/slice_dataset', methods=['POST'])
@@ -337,5 +336,6 @@ if __name__ == '__main__':
     for model_name, info in models_info.items():
         print(f"   - {info['display_name']}: {info['feature_count']} features, AUC={info['auc']:.3f}")
     
+    _, _, _, dataset_df = load_and_prepare_data(data_file=None, check_data=False)
     print("\n🚀 Starting Flask app on http://localhost:5000")
     app.run(debug=True, host='0.0.0.0', port=5000)

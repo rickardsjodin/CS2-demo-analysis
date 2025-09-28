@@ -395,7 +395,7 @@ function App() {
           });
 
           const data = await response.json();
-          if (data.n_samples > 0) {
+          if (data.n_samples > 5) {
             datasetResults.data.push({
               featureValue: featureVal,
               ct_win_probability: data.ct_win_probability,
@@ -451,14 +451,15 @@ function App() {
                 isLoading={false}
               />
 
-              <div>
+              <div className='range-analysis'>
                 <FeatureRangeAnalyzer
                   features={features}
                   featureValues={featureValues}
                   selectedModels={selectedModels}
                   onAnalyze={handleRangeAnalysis}
                 />
-                <Plot2D analysis={rangeAnalysis} />
+
+                <Plot2D analysis={rangeAnalysis} width={800} height={300} />
               </div>
             </>
           )}
@@ -466,7 +467,7 @@ function App() {
 
         {selectedModels.length > 0 && (
           <section className='prediction-section'>
-            <h2>🎯 Prediction</h2>
+            <h2>Prediction</h2>
 
             {error && <div className='error'>{error}</div>}
 

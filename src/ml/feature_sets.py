@@ -29,14 +29,14 @@ MINIMAL_FEATURES = [
     "t_armor",
     "ct_helmets",
     "t_helmets",
-    "ct_smokes",
-    "ct_flashes",
-    "ct_he_nades",
-    "ct_molotovs",
-    "t_smokes",
-    "t_flashes",
-    "t_he_nades",
-    "t_molotovs",
+    # "ct_smokes",
+    # "ct_flashes",
+    # "ct_he_nades",
+    # "ct_molotovs",
+    # "t_smokes",
+    # "t_flashes",
+    # "t_he_nades",
+    # "t_molotovs",
 ]
 
 # Individual player features

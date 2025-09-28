@@ -153,3 +153,7 @@ section h2 {
     padding: 15px 20px;
   }
 }
+
+.range-analysis {
+  display: flex;
+}

@@ -132,7 +132,7 @@ def comprehensive_data_check(df):
         'infinite_columns': inf_cols
     }
 
-def load_and_prepare_data(data_file=None, feature_set=None):
+def load_and_prepare_data(data_file=None, feature_set=None, check_data=True):
     """Load snapshots and prepare features for ML training"""
     
     if data_file is None:
@@ -174,34 +174,35 @@ def load_and_prepare_data(data_file=None, feature_set=None):
     y = df['ct_wins']
     
     # Minimal validation - data should be clean from source processing
-    print("🔧 Final data validation...")
     
-    # Quick check for any remaining issues
-    null_columns = []
-    for col in X.columns:
-        if X[col].isnull().any():
-            null_count = X[col].isnull().sum()
-            null_columns.append(f"{col}: {null_count}")
-            
-            # Fill remaining nulls with appropriate defaults
-            if X[col].dtype in ['int64', 'float64']:
-                X[col] = X[col].fillna(0)
-            elif X[col].dtype == 'bool':
-                X[col] = X[col].fillna(False)
-            elif X[col].dtype == 'object':
-                X[col] = X[col].fillna('unknown')
-    
-    if null_columns:
-        print(f"   ⚠️ Fixed remaining null values in: {', '.join(null_columns)}")
-    else:
-        print("   ✅ No null values found - data clean from source!")
-    
-    print(f"🎯 Target distribution:")
-    print(f"   CT wins: {y.sum()} ({y.mean():.1%})")
-    print(f"   T wins:  {len(y) - y.sum()} ({1 - y.mean():.1%})")
-    
-    # Final data quality check
-    data_issues = comprehensive_data_check(X)
+    if check_data:
+        print("🔧 Final data validation...")
+        # Quick check for any remaining issues
+        null_columns = []
+        for col in X.columns:
+            if X[col].isnull().any():
+                null_count = X[col].isnull().sum()
+                null_columns.append(f"{col}: {null_count}")
+                
+                # Fill remaining nulls with appropriate defaults
+                if X[col].dtype in ['int64', 'float64']:
+                    X[col] = X[col].fillna(0)
+                elif X[col].dtype == 'bool':
+                    X[col] = X[col].fillna(False)
+                elif X[col].dtype == 'object':
+                    X[col] = X[col].fillna('unknown')
+        
+        if null_columns:
+            print(f"   ⚠️ Fixed remaining null values in: {', '.join(null_columns)}")
+        else:
+            print("   ✅ No null values found - data clean from source!")
+        
+        print(f"🎯 Target distribution:")
+        print(f"   CT wins: {y.sum()} ({y.mean():.1%})")
+        print(f"   T wins:  {len(y) - y.sum()} ({1 - y.mean():.1%})")
+        
+        # Final data quality check
+        data_issues = comprehensive_data_check(X)
     
     return X, y, feature_columns, df
 
