@@ -36,7 +36,7 @@ export default function FeatureInputs({
   if (isLoading) {
     return (
       <section className='feature-section'>
-        <h2>⚙️ Game State Features</h2>
+        <h2>Game State Features</h2>
         <div className='loading'>Loading features...</div>
       </section>
     );
@@ -232,8 +232,6 @@ export default function FeatureInputs({
 
   return (
     <section className='feature-section'>
-      <h2>⚙️ Game State Features</h2>
-
       {Object.entries(groups).map(([groupName, groupFeatures]) => {
         if (groupFeatures.length === 0) return null;
 

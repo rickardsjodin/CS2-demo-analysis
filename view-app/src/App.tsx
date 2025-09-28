@@ -425,10 +425,7 @@ function App() {
   return (
     <div className='app'>
       <header className='header'>
-        <h1>🎮 CS2 Win Probability Predictor</h1>
-        <p>
-          Predict CT team win probability using advanced machine learning models
-        </p>
+        <h2>CS2 Win Probability Predictor</h2>
       </header>
 
       <main className='main-content'>
@@ -467,8 +464,6 @@ function App() {
 
         {selectedModels.length > 0 && (
           <section className='prediction-section'>
-            <h2>Prediction</h2>
-
             {error && <div className='error'>{error}</div>}
 
             <PredictionResults predictions={predictions} />

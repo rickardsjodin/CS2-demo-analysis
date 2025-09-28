@@ -1,24 +1,84 @@
-/* Prediction Results Styles */
+/* Prediction Results Styles - Compact Version */
 .prediction-card {
   background: #f8fafc;
-  border-radius: 12px;
-  padding: 25px;
+  border-radius: 8px;
+  padding: 16px;
   border: 2px solid #e2e8f0;
   transition: all 0.3s ease;
 }
 
 .prediction-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
+  text-align: center;
+  margin-bottom: 16px;
 }
 
 .prediction-header h3 {
-  font-size: 1.3rem;
+  font-size: 1.2rem;
   color: #2d3748;
+  margin: 0;
 }
 
+.prediction-bars-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.model-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.model-label {
+  min-width: 120px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #4a5568;
+  text-transform: capitalize;
+  text-align: right;
+}
+
+.ct-bar-container {
+  flex: 1;
+  position: relative;
+  background: #e2e8f0;
+  height: 24px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.ct-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #48bb78 0%, #38a169 100%);
+  border-radius: 12px;
+  transition: width 0.8s ease;
+  position: relative;
+}
+
+.ct-percentage {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: white;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.model-stats-compact {
+  min-width: 80px;
+  font-size: 0.75rem;
+  color: #666;
+  text-align: center;
+}
+
+/* Legacy styles for backward compatibility */
 .model-name {
   background: #667eea;
   color: white;
@@ -100,30 +160,42 @@
   font-size: 0.85rem;
 }
 
-/* Model Comparison Styles */
+/* Model Comparison Styles - Compact */
 .comparison-container {
-  background: #f8fafc;
-  border-radius: 12px;
-  padding: 25px;
-  border: 2px solid #e2e8f0;
   transition: all 0.3s ease;
 }
 
 .comparison-header {
   text-align: center;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .comparison-header h3 {
-  font-size: 1.3rem;
+  font-size: 1.2rem;
   color: #2d3748;
-  margin-bottom: 4px;
+  margin: 0;
 }
 
 .comparison-subtitle {
   color: #666;
-  font-size: 0.9rem;
-  margin: 0;
+  font-size: 0.85rem;
+  margin: 4px 0 0 0;
+}
+
+.comparison-bars-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.comparison-model-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
 }
 
 .comparison-grid {
@@ -215,7 +287,7 @@
   right: 8px;
   top: 50%;
   transform: translateY(-50%);
-  color: white;
+  color: #333;
   font-weight: 600;
   font-size: 0.75rem;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
