@@ -334,10 +334,13 @@ function App() {
             err
           );
         }
-      }
-
-      if (modelResults.data.length > 0) {
-        analysis.models.push(modelResults);
+        if (
+          modelResults.data.length > 0 &&
+          !analysis.models.includes(modelResults)
+        ) {
+          analysis.models.push(modelResults);
+        }
+        setRangeAnalysis({ ...analysis });
       }
     }
 
@@ -355,6 +358,7 @@ function App() {
       // Create features with bins for slice_dataset call
 
       const binSize = binningValues[featureName] ?? 0;
+      analysis.datasetReference = datasetResults;
 
       for (const featureVal of featureValueRange) {
         try {
@@ -416,16 +420,17 @@ function App() {
             err
           );
         }
+        setRangeAnalysis({ ...analysis });
       }
 
       if (datasetResults.data.length > 0) {
         analysis.datasetReference = datasetResults;
       }
+      setRangeAnalysis({ ...analysis });
     } catch (err) {
       console.warn('Error generating dataset reference:', err);
     }
 
-    setRangeAnalysis(analysis);
     return analysis;
   };
 
@@ -459,7 +464,13 @@ function App() {
                   onAnalyze={handleRangeAnalysis}
                 />
 
-                <Plot2D analysis={rangeAnalysis} width={800} height={300} />
+                <Plot2D
+                  analysis={rangeAnalysis}
+                  predictions={predictions}
+                  featureValues={featureValues}
+                  width={800}
+                  height={300}
+                />
               </div>
             </>
           )}

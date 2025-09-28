@@ -12,7 +12,7 @@
         "t_main_weapons",
         "bomb_planted"
       ],
-      "rank": 5,
+      "rank": 7,
       "config": {
         "features": [
           "cts_alive",
@@ -482,8 +482,59 @@
           "colsample_bytree": 0.8
         }
       }
+    },
+    "xgboost_hltv_time": {
+      "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_xgboost_hltv_time.pkl",
+      "accuracy": 0.7988252258365495,
+      "auc": 0.8966779977390045,
+      "log_loss": 0.39513515447518666,
+      "feature_columns": [
+        "cts_alive",
+        "ts_alive",
+        "ct_main_weapons",
+        "t_main_weapons",
+        "bomb_planted",
+        "round_time_left",
+        "bomb_time_left"
+      ],
+      "rank": 5,
+      "config": {
+        "features": [
+          "cts_alive",
+          "ts_alive",
+          "ct_main_weapons",
+          "t_main_weapons",
+          "bomb_planted",
+          "round_time_left",
+          "bomb_time_left"
+        ],
+        "description": "Core game state features without individual player data",
+        "hyperparams": {
+          "n_estimators": 200,
+          "max_depth": 5,
+          "learning_rate": 0.08,
+          "subsample": 0.8,
+          "colsample_bytree": 0.8
+        }
+      }
+    },
+    "lightgbm": {
+      "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_lightgbm.pkl",
+      "accuracy": 0.7974150727342126,
+      "auc": 0.8951598428056105,
+      "log_loss": 0.4000629994764751,
+      "feature_columns": [
+        "cts_alive",
+        "ts_alive",
+        "ct_main_weapons",
+        "t_main_weapons",
+        "bomb_planted",
+        "round_time_left",
+        "bomb_time_left"
+      ],
+      "rank": 6
     }
   },
   "best_model": "xgboost_player_features",
-  "total_models": 5
+  "total_models": 7
 }

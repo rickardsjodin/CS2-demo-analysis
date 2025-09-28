@@ -1,9 +1,15 @@
 import { useEffect, useRef } from 'react';
-import type { FeatureRangeAnalysis } from '../types';
+import type {
+  FeatureRangeAnalysis,
+  PredictionWithBinning,
+  FeatureValues,
+} from '../types';
 import './Plot2D.css';
 
 interface Plot2DProps {
   analysis: FeatureRangeAnalysis | null;
+  predictions?: PredictionWithBinning[];
+  featureValues?: FeatureValues;
   width?: number;
   height?: number;
 }
@@ -17,6 +23,8 @@ interface PlotPoint {
 
 export default function Plot2D({
   analysis,
+  predictions = [],
+  featureValues = {},
   width = 800,
   height = 400,
 }: Plot2DProps) {
@@ -190,6 +198,49 @@ export default function Plot2D({
       ctx.fill();
     });
 
+    // Draw current predictions as live points (larger, with special styling)
+    if (
+      predictions.length > 0 &&
+      featureValues[analysis.featureName] !== undefined
+    ) {
+      const currentFeatureValue = featureValues[analysis.featureName];
+
+      predictions.forEach((prediction, index) => {
+        const color = colors[index % colors.length];
+        const x = xScale(currentFeatureValue);
+        const y = yScale(prediction.prediction.ct_win_probability * 100);
+
+        // Draw outer ring for emphasis
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(x, y, 8, 0, 2 * Math.PI);
+        ctx.stroke();
+
+        // Draw inner filled circle
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, 2 * Math.PI);
+        ctx.fill();
+
+        // Draw white center dot
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(x, y, 2, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+
+      // Draw vertical line to show current feature value
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(xScale(currentFeatureValue), margin.top);
+      ctx.lineTo(xScale(currentFeatureValue), margin.top + plotHeight);
+      ctx.stroke();
+      ctx.setLineDash([]); // Reset dash pattern
+    }
+
     // Draw X-axis ticks and labels
     ctx.fillStyle = '#333';
     ctx.font = '12px Arial';
@@ -244,7 +295,55 @@ export default function Plot2D({
 
       legendY += 20;
     });
-  }, [analysis, width, height]);
+
+    // Add current predictions to legend if they exist
+    if (
+      predictions.length > 0 &&
+      featureValues[analysis.featureName] !== undefined
+    ) {
+      legendY += 10; // Add some spacing
+
+      // Legend header for current predictions
+      ctx.fillStyle = '#333';
+      ctx.font = 'bold 12px Arial';
+      ctx.fillText('Current Predictions:', legendX, legendY);
+      legendY += 20;
+
+      ctx.font = '12px Arial';
+      predictions.forEach((prediction, index) => {
+        const color = colors[index % colors.length];
+        const modelName = prediction.modelName
+          .replace('xgboost_', '')
+          .replace('_', ' ');
+
+        // Legend symbol (circle with ring like the plot)
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(legendX + 6, legendY - 4, 6, 0, 2 * Math.PI);
+        ctx.stroke();
+
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(legendX + 6, legendY - 4, 4, 0, 2 * Math.PI);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(legendX + 6, legendY - 4, 1, 0, 2 * Math.PI);
+        ctx.fill();
+
+        // Legend text with probability
+        const probability = (
+          prediction.prediction.ct_win_probability * 100
+        ).toFixed(1);
+        ctx.fillStyle = '#333';
+        ctx.fillText(`${modelName} (${probability}%)`, legendX + 20, legendY);
+
+        legendY += 20;
+      });
+    }
+  }, [analysis, predictions, featureValues, width, height]);
 
   if (!analysis) {
     return (
@@ -259,7 +358,7 @@ export default function Plot2D({
   return (
     <div className='plot2d-container'>
       <div className='plot2d-header'>
-        <h3>📈 Feature Range Visualization</h3>
+        <h3>Feature Range Visualization</h3>
         <p>CT Win Probability vs {analysis.featureName.replace('_', ' ')}</p>
       </div>
       <div className='plot2d-canvas-container'>

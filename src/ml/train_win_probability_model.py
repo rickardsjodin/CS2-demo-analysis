@@ -9,16 +9,17 @@ Trains a model to predict CT team win probability using game state snapshots
 TRAIN_MODELS = {
     'random_forest': False,          # Fast, good baseline
     'xgboost_hltv': True,           # HLTV-style minimal features
-    'xgboost_minimal': True,        # Core game state features
-    'xgboost_player_features': True, # Complete feature set with player data
-    'xgboost_all': True,            # All available features
-    'lightgbm': False,              # Fast, good performance (needs: pip install lightgbm)
+    'xgboost_hltv_time': True,        # Core game state features
+    'lightgbm': True,              # Fast, good performance (needs: pip install lightgbm)
     'logistic_regression': False,   # Very fast, interpretable
     'neural_network': False,        # Slower, can overfit
     'ensemble': False               # Combines all models (automatic if >1 model)
 }
 
 import json
+import hashlib
+import pickle
+import os
 from typing import Any, Dict, List
 import numpy as np
 import pandas as pd
@@ -41,10 +42,12 @@ import warnings
 from tqdm import tqdm
 import sys
 
+
 project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+from src.ml.feature_sets import HLTV_WITH_TIME
 from src.core.constants import FLASH_NADE, GRENADE_AND_BOMB_TYPES, HE_NADE, MOLOTOV_NADE, SMOKE_NADE, WEAPON_TIERS
 
 warnings.filterwarnings('ignore')
@@ -63,7 +66,6 @@ except (ImportError, ModuleNotFoundError):
     sys.path.append(str(PROJECT_ROOT))
     from src.ml.feature_engineering import create_features
     from src.ml import feature_sets
-    from feature_sets import FEATURE_SET
     def ensure_dir(file_path):
         path = Path(file_path)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -83,6 +85,61 @@ try:
 except ImportError:
     LIGHTGBM_AVAILABLE = False
     print("⚠️ LightGBM not available. Install with: pip install lightgbm")
+
+def get_cache_key(data_file, feature_set=None):
+    """Generate a cache key based on data file, feature set, and file modification time"""
+    # Get file modification time for cache invalidation
+    if data_file and os.path.exists(data_file):
+        file_mtime = os.path.getmtime(data_file)
+    else:
+        file_mtime = 0
+    
+    # Create a string representation of the feature set
+    if feature_set is None:
+        feature_set_str = "default"
+    else:
+        feature_set_str = str(sorted(feature_set)) if isinstance(feature_set, (list, tuple)) else str(feature_set)
+    
+    # Combine all parameters for hashing
+    cache_input = f"{data_file}_{feature_set_str}_{file_mtime}"
+    
+    # Generate MD5 hash for cache key
+    cache_key = hashlib.md5(cache_input.encode()).hexdigest()
+    return cache_key
+
+def get_cache_path(cache_key):
+    """Get the full path for cached data"""
+    cache_dir = PROJECT_ROOT / "cache" / "processed_data"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir / f"data_{cache_key}.pkl"
+
+def load_from_cache(cache_key):
+    """Load processed data from cache if it exists"""
+    cache_path = get_cache_path(cache_key)
+    
+    if cache_path.exists():
+        try:
+            with open(cache_path, 'rb') as f:
+                cached_data = pickle.load(f)
+            print(f"✅ Loaded processed data from cache: {cache_path.name}")
+            return cached_data
+        except Exception as e:
+            print(f"⚠️ Error loading cache file {cache_path.name}: {e}")
+            # Remove corrupted cache file
+            cache_path.unlink(missing_ok=True)
+    
+    return None
+
+def save_to_cache(cache_key, data):
+    """Save processed data to cache"""
+    cache_path = get_cache_path(cache_key)
+    
+    try:
+        with open(cache_path, 'wb') as f:
+            pickle.dump(data, f)
+        print(f"✅ Saved processed data to cache: {cache_path.name}")
+    except Exception as e:
+        print(f"⚠️ Error saving to cache: {e}")
 
 def comprehensive_data_check(df):
     """Comprehensive check of data quality for ML training"""
@@ -132,11 +189,34 @@ def comprehensive_data_check(df):
         'infinite_columns': inf_cols
     }
 
-def load_and_prepare_data(data_file=None, feature_set=None, check_data=True):
-    """Load snapshots and prepare features for ML training"""
+def load_and_prepare_data(data_file=None, feature_set=None, check_data=True, use_cache=True):
+    """Load snapshots and prepare features for ML training with caching support"""
     
     if data_file is None:
         data_file = PROJECT_ROOT / "data" / "datasets" / "all_snapshots.parquet"
+    
+    # Generate cache key based on inputs
+    cache_key = get_cache_key(data_file, feature_set)
+    
+    # Try to load from cache first if enabled
+    if use_cache:
+        print(f"🔍 Checking cache for data file: {data_file}")
+        cached_data = load_from_cache(cache_key)
+        if cached_data is not None:
+            X, y, feature_columns, df = cached_data
+            print(f"✅ Loaded {len(df)} snapshots from cache")
+            print(f"📈 Data shape: {df.shape}")
+            print(f"🧬 Feature set: {len(feature_columns)} features")
+            
+            if check_data:
+                print(f"🎯 Target distribution:")
+                print(f"   CT wins: {y.sum()} ({y.mean():.1%})")
+                print(f"   T wins:  {len(y) - y.sum()} ({1 - y.mean():.1%})")
+            
+            return X, y, feature_columns, df
+    
+    # Cache miss or cache disabled - process data from scratch
+    print(f"💾 Processing data from source: {data_file}")
     
     if ".json" in str(data_file):
         print("⚠️ JSON format detected. Consider converting to parquet for better performance.")
@@ -203,6 +283,12 @@ def load_and_prepare_data(data_file=None, feature_set=None, check_data=True):
         
         # Final data quality check
         data_issues = comprehensive_data_check(X)
+    
+    # Save processed data to cache if enabled
+    if use_cache:
+        print("💾 Saving processed data to cache...")
+        cache_data = (X, y, feature_columns, df)
+        save_to_cache(cache_key, cache_data)
     
     return X, y, feature_columns, df
 
@@ -428,8 +514,9 @@ def train_models():
         print(f"\n🎲 Training other model types: {', '.join(other_models)}")
         
         # Use the full feature set from the base dataset for non-XGBoost models
-        X_other = X_full  # Use all available features for non-XGBoost models
-        feature_columns = all_feature_columns
+        feature_columns = HLTV_WITH_TIME
+        X_other = X_full[feature_columns]  
+
         
         print(f"     Using {len(feature_columns)} features for other models")
         
@@ -729,15 +816,15 @@ def analyze_feature_importance(models, default_feature_columns):
     else:
         cols = min(3, n_models)  # Max 3 columns
         rows = (n_models + cols - 1) // cols
-        fig, axes = plt.subplots(rows, cols, figsize=(15, 5 * rows))
+        fig, axes_raw = plt.subplots(rows, cols, figsize=(15, 5 * rows))
         
         # Ensure axes is always a list
-        if n_models == 2 and rows == 1:
-            axes = list(axes)
-        elif rows > 1:
-            axes = axes.flatten()
+        if rows == 1 and cols == 1:
+            axes = [axes_raw]
+        elif rows == 1:
+            axes = list(axes_raw)
         else:
-            axes = [axes]
+            axes = axes_raw.flatten()
     
     # Plot feature importance for each model
     for idx, (model_name, model_data) in enumerate(importance_data.items()):

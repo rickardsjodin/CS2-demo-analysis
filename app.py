@@ -80,16 +80,40 @@ def get_model_info():
     models_info = {}
     
     for model_name, model_data in model_summary.get('models', {}).items():
+        # Create display name based on model type
         if model_name.startswith('xgboost_'):
-            models_info[model_name] = {
-                'name': model_name,
-                'display_name': model_name.replace('xgboost_', '').replace('_', ' ').title(),
-                'accuracy': model_data.get('accuracy', 0),
-                'auc': model_data.get('auc', 0),
-                'features': model_data.get('feature_columns', []),
-                'feature_count': len(model_data.get('feature_columns', [])),
-                'description': model_data.get('config', {}).get('description', 'XGBoost model')
-            }
+            display_name = f"XGBoost {model_name.replace('xgboost_', '').replace('_', ' ').title()}"
+        elif model_name == 'lightgbm':
+            display_name = "LightGBM"
+        elif model_name == 'random_forest':
+            display_name = "Random Forest"
+        elif model_name == 'logistic_regression':
+            display_name = "Logistic Regression"
+        elif model_name == 'neural_network':
+            display_name = "Neural Network"
+        elif model_name == 'ensemble':
+            display_name = "Ensemble Model"
+        else:
+            display_name = model_name.replace('_', ' ').title()
+        
+        # Get description from config or create default
+        config = model_data.get('config', {})
+        if config and 'description' in config:
+            description = config['description']
+        else:
+            description = f"{display_name} model for win probability prediction"
+        
+        models_info[model_name] = {
+            'name': model_name,
+            'display_name': display_name,
+            'accuracy': model_data.get('accuracy', 0),
+            'auc': model_data.get('auc', 0),
+            'log_loss': model_data.get('log_loss', 0),
+            'features': model_data.get('feature_columns', []),
+            'feature_count': len(model_data.get('feature_columns', [])),
+            'description': description,
+            'rank': model_data.get('rank', 999)  # Default rank for sorting
+        }
     
     return models_info
 
