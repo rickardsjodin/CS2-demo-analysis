@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import './App.css';
 import ModelSelection from './components/ModelSelection';
 import FeatureInputs from './components/FeatureInputs';
@@ -29,7 +29,14 @@ function App() {
     useState<FeatureRangeAnalysis | null>(null);
   const timeout = useRef<any>(null);
 
-  const featureValues = applyContraints(featureValuesRaw);
+  const featureValues = useMemo(() => {
+    const contrained = applyContraints(featureValuesRaw);
+    const filtered: FeatureValues = {};
+    features.forEach((f) => {
+      filtered[f.name] = contrained[f.name];
+    });
+    return filtered;
+  }, [featureValuesRaw, features]);
 
   // Load models on component mount
   useEffect(() => {
@@ -424,10 +431,6 @@ function App() {
 
   return (
     <div className='app'>
-      <header className='header'>
-        <h2>CS2 Win Probability Predictor</h2>
-      </header>
-
       <main className='main-content'>
         <div className='scrollable-content'>
           <ModelSelection

@@ -18,10 +18,6 @@ export default function ModelSelection({
 
   return (
     <section className='model-selection'>
-      <h2>Select Models for Comparison</h2>
-      <p className='selection-hint'>
-        Select one or more models to compare their predictions
-      </p>
       <div className='model-grid'>
         {Object.entries(models).map(([modelName, model]) => (
           <div

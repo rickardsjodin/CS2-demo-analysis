@@ -10,7 +10,7 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     sans-serif;
   min-height: calc(100vh - 10px);
-  color: #333;
+  color: white;
   line-height: 1.6;
   overflow-y: hidden;
 }

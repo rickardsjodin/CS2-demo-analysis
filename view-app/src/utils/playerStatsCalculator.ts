@@ -184,33 +184,47 @@ export function applyContraints(featureValues: FeatureValues): FeatureValues {
 
   Object.entries(featureValues).forEach(([statName, value]) => {
     if (statName === 'bomb_planted') {
-      if (value) {
+      if (value && 'round_time_left' in updatedValues) {
         updatedValues['round_time_left'] = 0;
-      } else {
+      } else if ('bomb_time_left' in updatedValues) {
         updatedValues['bomb_time_left'] = 0;
       }
     }
 
     if (statName === 'cts_alive') {
-      updatedValues['hp_ct'] = Math.min(value * 100, updatedValues['hp_ct']);
-      updatedValues['ct_armor'] = Math.min(value, updatedValues['ct_armor']);
-      updatedValues['ct_helmets'] = Math.min(
-        value,
-        updatedValues['ct_helmets']
-      );
-      updatedValues['ct_main_weapons'] = Math.min(
-        value,
-        updatedValues['ct_main_weapons']
-      );
+      if ('hp_ct' in updatedValues)
+        updatedValues['hp_ct'] = Math.min(value * 100, updatedValues['hp_ct']);
+
+      if ('ct_armor' in updatedValues)
+        updatedValues['ct_armor'] = Math.min(value, updatedValues['ct_armor']);
+
+      if ('ct_helmets' in updatedValues)
+        updatedValues['ct_helmets'] = Math.min(
+          value,
+          updatedValues['ct_helmets']
+        );
+
+      if ('ct_main_weapons' in updatedValues)
+        updatedValues['ct_main_weapons'] = Math.min(
+          value,
+          updatedValues['ct_main_weapons']
+        );
     }
     if (statName === 'ts_alive') {
-      updatedValues['hp_t'] = Math.min(value * 100, updatedValues['hp_t']);
-      updatedValues['t_armor'] = Math.min(value, updatedValues['t_armor']);
-      updatedValues['t_helmets'] = Math.min(value, updatedValues['t_helmets']);
-      updatedValues['t_main_weapons'] = Math.min(
-        value,
-        updatedValues['t_main_weapons']
-      );
+      if ('hp_t' in updatedValues)
+        updatedValues['hp_t'] = Math.min(value * 100, updatedValues['hp_t']);
+      if ('t_armor' in updatedValues)
+        updatedValues['t_armor'] = Math.min(value, updatedValues['t_armor']);
+      if ('t_helmets' in updatedValues)
+        updatedValues['t_helmets'] = Math.min(
+          value,
+          updatedValues['t_helmets']
+        );
+      if ('t_main_weapons' in updatedValues)
+        updatedValues['t_main_weapons'] = Math.min(
+          value,
+          updatedValues['t_main_weapons']
+        );
     }
   });
 

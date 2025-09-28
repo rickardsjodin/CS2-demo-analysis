@@ -60,7 +60,7 @@ export default function FeatureRangeAnalyzer({
   return (
     <div className='feature-range-analyzer'>
       <div className='analyzer-header'>
-        <h3>📊 Feature Range Analysis</h3>
+        <h3>Feature Range Analysis</h3>
         <p>Analyze how predictions change across the full range of a feature</p>
       </div>
 

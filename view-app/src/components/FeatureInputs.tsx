@@ -117,13 +117,6 @@ export default function FeatureInputs({
               )}
             </label>
           </div>
-          <div className='binning-control'>
-            <span className='binning-info'>
-              {currentBinValue === 0
-                ? 'Exact match only'
-                : 'No binning for boolean'}
-            </span>
-          </div>
         </div>
       );
     }
@@ -239,7 +232,17 @@ export default function FeatureInputs({
           <div key={groupName} className='feature-group'>
             <h3 className='group-title'>{groupName}</h3>
             <div className='feature-grid'>
-              {groupFeatures.sort().map(renderFeatureInput)}
+              {groupFeatures
+                .sort((a, _) =>
+                  a.display_name.includes('Bomb')
+                    ? 1
+                    : a.display_name.includes('Ct')
+                    ? -1
+                    : a.display_name.includes('Ts')
+                    ? -1
+                    : 1
+                )
+                .map(renderFeatureInput)}
             </div>
           </div>
         );
