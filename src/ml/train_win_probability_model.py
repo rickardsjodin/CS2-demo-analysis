@@ -8,12 +8,33 @@ Trains a model to predict CT team win probability using game state snapshots
 # ============================================================================
 TRAIN_MODELS = {
     'random_forest': False,          # Fast, good baseline
-    'xgboost_hltv': True,           # HLTV-style minimal features
-    'xgboost_hltv_time': True,        # Core game state features
-    'lightgbm': True,              # Fast, good performance (needs: pip install lightgbm)
+    'xgboost_hltv': False,           # HLTV-style minimal features
+    'xgboost_hltv_time': False,        # Core game state features
+    'lightgbm': False,              # Fast, good performance (needs: pip install lightgbm)
     'logistic_regression': False,   # Very fast, interpretable
-    'neural_network': False,        # Slower, can overfit
+    'neural_network': True,        # Slower, can overfit
     'ensemble': False               # Combines all models (automatic if >1 model)
+}
+
+# ============================================================================
+# HYPERPARAMETER TUNING CONFIGURATION
+# ============================================================================
+HYPERPARAMETER_TUNING = {
+    'enabled': False,               # Enable/disable hyperparameter tuning
+    'models_to_tune': {            # Which models to tune (only used if enabled=True)
+        'xgboost_hltv': False,
+        'xgboost_hltv_time': False,
+        'lightgbm': False,
+        'random_forest': False,
+        'logistic_regression': False,
+        'neural_network': True
+    },
+    'search_method': 'random',      # 'grid' or 'random'
+    'search_intensity': 'quick',    # 'quick' or 'thorough'
+    'n_iter': 50,                  # Number of iterations for random search
+    'scoring': 'roc_auc',          # Scoring metric ('roc_auc', 'accuracy', 'neg_log_loss')
+    'cv_folds': 5,                 # Number of cross-validation folds
+    'save_results': True           # Save tuning results to file
 }
 
 import json
@@ -57,6 +78,7 @@ try:
     from ..utils.common import get_project_root, ensure_dir
     from .feature_engineering import create_features
     from . import feature_sets
+    from .hyperparameter_tuning import HyperparameterTuner, quick_tune_model
     PROJECT_ROOT = get_project_root()
 except (ImportError, ModuleNotFoundError):
     # Fallback when running as script
@@ -66,6 +88,7 @@ except (ImportError, ModuleNotFoundError):
     sys.path.append(str(PROJECT_ROOT))
     from src.ml.feature_engineering import create_features
     from src.ml import feature_sets
+    from src.ml.hyperparameter_tuning import HyperparameterTuner, quick_tune_model
     def ensure_dir(file_path):
         path = Path(file_path)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -415,6 +438,100 @@ def load_snapshots_from_parquet(parquet_file: str) -> List[Dict[str, Any]]:
     return snapshots
     
 
+def perform_hyperparameter_tuning(model_name, X_train, y_train, base_model_name = None):
+    """
+    Perform hyperparameter tuning for a specific model.
+    
+    Args:
+        model_name: Name of the model to tune
+        X_train: Training features
+        y_train: Training targets
+        
+    Returns:
+        Tuple of (tuned_model, best_params, best_score) or (None, None, None) if tuning disabled
+    """
+    if base_model_name is None:
+        base_model_name = model_name
+
+    if not HYPERPARAMETER_TUNING['enabled']:
+        return None, None, None
+    
+    if not HYPERPARAMETER_TUNING['models_to_tune'].get(model_name, False):
+        return None, None, None
+    
+    print(f"🎯 Hyperparameter tuning enabled for {model_name}")
+    
+    # Initialize tuner
+    tuner = HyperparameterTuner(
+        scoring=HYPERPARAMETER_TUNING['scoring'],
+        cv_folds=HYPERPARAMETER_TUNING['cv_folds'],
+        n_jobs=-1,
+        verbose=1
+    )
+    
+    # Get hyperparameter grid
+    param_grid = feature_sets.get_hyperparameter_grid(
+        base_model_name, 
+        HYPERPARAMETER_TUNING['search_intensity']
+    )
+    
+    if param_grid is None:
+        print(f"⚠️ No hyperparameter grid found for {model_name}")
+        return None, None, None
+    
+    # Estimate tuning time
+    time_info = feature_sets.estimate_tuning_time(
+        model_name,
+        HYPERPARAMETER_TUNING['search_intensity'],
+        HYPERPARAMETER_TUNING['search_method'],
+        HYPERPARAMETER_TUNING['n_iter']
+    )
+    
+    # Handle case where model type is not found
+    if isinstance(time_info, str):
+        print(f"   ⚠️ {time_info}")
+    else:
+        print(f"   📊 Estimated tuning time: {time_info['estimated_time']} ({time_info['combinations']} combinations)")
+    
+    # Get appropriate tuning method
+    if model_name.startswith('xgboost'):
+        tuning_method = tuner.tune_xgboost
+    elif model_name == 'lightgbm':
+        tuning_method = tuner.tune_lightgbm  
+    elif model_name == 'random_forest':
+        tuning_method = tuner.tune_random_forest
+    elif model_name == 'logistic_regression':
+        tuning_method = tuner.tune_logistic_regression
+    elif model_name == 'neural_network':
+        tuning_method = tuner.tune_neural_network
+    else:
+        print(f"⚠️ Hyperparameter tuning not supported for {model_name}")
+        return None, None, None
+    
+    try:
+        # Perform tuning
+        best_model, best_params, best_score = tuning_method(
+            X_train=X_train,
+            y_train=y_train,
+            param_grid=param_grid,
+            search_method=HYPERPARAMETER_TUNING['search_method'],
+            n_iter=HYPERPARAMETER_TUNING['n_iter']
+        )
+        
+        # Save results if requested
+        if HYPERPARAMETER_TUNING['save_results']:
+            results_dir = PROJECT_ROOT / "outputs" / "hyperparameter_tuning"
+            tuner.save_tuning_results(model_name, best_params, best_score, results_dir)
+        
+        print(f"   ✅ Tuning complete! Best {HYPERPARAMETER_TUNING['scoring']}: {best_score:.4f}")
+        print(f"   🏆 Best parameters: {best_params}")
+        
+        return best_model, best_params, best_score
+        
+    except Exception as e:
+        print(f"   ❌ Hyperparameter tuning failed for {model_name}: {e}")
+        return None, None, None
+
 def train_models():
     """Train selected models based on TRAIN_MODELS configuration"""
     
@@ -426,6 +543,16 @@ def train_models():
     print(f"\n🎯 Selected models to train: {', '.join(selected_models)}")
     if TRAIN_MODELS.get('ensemble', False):
         print("   📊 Ensemble model will be created from trained models")
+    
+    # Display hyperparameter tuning configuration
+    if HYPERPARAMETER_TUNING['enabled']:
+        tuning_models = [name for name, enabled in HYPERPARAMETER_TUNING['models_to_tune'].items() if enabled]
+        if tuning_models:
+            print(f"\n🎯 Hyperparameter tuning enabled for: {', '.join(tuning_models)}")
+            print(f"   Method: {HYPERPARAMETER_TUNING['search_method']} search ({HYPERPARAMETER_TUNING['search_intensity']} intensity)")
+            print(f"   Scoring: {HYPERPARAMETER_TUNING['scoring']}, CV folds: {HYPERPARAMETER_TUNING['cv_folds']}")
+        else:
+            print(f"\n⚠️ Hyperparameter tuning enabled but no models selected for tuning")
     
     if not selected_models:
         print("⚠️ No models selected for training! Please set at least one model to True in TRAIN_MODELS")
@@ -474,15 +601,28 @@ def train_models():
             print(f"     Training set: {len(X_train)} samples")
             print(f"     Test set: {len(X_test)} samples")
             
-            # Train XGBoost with model-specific hyperparameters
-            xgb_model = xgb.XGBClassifier(
-                random_state=42,
-                eval_metric='logloss',
-                use_label_encoder=False,
-                **hyperparams
+            # Check if hyperparameter tuning is enabled for this model
+            tuned_model, tuned_params, tuned_score = perform_hyperparameter_tuning(
+                model_name, X_train, y_train, 'xgboost'
             )
             
-            xgb_model.fit(X_train, y_train)
+            if tuned_model is not None:
+                # Use tuned model
+                xgb_model = tuned_model
+                print(f"     🎯 Using tuned hyperparameters (score: {tuned_score:.4f})")
+                
+                # Update hyperparams for record keeping
+                hyperparams = tuned_params
+            else:
+                # Train XGBoost with default model-specific hyperparameters
+                xgb_model = xgb.XGBClassifier(
+                    random_state=42,
+                    eval_metric='logloss',
+                    use_label_encoder=False,
+                    **hyperparams
+                )
+                
+                xgb_model.fit(X_train, y_train)
             
             # Make predictions
             xgb_pred = xgb_model.predict(X_test)
@@ -532,21 +672,34 @@ def train_models():
         
         # 1. Random Forest (if selected)
         if 'random_forest' in other_models:
-            print("\n🌲 Training High-Complexity Random Forest...")
-            rf_model = RandomForestClassifier(
-                n_estimators=50,
-                max_depth=5,
-                min_samples_split=2,
-                min_samples_leaf=1,
-                max_features=0.8,
-                random_state=41, 
-                class_weight='balanced',
-                bootstrap=False,
-                n_jobs=-1
+            print("\n🌲 Training Random Forest...")
+            
+            # Check if hyperparameter tuning is enabled for Random Forest
+            tuned_model, tuned_params, tuned_score = perform_hyperparameter_tuning(
+                'random_forest', X_train, y_train
             )
+            
+            if tuned_model is not None:
+                # Use tuned model
+                rf_model = tuned_model
+                rf_calibrated = rf_model
+                print(f"     🎯 Using tuned hyperparameters (score: {tuned_score:.4f})")
+            else:
+                # Use default hyperparameters
+                rf_model = RandomForestClassifier(
+                    n_estimators=50,
+                    max_depth=5,
+                    min_samples_split=2,
+                    min_samples_leaf=1,
+                    max_features=0.8,
+                    random_state=41, 
+                    class_weight='balanced',
+                    bootstrap=False,
+                    n_jobs=-1
+                )
 
-            rf_model.fit(X_train, y_train)
-            rf_calibrated = rf_model
+                rf_model.fit(X_train, y_train)
+                rf_calibrated = rf_model
             
             rf_pred = rf_calibrated.predict(X_test)
             rf_pred_proba = rf_calibrated.predict_proba(X_test)[:, 1]
@@ -569,18 +722,34 @@ def train_models():
         if 'lightgbm' in other_models:
             if LIGHTGBM_AVAILABLE:
                 print("\n⚡ Training LightGBM...")
-                lgb_model = lgb.LGBMClassifier(
-                    n_estimators=50,
-                    max_depth=5,
-                    learning_rate=0.1,
-                    subsample=0.8,
-                    colsample_bytree=0.8,
-                    random_state=42,
-                    verbose=-1
+                
+                # Check if hyperparameter tuning is enabled for LightGBM
+                tuned_model, tuned_params, tuned_score = perform_hyperparameter_tuning(
+                    'lightgbm', X_train, y_train
                 )
+                
+                if tuned_model is not None:
+                    # Use tuned model
+                    lgb_model = tuned_model
+                    print(f"     🎯 Using tuned hyperparameters (score: {tuned_score:.4f})")
+                else:
+                    # Use default hyperparameters
+                    lgb_model = lgb.LGBMClassifier(
+                        n_estimators=200,
+                        max_depth=-1,
+                        learning_rate=0.05,
+                        subsample=0.8,
+                        num_leaves=63,
+                        min_child_samples=20,
+                        colsample_bytree=0.8,
+                        random_state=42,
+                        verbose=-1
+                    )
 
-                lgb_model.fit(X_train, y_train)
-                lgb_calibrated = lgb_model
+                    lgb_model.fit(X_train, y_train)
+
+                lgb_calibrated = CalibratedClassifierCV(lgb_model, method='isotonic', cv=5)
+                lgb_calibrated.fit(X_train, y_train)
                 
                 lgb_pred = lgb_calibrated.predict(X_test)
                 lgb_pred_proba = lgb_calibrated.predict_proba(X_test)[:, 1]
@@ -604,13 +773,26 @@ def train_models():
         # 3. Logistic Regression (if selected)
         if 'logistic_regression' in other_models:
             print("\n📊 Training Logistic Regression...")
-            lr_model = LogisticRegression(
-                random_state=42,
-                max_iter=1000,
-                class_weight='balanced'
+            
+            # Check if hyperparameter tuning is enabled for Logistic Regression
+            tuned_model, tuned_params, tuned_score = perform_hyperparameter_tuning(
+                'logistic_regression', X_train_scaled, y_train
             )
-            lr_model.fit(X_train_scaled, y_train)
-            lr_calibrated = lr_model
+            
+            if tuned_model is not None:
+                # Use tuned model
+                lr_model = tuned_model
+                lr_calibrated = lr_model
+                print(f"     🎯 Using tuned hyperparameters (score: {tuned_score:.4f})")
+            else:
+                # Use default hyperparameters
+                lr_model = LogisticRegression(
+                    random_state=42,
+                    max_iter=1000,
+                    class_weight='balanced'
+                )
+                lr_model.fit(X_train_scaled, y_train)
+                lr_calibrated = lr_model
             
             lr_pred = lr_calibrated.predict(X_test_scaled)
             lr_pred_proba = lr_calibrated.predict_proba(X_test_scaled)[:, 1]
@@ -632,21 +814,35 @@ def train_models():
         # 4. Neural Network (MLP) (if selected)
         if 'neural_network' in other_models:
             print("\n🧠 Training Neural Network (MLP)...")
-            mlp_model = MLPClassifier(
-                hidden_layer_sizes=(100, 50),
-                random_state=42,
-                max_iter=500,
-                alpha=0.01
-            )
-            mlp_model.fit(X_train_scaled, y_train)
-            mlp_calibrated = CalibratedClassifierCV(mlp_model, method='sigmoid', cv=5)
-            mlp_calibrated.fit(X_train_scaled, y_train)
             
-            mlp_pred = mlp_calibrated.predict(X_test_scaled)
-            mlp_pred_proba = mlp_calibrated.predict_proba(X_test_scaled)[:, 1]
+            # Check if hyperparameter tuning is enabled for Neural Network
+            tuned_model, tuned_params, tuned_score = perform_hyperparameter_tuning(
+                'neural_network', X_train_scaled, y_train
+            )
+            
+            if tuned_model is not None:
+                # Use tuned model and apply calibration
+                mlp_model = tuned_model
+                # mlp_calibrated = CalibratedClassifierCV(mlp_model, method='sigmoid', cv=5)
+                # mlp_calibrated.fit(X_train_scaled, y_train)
+                print(f"     🎯 Using tuned hyperparameters (score: {tuned_score:.4f})")
+            else:
+                # Use default hyperparameters
+                mlp_model = MLPClassifier(
+                    hidden_layer_sizes=(100, 50),
+                    max_iter=1000,
+                    alpha=1e-5,
+                    random_state=42,
+                )
+                mlp_model.fit(X_train_scaled, y_train)
+                # mlp_calibrated = CalibratedClassifierCV(mlp_model, method='sigmoid', cv=5)
+                # mlp_calibrated.fit(X_train_scaled, y_train)
+            
+            mlp_pred = mlp_model.predict(X_test_scaled)
+            mlp_pred_proba = mlp_model.predict_proba(X_test_scaled)[:, 1]
             
             models['neural_network'] = {
-                'model': mlp_calibrated,
+                'model': mlp_model,
                 'original_model': mlp_model,
                 'scaler': scaler,
                 'predictions': mlp_pred,

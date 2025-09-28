@@ -12,7 +12,7 @@
         "t_main_weapons",
         "bomb_planted"
       ],
-      "rank": 7,
+      "rank": 8,
       "config": {
         "features": [
           "cts_alive",
@@ -497,7 +497,7 @@
         "round_time_left",
         "bomb_time_left"
       ],
-      "rank": 5,
+      "rank": 6,
       "config": {
         "features": [
           "cts_alive",
@@ -520,9 +520,9 @@
     },
     "lightgbm": {
       "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_lightgbm.pkl",
-      "accuracy": 0.7974150727342126,
-      "auc": 0.8951598428056105,
-      "log_loss": 0.4000629994764751,
+      "accuracy": 0.7989206497306925,
+      "auc": 0.8963762225106767,
+      "log_loss": 0.3955075584716837,
       "feature_columns": [
         "cts_alive",
         "ts_alive",
@@ -532,9 +532,25 @@
         "round_time_left",
         "bomb_time_left"
       ],
-      "rank": 6
+      "rank": 7
+    },
+    "neural_network": {
+      "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_neural_network.pkl",
+      "accuracy": 0.7989418550405022,
+      "auc": 0.8967447484855123,
+      "log_loss": 0.39513386886965685,
+      "feature_columns": [
+        "cts_alive",
+        "ts_alive",
+        "ct_main_weapons",
+        "t_main_weapons",
+        "bomb_planted",
+        "round_time_left",
+        "bomb_time_left"
+      ],
+      "rank": 5
     }
   },
   "best_model": "xgboost_player_features",
-  "total_models": 7
+  "total_models": 8
 }
