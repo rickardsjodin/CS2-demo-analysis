@@ -110,3 +110,40 @@ export interface FeatureRangeAnalysis {
   models: ModelRangeResult[];
   datasetReference?: DatasetRangeResult;
 }
+
+// Demo Analysis Types
+export interface PlayerAnalysisEvent {
+  round: number;
+  side: string;
+  kills: string;
+  deaths: string;
+  impact: number;
+  event_id: number;
+  event_round: number;
+  event_type: number;
+  event_impact: number;
+  game_state: string;
+  pre_win: number;
+  post_win: number;
+  weapon: string;
+  victim: string;
+  post_plant: boolean;
+  tick: number;
+}
+
+export interface PlayerAnalysisResponse {
+  success: boolean;
+  player_name?: string;
+  demo_filename?: string;
+  analysis?: PlayerAnalysisEvent[];
+  error?: string;
+}
+
+export interface DemoUploadResponse {
+  success: boolean;
+  demo_id?: string;
+  filename?: string;
+  players?: string[];
+  player_count?: number;
+  error?: string;
+}

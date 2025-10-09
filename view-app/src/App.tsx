@@ -5,6 +5,7 @@ import FeatureInputs from './components/FeatureInputs';
 import PredictionResults from './components/PredictionResults';
 import FeatureRangeAnalyzer from './components/FeatureRangeAnalyzer';
 import Plot2D from './components/Plot2D';
+import DemoAnalysis from './components/DemoAnalysis';
 import { API_ENDPOINTS } from './config/api';
 import { applyContraints } from './utils/playerStatsCalculator';
 import type {
@@ -17,6 +18,9 @@ import type {
 } from './types';
 
 function App() {
+  const [activeTab, setActiveTab] = useState<'prediction' | 'demo-analysis'>(
+    'prediction'
+  );
   const [models, setModels] = useState<{ [key: string]: Model }>({});
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [features, setFeatures] = useState<Feature[]>([]);
@@ -436,54 +440,75 @@ function App() {
 
   return (
     <div className='app'>
-      <main className='main-content'>
-        <div className='scrollable-content'>
-          <ModelSelection
-            models={models}
-            selectedModels={selectedModels}
-            onSelectionChange={handleModelSelectionChange}
-          />
+      <nav className='tabs'>
+        <button
+          className={`tab ${activeTab === 'prediction' ? 'active' : ''}`}
+          onClick={() => setActiveTab('prediction')}
+        >
+          🎯 Win Probability Prediction
+        </button>
+        <button
+          className={`tab ${activeTab === 'demo-analysis' ? 'active' : ''}`}
+          onClick={() => setActiveTab('demo-analysis')}
+        >
+          📊 Demo Analysis
+        </button>
+      </nav>
 
-          {selectedModels.length > 0 && (
-            <>
-              <FeatureInputs
-                features={features}
-                featureValues={featureValues}
-                binningValues={binningValues}
-                selectedModels={selectedModels}
-                onFeatureValueChange={handleFeatureValueChange}
-                onBinningValueChange={handleBinningValueChange}
-                isLoading={false}
-              />
+      {activeTab === 'prediction' ? (
+        <main className='main-content'>
+          <div className='scrollable-content'>
+            <ModelSelection
+              models={models}
+              selectedModels={selectedModels}
+              onSelectionChange={handleModelSelectionChange}
+            />
 
-              <div className='range-analysis'>
-                <FeatureRangeAnalyzer
+            {selectedModels.length > 0 && (
+              <>
+                <FeatureInputs
                   features={features}
                   featureValues={featureValues}
+                  binningValues={binningValues}
                   selectedModels={selectedModels}
-                  onAnalyze={handleRangeAnalysis}
+                  onFeatureValueChange={handleFeatureValueChange}
+                  onBinningValueChange={handleBinningValueChange}
+                  isLoading={false}
                 />
 
-                <Plot2D
-                  analysis={rangeAnalysis}
-                  predictions={predictions}
-                  featureValues={featureValues}
-                  width={800}
-                  height={300}
-                />
-              </div>
-            </>
+                <div className='range-analysis'>
+                  <FeatureRangeAnalyzer
+                    features={features}
+                    featureValues={featureValues}
+                    selectedModels={selectedModels}
+                    onAnalyze={handleRangeAnalysis}
+                  />
+
+                  <Plot2D
+                    analysis={rangeAnalysis}
+                    predictions={predictions}
+                    featureValues={featureValues}
+                    width={800}
+                    height={300}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          {selectedModels.length > 0 && (
+            <section className='prediction-section'>
+              {error && <div className='error'>{error}</div>}
+
+              <PredictionResults predictions={predictions} />
+            </section>
           )}
-        </div>
-
-        {selectedModels.length > 0 && (
-          <section className='prediction-section'>
-            {error && <div className='error'>{error}</div>}
-
-            <PredictionResults predictions={predictions} />
-          </section>
-        )}
-      </main>
+        </main>
+      ) : (
+        <main className='main-content'>
+          <DemoAnalysis />
+        </main>
+      )}
     </div>
   );
 }

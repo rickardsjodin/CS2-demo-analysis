@@ -19,6 +19,39 @@ body {
   margin: 0 auto;
 }
 
+/* Tab Navigation */
+.tabs {
+  display: flex;
+  background: #0f172a;
+  border-bottom: 2px solid #334155;
+  gap: 0;
+}
+
+.tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 18px 24px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-bottom: 3px solid transparent;
+  position: relative;
+}
+
+.tab:hover {
+  background: rgba(102, 126, 234, 0.1);
+  color: #e2e8f0;
+}
+
+.tab.active {
+  color: #667eea;
+  border-bottom-color: #667eea;
+  background: rgba(102, 126, 234, 0.05);
+}
+
 /* Header */
 .header {
   text-align: center;

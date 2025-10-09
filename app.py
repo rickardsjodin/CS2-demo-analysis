@@ -11,7 +11,13 @@ from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 from pathlib import Path
 import traceback
+from werkzeug.utils import secure_filename
+import tempfile
+import os
 from src.ml.train_win_probability_model import load_and_prepare_data
+from src.utils.cache_utils import load_demo
+from src.core.analysis import get_player_kill_death_analysis
+from awpy import Demo
 
 app = Flask(__name__)
 
@@ -31,6 +37,16 @@ STATIC_DIR.mkdir(exist_ok=True)
 # Global variables for loaded models and features
 loaded_models = {}
 model_summary = {}
+
+# Storage for uploaded demos (in production, use proper storage)
+uploaded_demos = {}  # demo_id -> demo_data
+UPLOAD_FOLDER = Path(tempfile.gettempdir()) / "cs2_demo_uploads"
+UPLOAD_FOLDER.mkdir(exist_ok=True)
+ALLOWED_EXTENSIONS = {'dem'}
+
+def allowed_file(filename):
+    """Check if uploaded file has allowed extension"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 
@@ -347,6 +363,149 @@ def get_models():
         'success': True,
         'models': list(models_info.values())
     })
+
+@app.route('/api/demo/upload', methods=['POST'])
+def upload_demo():
+    """Upload and parse a .dem file, return list of players"""
+    try:
+        # Check if file is in request
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        
+        # Check if file is selected
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'No file selected'}), 400
+        
+        # Check file extension
+        if not allowed_file(file.filename):
+            return jsonify({'success': False, 'error': 'Invalid file type. Only .dem files are allowed'}), 400
+        
+        # Save uploaded file
+        filename = secure_filename(file.filename)
+        demo_id = f"{os.urandom(8).hex()}_{filename}"
+        demo_path = UPLOAD_FOLDER / demo_id
+        file.save(demo_path)
+        
+        print(f"📁 Uploaded demo: {filename}")
+        
+        # Parse demo
+        try:
+            dem = Demo(str(demo_path))
+            dem.parse(player_props=['armor_value', 'has_helmet', 'has_defuser', 'inventory'])
+            print(f"✅ Demo parsed successfully: {filename}")
+        except Exception as e:
+            print(f"❌ Error parsing demo: {e}")
+            demo_path.unlink()  # Clean up file
+            return jsonify({'success': False, 'error': f'Failed to parse demo: {str(e)}'}), 500
+        
+        # Extract unique player names
+        import polars as pl
+        ticks_df = dem.ticks if isinstance(dem.ticks, pl.DataFrame) else pl.from_pandas(dem.ticks)
+        players = sorted(ticks_df['name'].unique().to_list())
+        
+        # Store demo data in memory (in production, use Redis or similar)
+        uploaded_demos[demo_id] = {
+            'filename': filename,
+            'demo': dem,
+            'players': players,
+            'path': demo_path
+        }
+        
+        return jsonify({
+            'success': True,
+            'demo_id': demo_id,
+            'filename': filename,
+            'players': players,
+            'player_count': len(players)
+        })
+        
+    except Exception as e:
+        print(f"❌ Upload error: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/demo/<demo_id>/player/<player_name>/analysis', methods=['GET'])
+def analyze_player(demo_id, player_name):
+    """Get kill/death analysis for a specific player in an uploaded demo"""
+    global loaded_models
+    try:
+        # Check if demo exists
+        if demo_id not in uploaded_demos:
+            return jsonify({'success': False, 'error': 'Demo not found'}), 404
+        
+        demo_data = uploaded_demos[demo_id]
+        dem = demo_data['demo']
+        
+        # Check if player exists
+        if player_name not in demo_data['players']:
+            return jsonify({'success': False, 'error': f'Player {player_name} not found in demo'}), 404
+        
+        print(f"🔍 Analyzing player: {player_name} in {demo_data['filename']}")
+        
+        # Run analysis
+        analysis_results = get_player_kill_death_analysis(dem, player_name, loaded_models['xgboost_minimal'], debug=False)
+        
+        if analysis_results is None or len(analysis_results) == 0:
+            return jsonify({'success': False, 'error': 'No analysis data generated'}), 500
+        
+        # Convert numpy/pandas types to Python native types for JSON serialization
+        def convert_to_native_types(obj):
+            """Recursively convert numpy and pandas types to Python native types"""
+            if isinstance(obj, dict):
+                return {k: convert_to_native_types(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_to_native_types(item) for item in obj]
+            elif isinstance(obj, (np.integer, np.int32, np.int64)):
+                return int(obj)
+            elif isinstance(obj, (np.floating, np.float32, np.float64)):
+                return float(obj)
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif isinstance(obj, (np.bool_, bool)):
+                return bool(obj)
+            elif pd.isna(obj):
+                return None
+            else:
+                return obj
+        
+        # Convert analysis results
+        analysis_results_serializable = convert_to_native_types(analysis_results)
+        
+        return jsonify({
+            'success': True,
+            'player_name': player_name,
+            'demo_filename': demo_data['filename'],
+            'analysis': analysis_results_serializable
+        })
+        
+    except Exception as e:
+        print(f"❌ Analysis error: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/demo/<demo_id>', methods=['DELETE'])
+def delete_demo(demo_id):
+    """Delete an uploaded demo"""
+    try:
+        if demo_id not in uploaded_demos:
+            return jsonify({'success': False, 'error': 'Demo not found'}), 404
+        
+        demo_data = uploaded_demos[demo_id]
+        
+        # Delete file
+        if demo_data['path'].exists():
+            demo_data['path'].unlink()
+        
+        # Remove from memory
+        del uploaded_demos[demo_id]
+        
+        return jsonify({'success': True, 'message': 'Demo deleted successfully'})
+        
+    except Exception as e:
+        print(f"❌ Delete error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
     print("🎮 CS2 Win Probability Prediction App")

@@ -167,7 +167,7 @@
 }
 
 .checkbox-label {
-  margin: 0 !important;
+  margin: 0;
   cursor: pointer;
   font-size: 0.85rem;
 }
@@ -263,56 +263,59 @@
   margin-top: 4px;
 }
 
-.binning-label {
-  font-size: 0.8rem !important;
-  color: #94a3b8 !important;
+.binning-control label {
+  font-size: 0.8rem;
+  color: #94a3b8;
   font-weight: 500;
 }
 
 .bin-display {
   font-weight: 600;
-  color: #fca5a5;
-  background: #7f1d1d;
+  color: #d4d4d4;
+  background: #666;
   padding: 1px 4px;
   border-radius: 3px;
   font-size: 0.8rem;
-  border: 1px solid #991b1b;
+  border: 1px solid #333;
   margin-left: 4px;
 }
 
-.binning-slider {
-  height: 4px !important;
-  background: #7f1d1d !important;
-  border: none !important;
+.binning-control input[type='range'] {
+  height: 4px;
+  background: #666;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 3px;
 }
 
-.binning-slider::-webkit-slider-thumb {
+.binning-control input[type='range']::-webkit-slider-thumb {
   appearance: none;
-  width: 14px !important;
-  height: 14px !important;
-  background: #e53e3e !important;
+  width: 14px;
+  height: 14px;
+  background: #333333;
   border-radius: 50%;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.binning-slider::-webkit-slider-thumb:hover {
-  background: #c53030 !important;
+.binning-control input[type='range']::-webkit-slider-thumb:hover {
+  background: #444444;
   transform: scale(1.1);
 }
 
-.binning-slider::-moz-range-thumb {
-  width: 14px !important;
-  height: 14px !important;
-  background: #e53e3e !important;
+.binning-control input[type='range']::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: #333333;
   border-radius: 50%;
   cursor: pointer;
   border: none;
   transition: all 0.2s ease;
 }
 
-.binning-slider::-moz-range-thumb:hover {
-  background: #c53030 !important;
+.binning-control input[type='range']::-moz-range-thumb:hover {
+  background: #444444;
   transform: scale(1.1);
 }
 

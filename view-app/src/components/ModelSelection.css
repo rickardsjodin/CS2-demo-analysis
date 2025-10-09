@@ -17,7 +17,7 @@
 }
 
 .model-card {
-  background: #0f172a;
+  background: transparent;
   color: #e2e8f0;
   border: 2px solid #334155;
   border-radius: 10px;
@@ -34,10 +34,10 @@
 }
 
 .model-card.selected {
-  border-color: #667eea;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: #475569;
+  background: rgba(0, 0, 0, 0.2);
   color: white;
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
 }
 
 .model-checkbox {
@@ -60,8 +60,8 @@
 }
 
 .model-selector:checked {
-  background: #667eea;
-  border-color: #667eea;
+  background: #475569;
+  border-color: #475569;
 }
 
 .model-selector:checked::after {
@@ -86,7 +86,7 @@
 }
 
 .model-card.selected .model-selector:checked::after {
-  color: #667eea;
+  color: #475569;
 }
 
 .model-header {
@@ -110,7 +110,7 @@
 }
 
 .model-card:not(.selected) .model-badge {
-  background: #667eea;
+  background: #475569;
   color: white;
 }
 

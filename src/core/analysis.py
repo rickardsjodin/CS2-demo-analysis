@@ -13,12 +13,9 @@ from tqdm import tqdm
 
 from config import BOMB_TIME, ROUND_TIME
 from src.core.constants import FLASH_NADE, GRENADE_AND_BOMB_TYPES, HE_NADE, MOLOTOV_NADE, SMOKE_NADE, WEAPON_TIERS
-from src.ml.test_win_probability_scenarios import load_all_trained_models
 from src.ml.feature_engineering import create_features
 
 
-all_models = load_all_trained_models()
-pred_model = all_models['xgboost_all']['data']
 
 def predict(model_data, snapshot_data):
     df = pd.DataFrame([snapshot_data])
@@ -149,7 +146,7 @@ def create_snapshot(
     }
 
 
-def get_player_kill_death_analysis(dem_file, player_name, debug=False):
+def get_player_kill_death_analysis(dem_file, player_name, pred_model, debug=False):
     """
     Analyze kills and deaths for a specific player with impact scoring.
 

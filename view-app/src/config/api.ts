@@ -12,4 +12,8 @@ export const API_ENDPOINTS = {
     `${API_BASE_URL}/api/model/${modelName}/features`,
   predict: `${API_BASE_URL}/api/predict`,
   sliceDataset: `${API_BASE_URL}/api/slice_dataset`,
+  demoUpload: `${API_BASE_URL}/api/demo/upload`,
+  playerAnalysis: (demoId: string, playerName: string) =>
+    `${API_BASE_URL}/api/demo/${demoId}/player/${playerName}/analysis`,
+  deleteDemo: (demoId: string) => `${API_BASE_URL}/api/demo/${demoId}`,
 } as const;

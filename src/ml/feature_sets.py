@@ -79,6 +79,163 @@ XGBOOST_CONFIGS = {
     },
 }
 
+# Random Forest model configurations with their respective feature sets
+RANDOM_FOREST_CONFIGS = {
+    'random_forest_hltv': {
+        'features': HLTV_FEATURES,
+        'description': 'HLTV-style minimal features for fast prediction',
+        'hyperparams': {
+            'n_estimators': 50,
+            'max_depth': 5,
+            'min_samples_split': 2,
+            'min_samples_leaf': 1,
+            'max_features': 0.8,
+            'class_weight': 'balanced',
+        }
+    },
+    'random_forest_hltv_time': {
+        'features': HLTV_WITH_TIME,
+        'description': 'Core game state features without individual player data',
+        'hyperparams': {
+            'n_estimators': 100,
+            'max_depth': 7,
+            'min_samples_split': 2,
+            'min_samples_leaf': 1,
+            'max_features': 0.8,
+            'class_weight': 'balanced',
+        }
+    },
+    'random_forest_all': {
+        'features': ALL_FEATURES,
+        'description': 'Full feature set including individual player data',
+        'hyperparams': {
+            'n_estimators': 100,
+            'max_depth': 10,
+            'min_samples_split': 5,
+            'min_samples_leaf': 2,
+            'max_features': 0.8,
+            'class_weight': 'balanced',
+        }
+    },
+}
+
+# LightGBM model configurations with their respective feature sets
+LIGHTGBM_CONFIGS = {
+    'lightgbm_hltv': {
+        'features': HLTV_FEATURES,
+        'description': 'HLTV-style minimal features for fast prediction',
+        'hyperparams': {
+            'n_estimators': 100,
+            'max_depth': 3,
+            'learning_rate': 0.1,
+            'subsample': 0.8,
+            'colsample_bytree': 0.8,
+            'num_leaves': 15,
+            'min_child_samples': 20,
+        }
+    },
+    'lightgbm_hltv_time': {
+        'features': HLTV_WITH_TIME,
+        'description': 'Core game state features without individual player data',
+        'hyperparams': {
+            'n_estimators': 200,
+            'max_depth': 5,
+            'learning_rate': 0.08,
+            'subsample': 0.8,
+            'colsample_bytree': 0.8,
+            'num_leaves': 31,
+            'min_child_samples': 20,
+        }
+    },
+    'lightgbm_all': {
+        'features': ALL_FEATURES,
+        'description': 'Full feature set including individual player data',
+        'hyperparams': {
+            'n_estimators': 200,
+            'max_depth': -1,
+            'learning_rate': 0.05,
+            'subsample': 0.8,
+            'colsample_bytree': 0.8,
+            'num_leaves': 63,
+            'min_child_samples': 20,
+        }
+    },
+}
+
+# Logistic Regression model configurations with their respective feature sets
+LOGISTIC_REGRESSION_CONFIGS = {
+    'logistic_regression_hltv': {
+        'features': HLTV_FEATURES,
+        'description': 'HLTV-style minimal features for fast prediction',
+        'hyperparams': {
+            'C': 1.0,
+            'penalty': 'l2',
+            'solver': 'lbfgs',
+            'max_iter': 1000,
+            'class_weight': 'balanced',
+        }
+    },
+    'logistic_regression_hltv_time': {
+        'features': HLTV_WITH_TIME,
+        'description': 'Core game state features without individual player data',
+        'hyperparams': {
+            'C': 0.1,
+            'penalty': 'l2',
+            'solver': 'lbfgs',
+            'max_iter': 1000,
+            'class_weight': 'balanced',
+        }
+    },
+    'logistic_regression_all': {
+        'features': ALL_FEATURES,
+        'description': 'Full feature set including individual player data',
+        'hyperparams': {
+            'C': 0.01,
+            'penalty': 'l2',
+            'solver': 'lbfgs',
+            'max_iter': 2000,
+            'class_weight': 'balanced',
+        }
+    },
+}
+
+# Neural Network model configurations with their respective feature sets
+NEURAL_NETWORK_CONFIGS = {
+    'neural_network_hltv': {
+        'features': HLTV_FEATURES,
+        'description': 'HLTV-style minimal features for fast prediction',
+        'hyperparams': {
+            'hidden_layer_sizes': (30,),
+            'activation': 'relu',
+            'alpha': 0.01,
+            'learning_rate_init': 0.01,
+            'max_iter': 1000,
+        }
+    },
+    'neural_network_hltv_time': {
+        'features': HLTV_WITH_TIME,
+        'description': 'Core game state features without individual player data',
+        'hyperparams': {
+            'hidden_layer_sizes': (50,),
+            'activation': 'relu',
+            'alpha': 0.001,
+            'learning_rate_init': 0.01,
+            'max_iter': 1000,
+        }
+    },
+    'neural_network_all': {
+        'features': LVL2,
+        'description': 'Full feature set including individual player data',
+        'hyperparams': {
+            'hidden_layer_sizes': (100, 50),
+            'activation': 'relu',
+            'alpha': 1e-5,
+            'learning_rate_init': 0.001,
+            'max_iter': 1000,
+        }
+    },
+}
+
 # Hyperparameter search spaces for different model types and tuning intensities
 HYPERPARAMETER_GRIDS = {
     'xgboost_quick': {
@@ -182,6 +339,38 @@ def get_xgboost_config(model_name):
 def get_available_xgboost_models():
     """Get list of available XGBoost model configurations"""
     return list(XGBOOST_CONFIGS.keys())
+
+def get_random_forest_config(model_name):
+    """Get configuration for a specific Random Forest model variant"""
+    return RANDOM_FOREST_CONFIGS.get(model_name, None)
+
+def get_available_random_forest_models():
+    """Get list of available Random Forest model configurations"""
+    return list(RANDOM_FOREST_CONFIGS.keys())
+
+def get_lightgbm_config(model_name):
+    """Get configuration for a specific LightGBM model variant"""
+    return LIGHTGBM_CONFIGS.get(model_name, None)
+
+def get_available_lightgbm_models():
+    """Get list of available LightGBM model configurations"""
+    return list(LIGHTGBM_CONFIGS.keys())
+
+def get_logistic_regression_config(model_name):
+    """Get configuration for a specific Logistic Regression model variant"""
+    return LOGISTIC_REGRESSION_CONFIGS.get(model_name, None)
+
+def get_available_logistic_regression_models():
+    """Get list of available Logistic Regression model configurations"""
+    return list(LOGISTIC_REGRESSION_CONFIGS.keys())
+
+def get_neural_network_config(model_name):
+    """Get configuration for a specific Neural Network model variant"""
+    return NEURAL_NETWORK_CONFIGS.get(model_name, None)
+
+def get_available_neural_network_models():
+    """Get list of available Neural Network model configurations"""
+    return list(NEURAL_NETWORK_CONFIGS.keys())
 
 def get_feature_set_info():
     """Get information about all available feature sets"""

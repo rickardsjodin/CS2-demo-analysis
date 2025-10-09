@@ -12,7 +12,7 @@
         "t_main_weapons",
         "bomb_planted"
       ],
-      "rank": 8,
+      "rank": 10,
       "config": {
         "features": [
           "cts_alive",
@@ -112,7 +112,7 @@
         "player_9_armor",
         "player_9_side"
       ],
-      "rank": 3,
+      "rank": 4,
       "config": {
         "features": [
           "round_time_left",
@@ -390,7 +390,7 @@
         "ct_helmets",
         "t_helmets"
       ],
-      "rank": 2,
+      "rank": 3,
       "config": {
         "features": [
           "round_time_left",
@@ -447,7 +447,7 @@
         "t_he_nades",
         "t_molotovs"
       ],
-      "rank": 4,
+      "rank": 5,
       "config": {
         "features": [
           "round_time_left",
@@ -497,7 +497,7 @@
         "round_time_left",
         "bomb_time_left"
       ],
-      "rank": 6,
+      "rank": 7,
       "config": {
         "features": [
           "cts_alive",
@@ -532,7 +532,7 @@
         "round_time_left",
         "bomb_time_left"
       ],
-      "rank": 7
+      "rank": 8
     },
     "neural_network": {
       "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_neural_network.pkl",
@@ -548,9 +548,96 @@
         "round_time_left",
         "bomb_time_left"
       ],
-      "rank": 5
+      "rank": 6
+    },
+    "neural_network_all": {
+      "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_neural_network_all.pkl",
+      "accuracy": 0.805409474532423,
+      "auc": 0.9030855506534476,
+      "log_loss": 0.3826853333812879,
+      "feature_columns": [
+        "cts_alive",
+        "ts_alive",
+        "ct_main_weapons",
+        "t_main_weapons",
+        "bomb_planted",
+        "round_time_left",
+        "bomb_time_left",
+        "ct_armor",
+        "t_armor",
+        "ct_helmets",
+        "t_helmets",
+        "hp_t",
+        "hp_ct"
+      ],
+      "rank": 2,
+      "config": {
+        "features": [
+          "cts_alive",
+          "ts_alive",
+          "ct_main_weapons",
+          "t_main_weapons",
+          "bomb_planted",
+          "round_time_left",
+          "bomb_time_left",
+          "ct_armor",
+          "t_armor",
+          "ct_helmets",
+          "t_helmets",
+          "hp_t",
+          "hp_ct"
+        ],
+        "description": "Full feature set including individual player data",
+        "hyperparams": {
+          "hidden_layer_sizes": [
+            100,
+            50
+          ],
+          "activation": "relu",
+          "alpha": 1e-05,
+          "learning_rate_init": 0.001,
+          "max_iter": 1000
+        }
+      }
+    },
+    "neural_network_hltv_time": {
+      "filename": "c:\\Users\\Rickard\\Documents\\Cs2parse\\data\\models\\ct_win_probability_neural_network_hltv_time.pkl",
+      "accuracy": 0.7982208745069765,
+      "auc": 0.8961238894053146,
+      "log_loss": 0.39667583038378734,
+      "feature_columns": [
+        "cts_alive",
+        "ts_alive",
+        "ct_main_weapons",
+        "t_main_weapons",
+        "bomb_planted",
+        "round_time_left",
+        "bomb_time_left"
+      ],
+      "rank": 9,
+      "config": {
+        "features": [
+          "cts_alive",
+          "ts_alive",
+          "ct_main_weapons",
+          "t_main_weapons",
+          "bomb_planted",
+          "round_time_left",
+          "bomb_time_left"
+        ],
+        "description": "Core game state features without individual player data",
+        "hyperparams": {
+          "hidden_layer_sizes": [
+            50
+          ],
+          "activation": "relu",
+          "alpha": 0.001,
+          "learning_rate_init": 0.01,
+          "max_iter": 1000
+        }
+      }
     }
   },
   "best_model": "xgboost_player_features",
-  "total_models": 8
+  "total_models": 10
 }

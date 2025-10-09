@@ -7,13 +7,32 @@ Trains a model to predict CT team win probability using game state snapshots
 # MODEL SELECTION - Edit this to choose which models to train
 # ============================================================================
 TRAIN_MODELS = {
-    'random_forest': False,          # Fast, good baseline
-    'xgboost_hltv': False,           # HLTV-style minimal features
-    'xgboost_hltv_time': False,        # Core game state features
-    'lightgbm': False,              # Fast, good performance (needs: pip install lightgbm)
-    'logistic_regression': False,   # Very fast, interpretable
-    'neural_network': True,        # Slower, can overfit
-    'ensemble': False               # Combines all models (automatic if >1 model)
+    # XGBoost variants
+    'xgboost_hltv': False,                    # HLTV-style minimal features
+    'xgboost_hltv_time': False,               # Core game state features
+    
+    # Random Forest variants
+    'random_forest_hltv': False,              # HLTV-style minimal features
+    'random_forest_hltv_time': False,         # Core game state features
+    'random_forest_all': False,               # Full feature set
+    
+    # LightGBM variants
+    'lightgbm_hltv': False,                   # HLTV-style minimal features
+    'lightgbm_hltv_time': False,              # Core game state features
+    'lightgbm_all': False,                    # Full feature set
+    
+    # Logistic Regression variants
+    'logistic_regression_hltv': False,        # HLTV-style minimal features
+    'logistic_regression_hltv_time': False,   # Core game state features
+    'logistic_regression_all': False,         # Full feature set
+    
+    # Neural Network variants
+    'neural_network_hltv': False,             # HLTV-style minimal features
+    'neural_network_hltv_time': True,        # Core game state features
+    'neural_network_all': True,               # Full feature set
+    
+    # Ensemble (combines all trained models)
+    'ensemble': False                         # Combines all models (automatic if >1 model)
 }
 
 # ============================================================================
@@ -22,12 +41,29 @@ TRAIN_MODELS = {
 HYPERPARAMETER_TUNING = {
     'enabled': False,               # Enable/disable hyperparameter tuning
     'models_to_tune': {            # Which models to tune (only used if enabled=True)
+        # XGBoost variants
         'xgboost_hltv': False,
         'xgboost_hltv_time': False,
-        'lightgbm': False,
-        'random_forest': False,
-        'logistic_regression': False,
-        'neural_network': True
+        
+        # Random Forest variants
+        'random_forest_hltv': False,
+        'random_forest_hltv_time': False,
+        'random_forest_all': False,
+        
+        # LightGBM variants
+        'lightgbm_hltv': False,
+        'lightgbm_hltv_time': False,
+        'lightgbm_all': False,
+        
+        # Logistic Regression variants
+        'logistic_regression_hltv': False,
+        'logistic_regression_hltv_time': False,
+        'logistic_regression_all': False,
+        
+        # Neural Network variants
+        'neural_network_hltv': False,
+        'neural_network_hltv_time': False,
+        'neural_network_all': True
     },
     'search_method': 'random',      # 'grid' or 'random'
     'search_intensity': 'quick',    # 'quick' or 'thorough'
@@ -567,10 +603,14 @@ def train_models():
     
     models = {}
     
-    # Group XGBoost models to train them efficiently
+    # Group models by type for efficient training
     xgboost_models = [name for name in selected_models if name.startswith('xgboost_')]
-    other_models = [name for name in selected_models if not name.startswith('xgboost_')]
+    random_forest_models = [name for name in selected_models if name.startswith('random_forest_')]
+    lightgbm_models = [name for name in selected_models if name.startswith('lightgbm_')]
+    logistic_regression_models = [name for name in selected_models if name.startswith('logistic_regression_')]
+    neural_network_models = [name for name in selected_models if name.startswith('neural_network_')]
     
+    # Train XGBoost models if available
     if xgboost_models and XGBOOST_AVAILABLE:
         print(f"\n🚀 Training {len(xgboost_models)} XGBoost variants...")
         for model_name in xgboost_models:
@@ -649,63 +689,67 @@ def train_models():
     elif xgboost_models and not XGBOOST_AVAILABLE:
         print("\n⚠️ XGBoost models selected but XGBoost not available. Install with: pip install xgboost")
     
-    # Train other model types
-    if other_models:
-        print(f"\n🎲 Training other model types: {', '.join(other_models)}")
-        
-        # Use the full feature set from the base dataset for non-XGBoost models
-        feature_columns = HLTV_WITH_TIME
-        X_other = X_full[feature_columns]  
-
-        
-        print(f"     Using {len(feature_columns)} features for other models")
-        
-        # Split data for non-XGBoost models (same random state for consistency)
-        X_train, X_test, y_train, y_test = train_test_split(
-            X_other, y, test_size=0.2, random_state=42, stratify=y
-        )
-        
-        # Scale features (needed for some models)
-        scaler = StandardScaler()
-        X_train_scaled = scaler.fit_transform(X_train)
-        X_test_scaled = scaler.transform(X_test)
-        
-        # 1. Random Forest (if selected)
-        if 'random_forest' in other_models:
-            print("\n🌲 Training Random Forest...")
+    # Train Random Forest models
+    if random_forest_models:
+        print(f"\n� Training {len(random_forest_models)} Random Forest variants...")
+        for model_name in random_forest_models:
+            config = feature_sets.get_random_forest_config(model_name)
+            features = config['features']
+            hyperparams = config['hyperparams']
             
-            # Check if hyperparameter tuning is enabled for Random Forest
+            print(f"\n  🔧 Training {model_name}:")
+            print(f"     Features: {len(features)} ({config['description']})")
+            print(f"     Hyperparams: {hyperparams}")
+            
+            # Slice the specific features for this model from the full dataset
+            try:
+                X_model = X_full[features]
+                feature_columns = features
+                print(f"     ✅ Selected {len(features)} features from base dataset")
+            except KeyError as e:
+                missing_features = [f for f in features if f not in X_full.columns]
+                print(f"     ❌ Missing features for {model_name}: {missing_features}")
+                print(f"     Available features: {list(X_full.columns)}")
+                continue
+            
+            # Split data with consistent random state for fair comparison
+            X_train, X_test, y_train, y_test = train_test_split(
+                X_model, y, test_size=0.2, random_state=42, stratify=y
+            )
+            
+            print(f"     Training set: {len(X_train)} samples")
+            print(f"     Test set: {len(X_test)} samples")
+            
+            # Check if hyperparameter tuning is enabled for this model
             tuned_model, tuned_params, tuned_score = perform_hyperparameter_tuning(
-                'random_forest', X_train, y_train
+                model_name, X_train, y_train, 'random_forest'
             )
             
             if tuned_model is not None:
                 # Use tuned model
                 rf_model = tuned_model
-                rf_calibrated = rf_model
                 print(f"     🎯 Using tuned hyperparameters (score: {tuned_score:.4f})")
+                
+                # Update hyperparams for record keeping
+                hyperparams = tuned_params
             else:
-                # Use default hyperparameters
+                # Train Random Forest with default model-specific hyperparameters
                 rf_model = RandomForestClassifier(
-                    n_estimators=50,
-                    max_depth=5,
-                    min_samples_split=2,
-                    min_samples_leaf=1,
-                    max_features=0.8,
-                    random_state=41, 
-                    class_weight='balanced',
+                    random_state=42,
                     bootstrap=False,
-                    n_jobs=-1
+                    n_jobs=-1,
+                    **hyperparams
                 )
-
+                
                 rf_model.fit(X_train, y_train)
-                rf_calibrated = rf_model
             
-            rf_pred = rf_calibrated.predict(X_test)
-            rf_pred_proba = rf_calibrated.predict_proba(X_test)[:, 1]
+            # Make predictions
+            rf_pred = rf_model.predict(X_test)
+            rf_pred_proba = rf_model.predict_proba(X_test)[:, 1]
             
-            models['random_forest'] = {
-                'model': rf_calibrated,
+            # Store model results
+            models[model_name] = {
+                'model': rf_model,
                 'original_model': rf_model,
                 'scaler': None,
                 'predictions': rf_pred,
@@ -715,90 +759,158 @@ def train_models():
                 'log_loss': log_loss(y_test, rf_pred_proba),
                 'feature_columns': feature_columns,
                 'X_test': X_test,
-                'y_test': y_test
+                'y_test': y_test,
+                'config': config
             }
-        
-        # 2. LightGBM (if available and selected)
-        if 'lightgbm' in other_models:
-            if LIGHTGBM_AVAILABLE:
-                print("\n⚡ Training LightGBM...")
+            
+            print(f"     ✅ {model_name} - AUC: {models[model_name]['auc']:.3f}, Acc: {models[model_name]['accuracy']:.3f}")
+
+    # Train LightGBM models
+    if lightgbm_models and LIGHTGBM_AVAILABLE:
+        print(f"\n⚡ Training {len(lightgbm_models)} LightGBM variants...")
+        for model_name in lightgbm_models:
+            config = feature_sets.get_lightgbm_config(model_name)
+            features = config['features']
+            hyperparams = config['hyperparams']
+            
+            print(f"\n  🔧 Training {model_name}:")
+            print(f"     Features: {len(features)} ({config['description']})")
+            print(f"     Hyperparams: {hyperparams}")
+            
+            # Slice the specific features for this model from the full dataset
+            try:
+                X_model = X_full[features]
+                feature_columns = features
+                print(f"     ✅ Selected {len(features)} features from base dataset")
+            except KeyError as e:
+                missing_features = [f for f in features if f not in X_full.columns]
+                print(f"     ❌ Missing features for {model_name}: {missing_features}")
+                print(f"     Available features: {list(X_full.columns)}")
+                continue
+            
+            # Split data with consistent random state for fair comparison
+            X_train, X_test, y_train, y_test = train_test_split(
+                X_model, y, test_size=0.2, random_state=42, stratify=y
+            )
+            
+            print(f"     Training set: {len(X_train)} samples")
+            print(f"     Test set: {len(X_test)} samples")
+            
+            # Check if hyperparameter tuning is enabled for this model
+            tuned_model, tuned_params, tuned_score = perform_hyperparameter_tuning(
+                model_name, X_train, y_train, 'lightgbm'
+            )
+            
+            if tuned_model is not None:
+                # Use tuned model
+                lgb_model = tuned_model
+                print(f"     🎯 Using tuned hyperparameters (score: {tuned_score:.4f})")
                 
-                # Check if hyperparameter tuning is enabled for LightGBM
-                tuned_model, tuned_params, tuned_score = perform_hyperparameter_tuning(
-                    'lightgbm', X_train, y_train
+                # Update hyperparams for record keeping
+                hyperparams = tuned_params
+            else:
+                # Train LightGBM with default model-specific hyperparameters
+                lgb_model = lgb.LGBMClassifier(
+                    random_state=42,
+                    verbose=-1,
+                    **hyperparams
                 )
                 
-                if tuned_model is not None:
-                    # Use tuned model
-                    lgb_model = tuned_model
-                    print(f"     🎯 Using tuned hyperparameters (score: {tuned_score:.4f})")
-                else:
-                    # Use default hyperparameters
-                    lgb_model = lgb.LGBMClassifier(
-                        n_estimators=200,
-                        max_depth=-1,
-                        learning_rate=0.05,
-                        subsample=0.8,
-                        num_leaves=63,
-                        min_child_samples=20,
-                        colsample_bytree=0.8,
-                        random_state=42,
-                        verbose=-1
-                    )
-
-                    lgb_model.fit(X_train, y_train)
-
-                lgb_calibrated = CalibratedClassifierCV(lgb_model, method='isotonic', cv=5)
-                lgb_calibrated.fit(X_train, y_train)
-                
-                lgb_pred = lgb_calibrated.predict(X_test)
-                lgb_pred_proba = lgb_calibrated.predict_proba(X_test)[:, 1]
-                
-                models['lightgbm'] = {
-                    'model': lgb_calibrated,
-                    'original_model': lgb_model,
-                    'scaler': None,
-                    'predictions': lgb_pred,
-                    'probabilities': lgb_pred_proba,
-                    'accuracy': accuracy_score(y_test, lgb_pred),
-                    'auc': roc_auc_score(y_test, lgb_pred_proba),
-                    'log_loss': log_loss(y_test, lgb_pred_proba),
-                    'feature_columns': feature_columns,
-                    'X_test': X_test,
-                    'y_test': y_test
-                }
-            else:
-                print("\n⚠️ LightGBM selected but not available. Install with: pip install lightgbm")
-        
-        # 3. Logistic Regression (if selected)
-        if 'logistic_regression' in other_models:
-            print("\n📊 Training Logistic Regression...")
+                lgb_model.fit(X_train, y_train)
             
-            # Check if hyperparameter tuning is enabled for Logistic Regression
+            # Apply calibration
+            lgb_calibrated = CalibratedClassifierCV(lgb_model, method='isotonic', cv=5)
+            lgb_calibrated.fit(X_train, y_train)
+            
+            # Make predictions
+            lgb_pred = lgb_calibrated.predict(X_test)
+            lgb_pred_proba = lgb_calibrated.predict_proba(X_test)[:, 1]
+            
+            # Store model results
+            models[model_name] = {
+                'model': lgb_calibrated,
+                'original_model': lgb_model,
+                'scaler': None,
+                'predictions': lgb_pred,
+                'probabilities': lgb_pred_proba,
+                'accuracy': accuracy_score(y_test, lgb_pred),
+                'auc': roc_auc_score(y_test, lgb_pred_proba),
+                'log_loss': log_loss(y_test, lgb_pred_proba),
+                'feature_columns': feature_columns,
+                'X_test': X_test,
+                'y_test': y_test,
+                'config': config
+            }
+            
+            print(f"     ✅ {model_name} - AUC: {models[model_name]['auc']:.3f}, Acc: {models[model_name]['accuracy']:.3f}")
+    
+    elif lightgbm_models and not LIGHTGBM_AVAILABLE:
+        print("\n⚠️ LightGBM models selected but LightGBM not available. Install with: pip install lightgbm")
+
+    # Train Logistic Regression models
+    if logistic_regression_models:
+        print(f"\n📊 Training {len(logistic_regression_models)} Logistic Regression variants...")
+        for model_name in logistic_regression_models:
+            config = feature_sets.get_logistic_regression_config(model_name)
+            features = config['features']
+            hyperparams = config['hyperparams']
+            
+            print(f"\n  🔧 Training {model_name}:")
+            print(f"     Features: {len(features)} ({config['description']})")
+            print(f"     Hyperparams: {hyperparams}")
+            
+            # Slice the specific features for this model from the full dataset
+            try:
+                X_model = X_full[features]
+                feature_columns = features
+                print(f"     ✅ Selected {len(features)} features from base dataset")
+            except KeyError as e:
+                missing_features = [f for f in features if f not in X_full.columns]
+                print(f"     ❌ Missing features for {model_name}: {missing_features}")
+                print(f"     Available features: {list(X_full.columns)}")
+                continue
+            
+            # Split data with consistent random state for fair comparison
+            X_train, X_test, y_train, y_test = train_test_split(
+                X_model, y, test_size=0.2, random_state=42, stratify=y
+            )
+            
+            # Scale features for logistic regression
+            scaler = StandardScaler()
+            X_train_scaled = scaler.fit_transform(X_train)
+            X_test_scaled = scaler.transform(X_test)
+            
+            print(f"     Training set: {len(X_train)} samples")
+            print(f"     Test set: {len(X_test)} samples")
+            
+            # Check if hyperparameter tuning is enabled for this model
             tuned_model, tuned_params, tuned_score = perform_hyperparameter_tuning(
-                'logistic_regression', X_train_scaled, y_train
+                model_name, X_train_scaled, y_train, 'logistic_regression'
             )
             
             if tuned_model is not None:
                 # Use tuned model
                 lr_model = tuned_model
-                lr_calibrated = lr_model
                 print(f"     🎯 Using tuned hyperparameters (score: {tuned_score:.4f})")
+                
+                # Update hyperparams for record keeping
+                hyperparams = tuned_params
             else:
-                # Use default hyperparameters
+                # Train Logistic Regression with default model-specific hyperparameters
                 lr_model = LogisticRegression(
                     random_state=42,
-                    max_iter=1000,
-                    class_weight='balanced'
+                    **hyperparams
                 )
+                
                 lr_model.fit(X_train_scaled, y_train)
-                lr_calibrated = lr_model
             
-            lr_pred = lr_calibrated.predict(X_test_scaled)
-            lr_pred_proba = lr_calibrated.predict_proba(X_test_scaled)[:, 1]
+            # Make predictions
+            lr_pred = lr_model.predict(X_test_scaled)
+            lr_pred_proba = lr_model.predict_proba(X_test_scaled)[:, 1]
             
-            models['logistic_regression'] = {
-                'model': lr_calibrated,
+            # Store model results
+            models[model_name] = {
+                'model': lr_model,
                 'original_model': lr_model,
                 'scaler': scaler,
                 'predictions': lr_pred,
@@ -808,41 +920,78 @@ def train_models():
                 'log_loss': log_loss(y_test, lr_pred_proba),
                 'feature_columns': feature_columns,
                 'X_test': X_test,
-                'y_test': y_test
+                'y_test': y_test,
+                'config': config
             }
-        
-        # 4. Neural Network (MLP) (if selected)
-        if 'neural_network' in other_models:
-            print("\n🧠 Training Neural Network (MLP)...")
             
-            # Check if hyperparameter tuning is enabled for Neural Network
+            print(f"     ✅ {model_name} - AUC: {models[model_name]['auc']:.3f}, Acc: {models[model_name]['accuracy']:.3f}")
+
+    # Train Neural Network models
+    if neural_network_models:
+        print(f"\n🧠 Training {len(neural_network_models)} Neural Network variants...")
+        for model_name in neural_network_models:
+            config = feature_sets.get_neural_network_config(model_name)
+            features = config['features']
+            hyperparams = config['hyperparams']
+            
+            print(f"\n  🔧 Training {model_name}:")
+            print(f"     Features: {len(features)} ({config['description']})")
+            print(f"     Hyperparams: {hyperparams}")
+            
+            # Slice the specific features for this model from the full dataset
+            try:
+                X_model = X_full[features]
+                feature_columns = features
+                print(f"     ✅ Selected {len(features)} features from base dataset")
+            except KeyError as e:
+                missing_features = [f for f in features if f not in X_full.columns]
+                print(f"     ❌ Missing features for {model_name}: {missing_features}")
+                print(f"     Available features: {list(X_full.columns)}")
+                continue
+            
+            # Split data with consistent random state for fair comparison
+            X_train, X_test, y_train, y_test = train_test_split(
+                X_model, y, test_size=0.2, random_state=42, stratify=y
+            )
+            
+            # Scale features for neural network
+            scaler = StandardScaler()
+            X_train_scaled = scaler.fit_transform(X_train)
+            X_test_scaled = scaler.transform(X_test)
+            
+            print(f"     Training set: {len(X_train)} samples")
+            print(f"     Test set: {len(X_test)} samples")
+            
+            # Check if hyperparameter tuning is enabled for this model
             tuned_model, tuned_params, tuned_score = perform_hyperparameter_tuning(
-                'neural_network', X_train_scaled, y_train
+                model_name, X_train_scaled, y_train, 'neural_network'
             )
             
             if tuned_model is not None:
-                # Use tuned model and apply calibration
+                # Use tuned model
                 mlp_model = tuned_model
-                # mlp_calibrated = CalibratedClassifierCV(mlp_model, method='sigmoid', cv=5)
-                # mlp_calibrated.fit(X_train_scaled, y_train)
                 print(f"     🎯 Using tuned hyperparameters (score: {tuned_score:.4f})")
+                
+                # Update hyperparams for record keeping
+                hyperparams = tuned_params
             else:
-                # Use default hyperparameters
+                # Train Neural Network with default model-specific hyperparameters
                 mlp_model = MLPClassifier(
-                    hidden_layer_sizes=(100, 50),
-                    max_iter=1000,
-                    alpha=1e-5,
                     random_state=42,
+                    **hyperparams
                 )
+                
                 mlp_model.fit(X_train_scaled, y_train)
-                # mlp_calibrated = CalibratedClassifierCV(mlp_model, method='sigmoid', cv=5)
-                # mlp_calibrated.fit(X_train_scaled, y_train)
+                mlp_calibrated = CalibratedClassifierCV(mlp_model, method='isotonic', cv=5)
+                mlp_calibrated.fit(X_train_scaled, y_train)
             
-            mlp_pred = mlp_model.predict(X_test_scaled)
-            mlp_pred_proba = mlp_model.predict_proba(X_test_scaled)[:, 1]
+            # Make predictions
+            mlp_pred = mlp_calibrated.predict(X_test_scaled)
+            mlp_pred_proba = mlp_calibrated.predict_proba(X_test_scaled)[:, 1]
             
-            models['neural_network'] = {
-                'model': mlp_model,
+            # Store model results
+            models[model_name] = {
+                'model': mlp_calibrated,
                 'original_model': mlp_model,
                 'scaler': scaler,
                 'predictions': mlp_pred,
@@ -852,8 +1001,11 @@ def train_models():
                 'log_loss': log_loss(y_test, mlp_pred_proba),
                 'feature_columns': feature_columns,
                 'X_test': X_test,
-                'y_test': y_test
+                'y_test': y_test,
+                'config': config
             }
+            
+            print(f"     ✅ {model_name} - AUC: {models[model_name]['auc']:.3f}, Acc: {models[model_name]['accuracy']:.3f}")
     
     # 5. Ensemble Model (if selected and multiple models are trained)
     if TRAIN_MODELS.get('ensemble', False) and len(models) > 1:
@@ -1494,12 +1646,41 @@ def main():
             print("❌ No models selected! Please configure TRAIN_MODELS in the script.")
             return
         
-        # Show XGBoost configurations
+        # Show model configurations
         xgboost_models = [name for name in selected_models if name.startswith('xgboost_')]
+        random_forest_models = [name for name in selected_models if name.startswith('random_forest_')]
+        lightgbm_models = [name for name in selected_models if name.startswith('lightgbm_')]
+        logistic_regression_models = [name for name in selected_models if name.startswith('logistic_regression_')]
+        neural_network_models = [name for name in selected_models if name.startswith('neural_network_')]
+        
         if xgboost_models:
             print(f"\n🚀 XGBoost Models Configuration:")
             for model_name in xgboost_models:
                 config = feature_sets.get_xgboost_config(model_name)
+                print(f"   {model_name}: {len(config['features'])} features - {config['description']}")
+        
+        if random_forest_models:
+            print(f"\n🌲 Random Forest Models Configuration:")
+            for model_name in random_forest_models:
+                config = feature_sets.get_random_forest_config(model_name)
+                print(f"   {model_name}: {len(config['features'])} features - {config['description']}")
+        
+        if lightgbm_models:
+            print(f"\n⚡ LightGBM Models Configuration:")
+            for model_name in lightgbm_models:
+                config = feature_sets.get_lightgbm_config(model_name)
+                print(f"   {model_name}: {len(config['features'])} features - {config['description']}")
+        
+        if logistic_regression_models:
+            print(f"\n📊 Logistic Regression Models Configuration:")
+            for model_name in logistic_regression_models:
+                config = feature_sets.get_logistic_regression_config(model_name)
+                print(f"   {model_name}: {len(config['features'])} features - {config['description']}")
+        
+        if neural_network_models:
+            print(f"\n🧠 Neural Network Models Configuration:")
+            for model_name in neural_network_models:
+                config = feature_sets.get_neural_network_config(model_name)
                 print(f"   {model_name}: {len(config['features'])} features - {config['description']}")
         
         print("=" * 80)
@@ -1530,13 +1711,21 @@ def main():
         print(f"\n✅ Training complete! Best model: {best_model_name}")
         print(f"📊 Total models trained: {len(models)}")
         
-        # Show final summary of XGBoost models
-        xgb_models = {k: v for k, v in models.items() if k.startswith('xgboost_')}
-        if xgb_models:
-            print(f"\n🚀 XGBoost Models Summary:")
-            for name, info in sorted(xgb_models.items(), key=lambda x: x[1]['auc'], reverse=True):
-                feature_count = len(info['feature_columns'])
-                print(f"   {name}: AUC={info['auc']:.3f}, Features={feature_count}")
+        # Show final summary by model type
+        model_types = {
+            'XGBoost': {k: v for k, v in models.items() if k.startswith('xgboost_')},
+            'Random Forest': {k: v for k, v in models.items() if k.startswith('random_forest_')},
+            'LightGBM': {k: v for k, v in models.items() if k.startswith('lightgbm_')},
+            'Logistic Regression': {k: v for k, v in models.items() if k.startswith('logistic_regression_')},
+            'Neural Network': {k: v for k, v in models.items() if k.startswith('neural_network_')}
+        }
+        
+        for model_type, type_models in model_types.items():
+            if type_models:
+                print(f"\n🎯 {model_type} Models Summary:")
+                for name, info in sorted(type_models.items(), key=lambda x: x[1]['auc'], reverse=True):
+                    feature_count = len(info['feature_columns'])
+                    print(f"   {name}: AUC={info['auc']:.3f}, Features={feature_count}")
         
     except Exception as e:
         print(f"❌ Error during training: {e}")
