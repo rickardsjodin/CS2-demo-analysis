@@ -233,15 +233,44 @@ export default function FeatureInputs({
             <h3 className='group-title'>{groupName}</h3>
             <div className='feature-grid'>
               {groupFeatures
-                .sort((a, _) =>
-                  a.display_name.includes('Bomb')
-                    ? 1
-                    : a.display_name.includes('Ct')
-                    ? -1
-                    : a.display_name.includes('Ts')
-                    ? -1
-                    : 1
-                )
+                .sort((a, b) => {
+                  // CTs first
+                  const aIsCt = a.display_name.includes('Ct');
+                  const bIsCt = b.display_name.includes('Ct');
+                  if (aIsCt !== bIsCt) {
+                    return aIsCt ? -1 : 1;
+                  }
+
+                  // Then Ts
+                  const aIsT =
+                    a.display_name.includes('Ts ') ||
+                    a.display_name.includes('T ') ||
+                    (a.display_name.includes(' T') &&
+                      !a.display_name.includes('Time'));
+                  const bIsT =
+                    b.display_name.includes('Ts ') ||
+                    b.display_name.includes('T ') ||
+                    (b.display_name.includes(' T') &&
+                      !b.display_name.includes('Time'));
+                  if (aIsT !== bIsT) {
+                    return aIsT ? -1 : 1;
+                  }
+
+                  const aIsTime = a.display_name.includes('Round Time');
+                  const bIsTime = b.display_name.includes('Round Time');
+                  if (aIsTime !== bIsTime) {
+                    return aIsTime ? -1 : 1;
+                  }
+
+                  // Then Bombs
+                  const aIsBomb = a.display_name.includes('Bomb');
+                  const bIsBomb = b.display_name.includes('Bomb');
+                  if (aIsBomb !== bIsBomb) {
+                    return aIsBomb ? -1 : 1;
+                  }
+
+                  return 0;
+                })
                 .map(renderFeatureInput)}
             </div>
           </div>

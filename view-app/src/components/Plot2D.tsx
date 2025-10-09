@@ -41,8 +41,8 @@ export default function Plot2D({
     canvas.width = width;
     canvas.height = height;
 
-    // Clear canvas
-    ctx.fillStyle = '#ffffff';
+    // Clear canvas with dark background
+    ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, width, height);
 
     // Define margins and plot area
@@ -52,17 +52,18 @@ export default function Plot2D({
 
     // Collect all data points
     const allData: PlotPoint[] = [];
+    // Brighter colors for dark theme
     const colors = [
-      '#2196F3',
-      '#4CAF50',
-      '#FF9800',
-      '#9C27B0',
-      '#F44336',
-      '#795548',
-      '#607D8B',
-      '#E91E63',
-      '#00BCD4',
-      '#CDDC39',
+      '#60a5fa', // blue
+      '#4ade80', // green
+      '#fb923c', // orange
+      '#c084fc', // purple
+      '#f87171', // red
+      '#a78bfa', // violet
+      '#22d3ee', // cyan
+      '#f472b6', // pink
+      '#fbbf24', // amber
+      '#34d399', // emerald
     ];
 
     // Add model data
@@ -85,7 +86,7 @@ export default function Plot2D({
           x: point.featureValue,
           y: point.ct_win_probability * 100,
           label: 'Training Data',
-          color: '#000000',
+          color: '#e2e8f0',
         });
       });
     }
@@ -100,13 +101,20 @@ export default function Plot2D({
     const yMin = Math.max(0, Math.min(...yValues) - 5);
     const yMax = Math.min(100, Math.max(...yValues) + 5);
 
+    // Check if this is a time-based feature that should be reversed (0 on the right)
+    const shouldReverseXAxis =
+      analysis.featureName === 'round_time_left' ||
+      analysis.featureName === 'bomb_time_left';
+
     const xScale = (x: number) =>
-      margin.left + ((x - xMin) / (xMax - xMin)) * plotWidth;
+      shouldReverseXAxis
+        ? margin.left + plotWidth - ((x - xMin) / (xMax - xMin)) * plotWidth
+        : margin.left + ((x - xMin) / (xMax - xMin)) * plotWidth;
     const yScale = (y: number) =>
       margin.top + ((yMax - y) / (yMax - yMin)) * plotHeight;
 
     // Draw grid lines
-    ctx.strokeStyle = '#e0e0e0';
+    ctx.strokeStyle = '#334155';
     ctx.lineWidth = 1;
 
     // Vertical grid lines
@@ -128,7 +136,7 @@ export default function Plot2D({
     }
 
     // Draw axes
-    ctx.strokeStyle = '#333';
+    ctx.strokeStyle = '#cbd5e1';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(margin.left, margin.top);
@@ -137,7 +145,7 @@ export default function Plot2D({
     ctx.stroke();
 
     // Draw axis labels
-    ctx.fillStyle = '#333';
+    ctx.fillStyle = '#e2e8f0';
     ctx.font = '14px Arial';
     ctx.textAlign = 'center';
 
@@ -223,15 +231,15 @@ export default function Plot2D({
         ctx.arc(x, y, 6, 0, 2 * Math.PI);
         ctx.fill();
 
-        // Draw white center dot
-        ctx.fillStyle = '#ffffff';
+        // Draw dark center dot
+        ctx.fillStyle = '#0f172a';
         ctx.beginPath();
         ctx.arc(x, y, 2, 0, 2 * Math.PI);
         ctx.fill();
       });
 
       // Draw vertical line to show current feature value
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.strokeStyle = 'rgba(226, 232, 240, 0.3)';
       ctx.lineWidth = 2;
       ctx.setLineDash([5, 5]);
       ctx.beginPath();
@@ -242,11 +250,14 @@ export default function Plot2D({
     }
 
     // Draw X-axis ticks and labels
-    ctx.fillStyle = '#333';
+    ctx.fillStyle = '#cbd5e1';
     ctx.font = '12px Arial';
     ctx.textAlign = 'center';
     for (let i = 0; i <= 5; i++) {
-      const value = xMin + (i / 5) * (xMax - xMin);
+      // When reversed, labels should go from high to low
+      const value = shouldReverseXAxis
+        ? xMax - (i / 5) * (xMax - xMin)
+        : xMin + (i / 5) * (xMax - xMin);
       const x = margin.left + (i / 5) * plotWidth;
 
       // Tick mark
@@ -283,14 +294,14 @@ export default function Plot2D({
 
     const uniqueLabels = Array.from(new Set(allData.map((d) => d.label)));
     uniqueLabels.forEach((label) => {
-      const color = allData.find((d) => d.label === label)?.color || '#000';
+      const color = allData.find((d) => d.label === label)?.color || '#e2e8f0';
 
       // Legend color box
       ctx.fillStyle = color;
       ctx.fillRect(legendX, legendY - 8, 12, 12);
 
       // Legend text
-      ctx.fillStyle = '#333';
+      ctx.fillStyle = '#e2e8f0';
       ctx.fillText(label, legendX + 20, legendY);
 
       legendY += 20;
@@ -304,7 +315,7 @@ export default function Plot2D({
       legendY += 10; // Add some spacing
 
       // Legend header for current predictions
-      ctx.fillStyle = '#333';
+      ctx.fillStyle = '#e2e8f0';
       ctx.font = 'bold 12px Arial';
       ctx.fillText('Current Predictions:', legendX, legendY);
       legendY += 20;
@@ -328,7 +339,7 @@ export default function Plot2D({
         ctx.arc(legendX + 6, legendY - 4, 4, 0, 2 * Math.PI);
         ctx.fill();
 
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = '#0f172a';
         ctx.beginPath();
         ctx.arc(legendX + 6, legendY - 4, 1, 0, 2 * Math.PI);
         ctx.fill();
@@ -337,7 +348,7 @@ export default function Plot2D({
         const probability = (
           prediction.prediction.ct_win_probability * 100
         ).toFixed(1);
-        ctx.fillStyle = '#333';
+        ctx.fillStyle = '#e2e8f0';
         ctx.fillText(`${modelName} (${probability}%)`, legendX + 20, legendY);
 
         legendY += 20;

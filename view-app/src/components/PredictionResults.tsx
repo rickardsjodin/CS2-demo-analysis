@@ -25,7 +25,7 @@ export default function PredictionResults({
       <div className='comparison-bars-container'>
         {binningData && (
           <div className='comparison-model-bar'>
-            <div className='model-label' style={{ minWidth: 150 }}>
+            <div className='model-label' style={{ minWidth: 250 }}>
               Training Data
               {sampleCount < 50 && (
                 <span className='low-sample-warning'> ⚠️</span>
@@ -56,7 +56,7 @@ export default function PredictionResults({
 
           return (
             <div key={result.modelName} className='comparison-model-bar'>
-              <div className='model-label' style={{ minWidth: 150 }}>
+              <div className='model-label' style={{ minWidth: 250 }}>
                 {modelDisplayName}
                 {` ${ctProb}%`}
               </div>

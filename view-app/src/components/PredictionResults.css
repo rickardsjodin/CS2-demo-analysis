@@ -1,9 +1,9 @@
 /* Prediction Results Styles - Compact Version */
 .prediction-card {
-  background: #f8fafc;
+  background: #1e293b;
   border-radius: 8px;
   padding: 16px;
-  border: 2px solid #e2e8f0;
+  border: 2px solid #334155;
   transition: all 0.3s ease;
 }
 
@@ -14,7 +14,7 @@
 
 .prediction-header h3 {
   font-size: 1.2rem;
-  color: #2d3748;
+  color: #e2e8f0;
   margin: 0;
 }
 
@@ -29,16 +29,16 @@
   align-items: center;
   gap: 12px;
   padding: 8px;
-  background: white;
+  background: #0f172a;
   border-radius: 6px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #334155;
 }
 
 .model-label {
   min-width: 120px;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #4a5568;
+  color: #cbd5e1;
   text-transform: capitalize;
   text-align: right;
 }
@@ -46,7 +46,7 @@
 .ct-bar-container {
   flex: 1;
   position: relative;
-  background: #e2e8f0;
+  background: #334155;
   height: 24px;
   border-radius: 12px;
   overflow: hidden;
@@ -74,7 +74,7 @@
 .model-stats-compact {
   min-width: 80px;
   font-size: 0.75rem;
-  color: #666;
+  color: #94a3b8;
   text-align: center;
 }
 
@@ -101,12 +101,12 @@
   display: block;
   font-weight: 600;
   margin-bottom: 8px;
-  color: #4a5568;
+  color: #cbd5e1;
 }
 
 .progress-bar {
   position: relative;
-  background: #e2e8f0;
+  background: #334155;
   height: 30px;
   border-radius: 15px;
   overflow: hidden;
@@ -146,17 +146,17 @@
 .winner {
   font-size: 1.2rem;
   margin-bottom: 8px;
-  color: #2d3748;
+  color: #e2e8f0;
 }
 
 .confidence {
   font-size: 1rem;
-  color: #666;
+  color: #94a3b8;
 }
 
 .model-stats {
   text-align: center;
-  color: #666;
+  color: #94a3b8;
   font-size: 0.85rem;
 }
 
@@ -172,12 +172,12 @@
 
 .comparison-header h3 {
   font-size: 1.2rem;
-  color: #2d3748;
+  color: #e2e8f0;
   margin: 0;
 }
 
 .comparison-subtitle {
-  color: #666;
+  color: #94a3b8;
   font-size: 0.85rem;
   margin: 4px 0 0 0;
 }
@@ -193,9 +193,9 @@
   align-items: center;
   gap: 12px;
   padding: 8px;
-  background: white;
+  background: #0f172a;
   border-radius: 6px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #334155;
 }
 
 .comparison-grid {
@@ -205,8 +205,8 @@
 }
 
 .model-prediction-card {
-  background: white;
-  border: 2px solid #e2e8f0;
+  background: #1e293b;
+  border: 2px solid #334155;
   border-radius: 8px;
   padding: 16px;
   transition: all 0.2s ease;
@@ -226,7 +226,7 @@
 
 .model-prediction-header h4 {
   font-size: 1rem;
-  color: #2d3748;
+  color: #e2e8f0;
   margin: 0;
   text-transform: capitalize;
 }
@@ -235,27 +235,27 @@
   display: flex;
   gap: 8px;
   font-size: 0.75rem;
-  color: #666;
+  color: #94a3b8;
 }
 
 .prediction-winner {
   text-align: center;
   margin-bottom: 12px;
   padding: 8px;
-  background: #f8fafc;
+  background: #0f172a;
   border-radius: 6px;
 }
 
 .prediction-winner strong {
   display: block;
   font-size: 1.1rem;
-  color: #2d3748;
+  color: #e2e8f0;
   margin-bottom: 2px;
 }
 
 .confidence-mini {
   font-size: 0.85rem;
-  color: #666;
+  color: #94a3b8;
 }
 
 .probability-bars-mini {
@@ -270,13 +270,13 @@
   display: block;
   font-weight: 600;
   margin-bottom: 4px;
-  color: #4a5568;
+  color: #cbd5e1;
   font-size: 0.85rem;
 }
 
 .progress-bar-mini {
   position: relative;
-  background: #e2e8f0;
+  background: #334155;
   height: 20px;
   border-radius: 10px;
   overflow: hidden;
@@ -287,7 +287,7 @@
   right: 8px;
   top: 50%;
   transform: translateY(-50%);
-  color: #333;
+  color: #e2e8f0;
   font-weight: 600;
   font-size: 0.75rem;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
@@ -302,19 +302,19 @@
 }
 
 .prediction-column {
-  background: white;
-  border: 2px solid #e2e8f0;
+  background: #1e293b;
+  border: 2px solid #334155;
   border-radius: 8px;
   padding: 20px;
 }
 
 .prediction-column h4 {
   font-size: 1.1rem;
-  color: #2d3748;
+  color: #e2e8f0;
   margin: 0 0 15px 0;
   text-align: center;
   padding-bottom: 8px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #334155;
 }
 
 .binning-info {
@@ -323,24 +323,24 @@
 }
 
 .binning-info small {
-  color: #666;
+  color: #94a3b8;
   font-size: 0.8rem;
 }
 
 .low-sample-warning {
-  color: #e53e3e;
+  color: #fca5a5;
   font-weight: 600;
 }
 
 .sample-count {
   font-size: 0.9rem;
-  color: #666;
+  color: #94a3b8;
   margin-top: 4px;
 }
 
 .binning-summary {
-  background: white;
-  border: 2px solid #e2e8f0;
+  background: #1e293b;
+  border: 2px solid #334155;
   border-radius: 8px;
   padding: 16px;
   margin-bottom: 20px;
@@ -349,7 +349,7 @@
 
 .binning-summary h4 {
   font-size: 1.1rem;
-  color: #2d3748;
+  color: #e2e8f0;
   margin: 0 0 8px 0;
 }
 
@@ -363,7 +363,7 @@
 
 .binning-stats span {
   font-weight: 600;
-  color: #4a5568;
+  color: #cbd5e1;
   font-size: 0.9rem;
 }
 
@@ -376,15 +376,15 @@
 }
 
 .diff-indicator.positive {
-  background: #c6f6d5;
-  color: #22543d;
-  border: 1px solid #9ae6b4;
+  background: #064e3b;
+  color: #6ee7b7;
+  border: 1px solid #047857;
 }
 
 .diff-indicator.negative {
-  background: #fed7d7;
-  color: #742a2a;
-  border: 1px solid #feb2b2;
+  background: #7f1d1d;
+  color: #fca5a5;
+  border: 1px solid #991b1b;
 }
 
 @media (max-width: 768px) {

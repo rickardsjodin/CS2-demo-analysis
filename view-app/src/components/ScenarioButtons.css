@@ -1,6 +1,6 @@
 /* Scenario Buttons Styles */
 .scenarios-section {
-  background: #f8fafc;
+  background: #1e293b;
   border-radius: 0 0 16px 16px;
   padding: 20px 25px;
 }
@@ -13,13 +13,13 @@
 }
 
 .scenario-btn {
-  background: white;
-  border: 2px solid #e2e8f0;
+  background: #0f172a;
+  border: 2px solid #334155;
   padding: 12px 20px;
   border-radius: 8px;
   cursor: pointer;
   font-weight: 500;
-  color: #4a5568;
+  color: #cbd5e1;
   transition: all 0.3s ease;
 }
 
