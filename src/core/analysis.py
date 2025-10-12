@@ -146,6 +146,91 @@ def create_snapshot(
     }
 
 
+def calculate_round_probabilities_all_ticks(
+    dem_file, 
+    round_num: int, 
+    pred_model, 
+    tick_rate: int = 64,
+    file_name: str = "demo"
+) -> list:
+    """
+    Calculate CT win probability at every single tick of a specified round.
+    
+    Args:
+        dem_file: Parsed demo object with kills, rounds, and ticks data
+        round_num: The round number to analyze
+        pred_model: The prediction model with 'model' and 'feature_columns'
+        tick_rate: Tick rate of the demo (default: 64)
+        file_name: Name of the demo file for reference
+    
+    Returns:
+        List of dictionaries containing tick number, time, probability, and game state info
+    """
+    # Prepare demo data
+    dem = {}
+    for name in ['kills', 'rounds', 'ticks']:
+        df = getattr(dem_file, name, None)
+        if df is None:
+            tqdm.write(f"Warning: Missing '{name}' in dem")
+            return []
+        if not isinstance(df, pl.DataFrame):
+            df = pl.from_pandas(df)
+        dem[name] = df
+    
+    # Get the specific round
+    round_data = dem['rounds'].filter(pl.col('round_num') == round_num)
+    if round_data.height == 0:
+        tqdm.write(f"Error: Round {round_num} not found")
+        return []
+    
+    round_row = round_data.row(0, named=True)
+    freeze_end = round_row['freeze_end']
+    end_tick = round_row['end']
+    
+    if freeze_end is None:
+        if round_num == 1:
+            freeze_end = 200
+        else:
+            tqdm.write(f"Error: Round {round_num} has no freeze_end tick")
+            return []
+    
+    if end_tick is None:
+        tqdm.write(f"Error: Round {round_num} has no end tick")
+        return []
+    
+    # Calculate probabilities for every tick from freeze_end to end_tick
+    tick_probabilities = []
+    
+    for current_tick in tqdm(range(freeze_end, end_tick + 1), 
+                            desc=f"Calculating probabilities for round {round_num}",
+                            leave=False):
+        snapshot = create_snapshot(current_tick, round_row, dem, tick_rate, file_name)
+        
+        if snapshot is None:
+            continue
+        
+        try:
+            ct_win_prob = predict(pred_model, snapshot)
+            
+            tick_probabilities.append({
+                'tick': current_tick,
+                'time_elapsed': (current_tick - freeze_end) / tick_rate,
+                'time_left': snapshot['time_left'],
+                'ct_win_probability': float(ct_win_prob),
+                't_win_probability': float(1 - ct_win_prob),
+                'cts_alive': snapshot['cts_alive'],
+                'ts_alive': snapshot['ts_alive'],
+                'bomb_planted': snapshot['bomb_planted'],
+                'hp_ct': snapshot['hp_ct'],
+                'hp_t': snapshot['hp_t']
+            })
+        except Exception as e:
+            tqdm.write(f"Warning: Failed to predict at tick {current_tick}: {e}")
+            continue
+    
+    return tick_probabilities
+
+
 def get_player_kill_death_analysis(dem_file, player_name, pred_model, debug=False):
     """
     Analyze kills and deaths for a specific player with impact scoring.
@@ -195,7 +280,7 @@ def get_player_kill_death_analysis(dem_file, player_name, pred_model, debug=Fals
         round_kills = dem['kills'].filter(pl.col('round_num') == round_num)
 
         relevant_kills = round_kills.filter(
-            (pl.col("attacker_name") == player_name) | (pl.col("victim_name") == player_name)
+            (pl.col("attacker_name") == player_name) | (pl.col("victim_name") == player_name) | (pl.col("assister_name") == player_name)
         )
 
 
@@ -219,11 +304,21 @@ def get_player_kill_death_analysis(dem_file, player_name, pred_model, debug=Fals
             kill_row = relevant_kills.filter(pl.col("tick") == current_tick)
             attacker_was_ct = 'ct' in kill_row['attacker_side'].to_list()
             was_kill = player_name in kill_row['attacker_name'].to_list()
+            was_assist = player_name in kill_row['assister_name'].to_list()
+            kill_had_an_assist = len(kill_row['assister_name'])
 
             impact = (ct_win_after - ct_win_before) * 100
 
-            event_impact = abs(impact) if was_kill else -abs(impact)
+            assist_cred = 0.4
+            kill_cred = 1.0 if not kill_had_an_assist else (1.0 - assist_cred)
 
+            if was_kill:
+                event_impact = abs(impact) * kill_cred
+            elif was_assist:
+                event_impact = abs(impact) * assist_cred
+            else:
+                event_impact = -abs(impact)
+                
             # Summarize kills/deaths for this round
             deaths_so_far = round_kills.filter(pl.col('tick') < current_tick)
 
@@ -236,6 +331,7 @@ def get_player_kill_death_analysis(dem_file, player_name, pred_model, debug=Fals
                 bomb_planted = False
 
             plant_str = ' (post)' if bomb_planted else ''
+            assist_str = ' (a)' if was_assist else ''
 
             results.append({
                 'round': int(round_num),
@@ -247,7 +343,7 @@ def get_player_kill_death_analysis(dem_file, player_name, pred_model, debug=Fals
                 'event_round': round_num,
                 'event_type': 0,
                 'event_impact': event_impact,
-                'game_state': f'{5 - t_deaths}v{5 - ct_deaths}' if player_side == 't' else  f'{5 - ct_deaths}v{5 - t_deaths}' + plant_str,
+                'game_state': (f'{5 - t_deaths}v{5 - ct_deaths}'  if player_side == 't' else  f'{5 - ct_deaths}v{5 - t_deaths}') + plant_str + assist_str,
                 'pre_win': float(ct_win_before if player_side == 'ct' else (1-ct_win_before)),
                 'post_win': float(ct_win_after if player_side == 'ct' else (1-ct_win_after)),
                 'weapon': '',
