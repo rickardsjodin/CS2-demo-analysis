@@ -305,7 +305,7 @@ def get_player_kill_death_analysis(dem_file, player_name, pred_model, debug=Fals
             attacker_was_ct = 'ct' in kill_row['attacker_side'].to_list()
             was_kill = player_name in kill_row['attacker_name'].to_list()
             was_assist = player_name in kill_row['assister_name'].to_list()
-            kill_had_an_assist = len(kill_row['assister_name'])
+            kill_had_an_assist = kill_row['assister_name'].to_list()[0] != None
 
             impact = (ct_win_after - ct_win_before) * 100
 
@@ -314,8 +314,10 @@ def get_player_kill_death_analysis(dem_file, player_name, pred_model, debug=Fals
 
             if was_kill:
                 event_impact = abs(impact) * kill_cred
+                assist_str = ' (-)' if kill_had_an_assist else ''
             elif was_assist:
                 event_impact = abs(impact) * assist_cred
+                assist_str = ' (a)'
             else:
                 event_impact = -abs(impact)
                 
@@ -331,7 +333,6 @@ def get_player_kill_death_analysis(dem_file, player_name, pred_model, debug=Fals
                 bomb_planted = False
 
             plant_str = ' (post)' if bomb_planted else ''
-            assist_str = ' (a)' if was_assist else ''
 
             results.append({
                 'round': int(round_num),
