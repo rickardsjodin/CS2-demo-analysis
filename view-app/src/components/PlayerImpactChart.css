@@ -28,6 +28,16 @@
   background: rgba(244, 67, 54, 0.1);
 }
 
+.stat-card.ct-side-card {
+  border-color: rgba(33, 150, 243, 0.5);
+  background: rgba(33, 150, 243, 0.1);
+}
+
+.stat-card.t-side-card {
+  border-color: rgba(255, 152, 0, 0.5);
+  background: rgba(255, 152, 0, 0.1);
+}
+
 .stat-label {
   font-size: 0.85rem;
   color: #aaa;
@@ -48,6 +58,14 @@
 
 .stat-card.negative .stat-value {
   color: #f44336;
+}
+
+.stat-card.ct-side-card .stat-value {
+  color: #2196f3;
+}
+
+.stat-card.t-side-card .stat-value {
+  color: #ff9800;
 }
 
 /* Bar Chart */

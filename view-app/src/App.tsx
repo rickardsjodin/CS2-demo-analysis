@@ -15,12 +15,15 @@ import type {
   BinningValues,
   PredictionWithBinning,
   FeatureRangeAnalysis,
+  PlayerAnalysisEvent,
 } from './types';
 
 function App() {
   const [activeTab, setActiveTab] = useState<'prediction' | 'demo-analysis'>(
     'prediction'
   );
+
+  // Prediction tab state
   const [models, setModels] = useState<{ [key: string]: Model }>({});
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [features, setFeatures] = useState<Feature[]>([]);
@@ -32,6 +35,15 @@ function App() {
   const [rangeAnalysis, setRangeAnalysis] =
     useState<FeatureRangeAnalysis | null>(null);
   const timeout = useRef<any>(null);
+
+  // Demo analysis tab state
+  const [demoId, setDemoId] = useState<string | null>(null);
+  const [demoFilename, setDemoFilename] = useState<string | null>(null);
+  const [demoPlayers, setDemoPlayers] = useState<string[]>([]);
+  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
+  const [analysisData, setAnalysisData] = useState<
+    PlayerAnalysisEvent[] | null
+  >(null);
 
   const featureValues = useMemo(() => {
     const contrained = applyContraints(featureValuesRaw);
@@ -506,7 +518,30 @@ function App() {
         </main>
       ) : (
         <main className='main-content'>
-          <DemoAnalysis />
+          <DemoAnalysis
+            demoId={demoId}
+            filename={demoFilename}
+            players={demoPlayers}
+            selectedPlayer={selectedPlayer}
+            analysisData={analysisData}
+            onDemoUpload={(id, name, playerList) => {
+              setDemoId(id);
+              setDemoFilename(name);
+              setDemoPlayers(playerList);
+              setSelectedPlayer(null);
+              setAnalysisData(null);
+            }}
+            onPlayerSelect={(playerName) => {
+              setSelectedPlayer(playerName);
+              setAnalysisData(null);
+            }}
+            onAnalysisComplete={(data) => {
+              setAnalysisData(data);
+            }}
+            onError={(errorMsg) => {
+              setError(errorMsg);
+            }}
+          />
         </main>
       )}
     </div>

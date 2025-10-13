@@ -38,15 +38,85 @@ STATIC_DIR.mkdir(exist_ok=True)
 loaded_models = {}
 model_summary = {}
 
-# Storage for uploaded demos (in production, use proper storage)
+# Storage for uploaded demos (persistent across restarts)
 uploaded_demos = {}  # demo_id -> demo_data
-UPLOAD_FOLDER = Path(tempfile.gettempdir()) / "cs2_demo_uploads"
-UPLOAD_FOLDER.mkdir(exist_ok=True)
+UPLOAD_FOLDER = PROJECT_ROOT / "cache" / "demo_uploads"
+UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
+DEMO_METADATA_FILE = UPLOAD_FOLDER / "demos_metadata.json"
 ALLOWED_EXTENSIONS = {'dem'}
 
 def allowed_file(filename):
     """Check if uploaded file has allowed extension"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def save_demo_metadata():
+    """Save demo metadata to disk"""
+    metadata = {}
+    for demo_id, demo_data in uploaded_demos.items():
+        metadata[demo_id] = {
+            'filename': demo_data['filename'],
+            'players': demo_data['players'],
+            'path': str(demo_data['path'])
+        }
+    
+    with open(DEMO_METADATA_FILE, 'w') as f:
+        json.dump(metadata, f, indent=2)
+
+def load_demo_metadata():
+    """Load demo metadata from disk on startup"""
+    global uploaded_demos
+    
+    if not DEMO_METADATA_FILE.exists():
+        return
+    
+    try:
+        with open(DEMO_METADATA_FILE, 'r') as f:
+            metadata = json.load(f)
+        
+        print(f"📂 Loading {len(metadata)} cached demos...")
+        
+        for demo_id, demo_info in metadata.items():
+            demo_path = Path(demo_info['path'])
+            
+            # Check if demo file still exists
+            if not demo_path.exists():
+                print(f"⚠️ Demo file not found: {demo_path}")
+                continue
+            
+            # Store minimal metadata (don't parse demo yet for performance)
+            uploaded_demos[demo_id] = {
+                'filename': demo_info['filename'],
+                'players': demo_info['players'],
+                'path': demo_path,
+                'demo': None  # Will be loaded on demand
+            }
+        
+        print(f"✅ Loaded {len(uploaded_demos)} demos from cache")
+        
+    except Exception as e:
+        print(f"❌ Error loading demo metadata: {e}")
+        uploaded_demos = {}
+
+def get_or_parse_demo(demo_id):
+    """Get demo object, parsing it if not already loaded"""
+    if demo_id not in uploaded_demos:
+        return None
+    
+    demo_data = uploaded_demos[demo_id]
+    
+    # If demo not parsed yet, parse it now
+    if demo_data['demo'] is None:
+        try:
+            print(f"🔄 Parsing demo: {demo_data['filename']}")
+            dem = Demo(str(demo_data['path']))
+            dem.parse(player_props=['armor_value', 'has_helmet', 'has_defuser', 'inventory'])
+            demo_data['demo'] = dem
+            print(f"✅ Demo parsed: {demo_data['filename']}")
+        except Exception as e:
+            print(f"❌ Error parsing demo: {e}")
+            raise
+    
+    return demo_data['demo']
 
 
 
@@ -405,13 +475,16 @@ def upload_demo():
         ticks_df = dem.ticks if isinstance(dem.ticks, pl.DataFrame) else pl.from_pandas(dem.ticks)
         players = sorted(ticks_df['name'].unique().to_list())
         
-        # Store demo data in memory (in production, use Redis or similar)
+        # Store demo data persistently
         uploaded_demos[demo_id] = {
             'filename': filename,
             'demo': dem,
             'players': players,
             'path': demo_path
         }
+        
+        # Save metadata to disk
+        save_demo_metadata()
         
         return jsonify({
             'success': True,
@@ -426,6 +499,7 @@ def upload_demo():
         print(traceback.format_exc())
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
 @app.route('/api/demo/<demo_id>/player/<player_name>/analysis', methods=['GET'])
 def analyze_player(demo_id, player_name):
     """Get kill/death analysis for a specific player in an uploaded demo"""
@@ -436,7 +510,6 @@ def analyze_player(demo_id, player_name):
             return jsonify({'success': False, 'error': 'Demo not found'}), 404
         
         demo_data = uploaded_demos[demo_id]
-        dem = demo_data['demo']
         
         # Check if player exists
         if player_name not in demo_data['players']:
@@ -444,8 +517,13 @@ def analyze_player(demo_id, player_name):
         
         print(f"🔍 Analyzing player: {player_name} in {demo_data['filename']}")
         
+        # Get or parse demo (lazy loading)
+        dem = get_or_parse_demo(demo_id)
+        if dem is None:
+            return jsonify({'success': False, 'error': 'Failed to load demo'}), 500
+        
         # Run analysis
-        analysis_results = get_player_kill_death_analysis(dem, player_name, loaded_models['xgboost_minimal'], debug=False)
+        analysis_results = get_player_kill_death_analysis(dem, player_name, loaded_models['xgboost_hltv'], debug=False)
         
         if analysis_results is None or len(analysis_results) == 0:
             return jsonify({'success': False, 'error': 'No analysis data generated'}), 500
@@ -501,6 +579,9 @@ def delete_demo(demo_id):
         # Remove from memory
         del uploaded_demos[demo_id]
         
+        # Update metadata file
+        save_demo_metadata()
+        
         return jsonify({'success': True, 'message': 'Demo deleted successfully'})
         
     except Exception as e:
@@ -510,6 +591,9 @@ def delete_demo(demo_id):
 if __name__ == '__main__':
     print("🎮 CS2 Win Probability Prediction App")
     print("=" * 50)
+    
+    # Load cached demos from disk
+    load_demo_metadata()
     
     # Load model summary on startup
     load_model_summary()

@@ -245,7 +245,7 @@ def get_player_kill_death_analysis(dem_file, player_name, pred_model, debug=Fals
     """
 
     dem = {}
-    for name in ['kills', 'rounds', 'ticks']:
+    for name in ['kills', 'rounds', 'ticks', 'damages']:
         df = getattr(dem_file, name, None)
         if df is None:
             tqdm.write(f"Warning: Missing '{name}' in dem")
@@ -278,15 +278,21 @@ def get_player_kill_death_analysis(dem_file, player_name, pred_model, debug=Fals
             continue
 
         round_kills = dem['kills'].filter(pl.col('round_num') == round_num)
+        round_damages = dem['damages'].filter(pl.col('round_num') == round_num)
+
+        relevant_damages = round_damages.filter(
+            (pl.col("attacker_name") == player_name)
+        )
+        damaged_victims = relevant_damages['victim_name'].to_list()
 
         relevant_kills = round_kills.filter(
-            (pl.col("attacker_name") == player_name) | (pl.col("victim_name") == player_name) | (pl.col("assister_name") == player_name)
+            (pl.col("attacker_name") == player_name) | 
+            (pl.col("victim_name") == player_name) | 
+            (pl.col('victim_name').is_in(damaged_victims)) |
+            (pl.col('assister_name') == player_name)
         )
 
-
         snapshot_ticks = sorted(set(relevant_kills['tick'].to_list()))
-
-        pause = round_num == 7 and player_name == "siuhy"
 
         for current_tick in snapshot_ticks:
             snapshot_before = create_snapshot(current_tick - 1, round_row, dem, 64, player_name)
@@ -295,30 +301,38 @@ def get_player_kill_death_analysis(dem_file, player_name, pred_model, debug=Fals
             if snapshot_before is None:
                 continue
 
-            ct_win_before = predict(pred_model, snapshot_before)
-            ct_win_after = predict(pred_model, snapshot_after)
+            round_winning_kill = current_tick + 1 >= round_end
 
-            if pause:
-                pass
+            ct_win_before = predict(pred_model, snapshot_before)
+            ct_win_after = predict(pred_model, snapshot_after) if not round_winning_kill else (1 if round_winner == 'ct' else 0)
 
             kill_row = relevant_kills.filter(pl.col("tick") == current_tick)
             attacker_was_ct = 'ct' in kill_row['attacker_side'].to_list()
+            attacker = kill_row['attacker_name'].to_list()[0]
+
             was_kill = player_name in kill_row['attacker_name'].to_list()
-            was_assist = player_name in kill_row['assister_name'].to_list()
+            was_flash_assist = player_name in kill_row['assister_name'].to_list() and kill_row['assistedflash'][0]
+            was_assist = not was_kill and player_name not in kill_row['victim_name'].to_list() or was_flash_assist
+            was_death = not was_kill and not was_assist
+
+
+            assist_damage = relevant_damages.filter(pl.col('victim_name') == kill_row['victim_name'])['dmg_health'].sum()
             kill_had_an_assist = kill_row['assister_name'].to_list()[0] != None
 
             impact = (ct_win_after - ct_win_before) * 100
 
-            assist_cred = 0.4
+            assist_weight = 0.5
+            assist_cred = (assist_damage / 100) * assist_weight if not was_flash_assist else assist_weight
             kill_cred = 1.0 if not kill_had_an_assist else (1.0 - assist_cred)
 
             if was_kill:
                 event_impact = abs(impact) * kill_cred
-                assist_str = ' (-)' if kill_had_an_assist else ''
+                assist_str = ' kill' +  (' (shared)' if kill_had_an_assist else '')
             elif was_assist:
                 event_impact = abs(impact) * assist_cred
-                assist_str = ' (a)'
+                assist_str = ' assist' + (" (f)" if was_flash_assist else "")
             else:
+                assist_str = ' death'
                 event_impact = -abs(impact)
                 
             # Summarize kills/deaths for this round
@@ -332,7 +346,7 @@ def get_player_kill_death_analysis(dem_file, player_name, pred_model, debug=Fals
             else:
                 bomb_planted = False
 
-            plant_str = ' (post)' if bomb_planted else ''
+            plant_str = ' (pp)' if bomb_planted else ''
 
             results.append({
                 'round': int(round_num),
@@ -344,7 +358,7 @@ def get_player_kill_death_analysis(dem_file, player_name, pred_model, debug=Fals
                 'event_round': round_num,
                 'event_type': 0,
                 'event_impact': event_impact,
-                'game_state': (f'{5 - t_deaths}v{5 - ct_deaths}'  if player_side == 't' else  f'{5 - ct_deaths}v{5 - t_deaths}') + plant_str + assist_str,
+                'game_state': (f'{5 - t_deaths}v{5 - ct_deaths}'  if player_side == 't' else  f'{5 - ct_deaths}v{5 - t_deaths}')  + assist_str + plant_str,
                 'pre_win': float(ct_win_before if player_side == 'ct' else (1-ct_win_before)),
                 'post_win': float(ct_win_after if player_side == 'ct' else (1-ct_win_after)),
                 'weapon': '',
@@ -352,6 +366,47 @@ def get_player_kill_death_analysis(dem_file, player_name, pred_model, debug=Fals
                 'post_plant': bomb_planted,
                 'tick': current_tick
             })
+
+            if was_death:
+                # Was death traded within 5 seconds?
+                tick_in_5_sec = current_tick + (64 * 5)
+                attacker_death = round_kills.filter(
+                        (pl.col("victim_name") == attacker) & 
+                        (pl.col('tick') < tick_in_5_sec)
+                    )
+                if attacker_death.height > 0:
+                    trade_tick = attacker_death['tick'][0]
+                    trade_snapshot_before = create_snapshot(trade_tick - 1, round_row, dem, 64, player_name)
+                    trade_snapshot_after = create_snapshot(trade_tick, round_row, dem, 64, player_name)
+                    trade_ct_win_before = predict(pred_model, trade_snapshot_before)
+                    trade_ct_win_after = predict(pred_model, trade_snapshot_after)
+                    trade_impact = abs((trade_ct_win_after - trade_ct_win_before)) * 100
+                    trade_weight = 0.5
+                    trade_cred = trade_impact * trade_weight
+
+                    if plant_tick is not None and trade_tick >= plant_tick:
+                        bomb_planted = True
+                    else:
+                        bomb_planted = False
+
+                    results.append({
+                        'round': int(round_num),
+                        'side': player_side,
+                        'kills': '',
+                        'deaths': '',
+                        'impact': float(round(trade_cred, 1)),
+                        'event_id': 0,
+                        'event_round': round_num,
+                        'event_type': 0,
+                        'event_impact': trade_cred,
+                        'game_state': (f'{5 - t_deaths}v{5 - ct_deaths}'  if player_side == 't' else  f'{5 - ct_deaths}v{5 - t_deaths}') + " traded" + plant_str,
+                        'pre_win': float(trade_ct_win_before if player_side == 'ct' else (1-trade_ct_win_before)),
+                        'post_win': float(trade_ct_win_after if player_side == 'ct' else (1-trade_ct_win_after)),
+                        'weapon': '',
+                        'victim': '',
+                        'post_plant': bomb_planted,
+                        'tick': trade_tick
+                    })
 
 
         did_player_survive_round = round_kills.filter(pl.col("victim_name") == player_name).height == 0

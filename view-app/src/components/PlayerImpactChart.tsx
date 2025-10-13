@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { PlayerAnalysisEvent } from '../types';
 import ImpactCanvasChart from './ImpactCanvasChart';
+import GroupedEventsList from './GroupedEventsList';
 import './PlayerImpactChart.css';
 
 interface PlayerImpactChartProps {
@@ -40,16 +41,51 @@ function PlayerImpactChart({ data, playerName }: PlayerImpactChartProps) {
 
   // Calculate statistics
   const stats = useMemo(() => {
-    const totalImpact = roundData.reduce((sum, r) => sum + r.impact, 0);
-    const positiveImpact = roundData.reduce(
-      (sum, r) => sum + (r.impact > 0 ? r.impact : 0),
+    // Calculate totals from individual events (not aggregated rounds)
+    const totalImpact = data.reduce((sum, e) => sum + e.impact, 0);
+    const positiveImpact = data.reduce(
+      (sum, e) => sum + (e.impact > 0 ? e.impact : 0),
       0
     );
-    const negativeImpact = roundData.reduce(
-      (sum, r) => sum + (r.impact < 0 ? r.impact : 0),
+    const negativeImpact = data.reduce(
+      (sum, e) => sum + (e.impact < 0 ? e.impact : 0),
       0
     );
     const avgImpact = totalImpact / roundData.length;
+
+    // Calculate per-side statistics using original event data
+    const ctEvents = data.filter((e) => e.side === 'ct');
+    const tEvents = data.filter((e) => e.side === 't');
+
+    // Per-side totals (from original events, not aggregated rounds)
+    const ctTotalImpact = ctEvents.reduce((sum, e) => sum + e.impact, 0);
+    const tTotalImpact = tEvents.reduce((sum, e) => sum + e.impact, 0);
+
+    // Per-side positive/negative impacts (from original events)
+    const ctPositiveImpact = ctEvents.reduce(
+      (sum, e) => sum + (e.impact > 0 ? e.impact : 0),
+      0
+    );
+    const ctNegativeImpact = ctEvents.reduce(
+      (sum, e) => sum + (e.impact < 0 ? e.impact : 0),
+      0
+    );
+    const tPositiveImpact = tEvents.reduce(
+      (sum, e) => sum + (e.impact > 0 ? e.impact : 0),
+      0
+    );
+    const tNegativeImpact = tEvents.reduce(
+      (sum, e) => sum + (e.impact < 0 ? e.impact : 0),
+      0
+    );
+
+    // Count rounds per side
+    const ctRounds = roundData.filter((r) => r.side === 'ct');
+    const tRounds = roundData.filter((r) => r.side === 't');
+
+    const ctAvgImpact =
+      ctRounds.length > 0 ? ctTotalImpact / ctRounds.length : 0;
+    const tAvgImpact = tRounds.length > 0 ? tTotalImpact / tRounds.length : 0;
 
     return {
       totalImpact: totalImpact.toFixed(1),
@@ -57,14 +93,16 @@ function PlayerImpactChart({ data, playerName }: PlayerImpactChartProps) {
       positiveImpact: positiveImpact.toFixed(1),
       negativeImpact: negativeImpact.toFixed(1),
       rounds: roundData.length,
+      ctAvgImpact: ctAvgImpact.toFixed(1),
+      tAvgImpact: tAvgImpact.toFixed(1),
+      ctRounds: ctRounds.length,
+      tRounds: tRounds.length,
+      ctPositiveImpact: ctPositiveImpact.toFixed(1),
+      ctNegativeImpact: ctNegativeImpact.toFixed(1),
+      tPositiveImpact: tPositiveImpact.toFixed(1),
+      tNegativeImpact: tNegativeImpact.toFixed(1),
     };
-  }, [roundData]);
-
-  // Find max absolute impact for scaling
-  const maxImpact = useMemo(
-    () => Math.max(...roundData.map((r) => Math.abs(r.impact))),
-    [roundData]
-  );
+  }, [roundData, data]);
 
   return (
     <div className='player-impact-chart'>
@@ -88,6 +126,42 @@ function PlayerImpactChart({ data, playerName }: PlayerImpactChartProps) {
         </div>
       </div>
 
+      {/* Per-Side Statistics */}
+      <div className='stats-summary'>
+        <div className='stat-card ct-side-card'>
+          <div className='stat-label'>
+            CT Avg Impact ({stats.ctRounds} rounds)
+          </div>
+          <div className='stat-value'>{stats.ctAvgImpact}</div>
+        </div>
+        <div className='stat-card t-side-card'>
+          <div className='stat-label'>
+            T Avg Impact ({stats.tRounds} rounds)
+          </div>
+          <div className='stat-value'>{stats.tAvgImpact}</div>
+        </div>
+      </div>
+
+      {/* Per-Side Positive/Negative Impact */}
+      <div className='stats-summary'>
+        <div className='stat-card ct-side-card positive'>
+          <div className='stat-label'>CT Positive Impact</div>
+          <div className='stat-value'>+{stats.ctPositiveImpact}</div>
+        </div>
+        <div className='stat-card ct-side-card negative'>
+          <div className='stat-label'>CT Negative Impact</div>
+          <div className='stat-value'>{stats.ctNegativeImpact}</div>
+        </div>
+        <div className='stat-card t-side-card positive'>
+          <div className='stat-label'>T Positive Impact</div>
+          <div className='stat-value'>+{stats.tPositiveImpact}</div>
+        </div>
+        <div className='stat-card t-side-card negative'>
+          <div className='stat-label'>T Negative Impact</div>
+          <div className='stat-value'>{stats.tNegativeImpact}</div>
+        </div>
+      </div>
+
       {/* Canvas-based Individual Impact Chart */}
       <div className='canvas-chart-container'>
         <h3>Individual Impact Events by Round</h3>
@@ -99,77 +173,8 @@ function PlayerImpactChart({ data, playerName }: PlayerImpactChartProps) {
         />
       </div>
 
-      {/* Bar Chart - Aggregated by Round */}
-      <div className='chart-container'>
-        <h3>Aggregated Impact by Round</h3>
-        <div className='chart'>
-          {roundData.map((round) => {
-            const heightPercent = (Math.abs(round.impact) / maxImpact) * 100;
-            const isPositive = round.impact >= 0;
-
-            return (
-              <div key={round.round} className='chart-bar-wrapper'>
-                <div
-                  className={`chart-bar ${
-                    isPositive ? 'positive' : 'negative'
-                  } ${round.side === 'ct' ? 'ct-side' : 't-side'}`}
-                  style={{
-                    height: `${Math.max(heightPercent, 2)}%`,
-                  }}
-                  title={`Round ${round.round}: ${round.impact.toFixed(
-                    1
-                  )} (${round.side.toUpperCase()})`}
-                >
-                  <span className='bar-value'>{round.impact.toFixed(1)}</span>
-                </div>
-                <div className='chart-label'>{round.round}</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Event Details Table */}
-      <div className='events-table-container'>
-        <h3>Event Details</h3>
-        <table className='events-table'>
-          <thead>
-            <tr>
-              <th>Round</th>
-              <th>Side</th>
-              <th>Game State</th>
-              <th>Impact</th>
-              <th>Pre Win %</th>
-              <th>Post Win %</th>
-              <th>Post Plant</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((event, idx) => (
-              <tr key={idx}>
-                <td>{event.round}</td>
-                <td>
-                  <span className={`side-badge ${event.side}`}>
-                    {event.side.toUpperCase()}
-                  </span>
-                </td>
-                <td>{event.game_state}</td>
-                <td
-                  className={
-                    event.impact >= 0 ? 'positive-impact' : 'negative-impact'
-                  }
-                >
-                  {event.impact >= 0 ? '+' : ''}
-                  {event.impact.toFixed(1)}
-                </td>
-                <td>{(event.pre_win * 100).toFixed(1)}%</td>
-                <td>{(event.post_win * 100).toFixed(1)}%</td>
-                <td>{event.post_plant ? '💣' : '-'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* Grouped Events List */}
+      <GroupedEventsList data={data} playerName={playerName} />
     </div>
   );
 }
