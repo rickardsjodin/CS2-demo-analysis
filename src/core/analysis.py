@@ -384,6 +384,12 @@ def get_player_kill_death_analysis(dem_file, player_name, pred_model, debug=Fals
                     trade_weight = 0.5
                     trade_cred = trade_impact * trade_weight
 
+
+                    deaths_so_far = round_kills.filter(pl.col('tick') < trade_tick)
+
+                    ct_deaths = deaths_so_far.filter(pl.col('victim_side') == 'ct').height
+                    t_deaths = deaths_so_far.filter(pl.col('victim_side') == 't').height
+
                     if plant_tick is not None and trade_tick >= plant_tick:
                         bomb_planted = True
                     else:
