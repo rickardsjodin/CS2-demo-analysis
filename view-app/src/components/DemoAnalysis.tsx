@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { API_ENDPOINTS } from '../config/api';
 import type {
   DemoUploadResponse,
-  PlayerAnalysisResponse,
   AllPlayersAnalysisResponse,
   PlayerAnalysisEvent,
 } from '../types';
@@ -39,7 +38,6 @@ function DemoAnalysis({
     string,
     PlayerAnalysisEvent[]
   > | null>(null);
-  const [useV2Api, setUseV2Api] = useState(true); // Try v2 first, fallback to v1
 
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -89,7 +87,7 @@ function DemoAnalysis({
 
     onPlayerSelect(playerName);
 
-    // If we already have all players data (v2), use cached data
+    // If we already have all players data, use cached data
     if (allPlayersData && allPlayersData[playerName]) {
       onAnalysisComplete(allPlayersData[playerName]);
       return;
@@ -99,48 +97,29 @@ function DemoAnalysis({
     setError(null);
 
     try {
-      // Try v2 API first (all players at once)
-      if (useV2Api && !allPlayersData) {
-        try {
-          const v2Response = await fetch(
-            API_ENDPOINTS.allPlayersAnalysis(demoId)
-          );
-          const v2Data: AllPlayersAnalysisResponse = await v2Response.json();
-
-          if (v2Data.success && v2Data.analysis) {
-            // Cache all players data
-            setAllPlayersData(v2Data.analysis);
-
-            // Set current player's data
-            if (v2Data.analysis[playerName]) {
-              onAnalysisComplete(v2Data.analysis[playerName]);
-              setError(null);
-              setAnalyzing(false);
-              return;
-            }
-          }
-        } catch (v2Error) {
-          console.warn('V2 API failed, falling back to V1:', v2Error);
-          setUseV2Api(false);
-        }
-      }
-
-      // Fallback to v1 API (single player)
-      const response = await fetch(
-        API_ENDPOINTS.playerAnalysis(demoId, playerName)
-      );
-      const data: PlayerAnalysisResponse = await response.json();
+      const response = await fetch(API_ENDPOINTS.allPlayersAnalysis(demoId));
+      const data: AllPlayersAnalysisResponse = await response.json();
 
       if (data.success && data.analysis) {
-        onAnalysisComplete(data.analysis);
-        setError(null);
+        // Cache all players data
+        setAllPlayersData(data.analysis);
+
+        // Set current player's data
+        if (data.analysis[playerName]) {
+          onAnalysisComplete(data.analysis[playerName]);
+          setError(null);
+        } else {
+          const errorMsg = `No data found for player ${playerName}`;
+          setError(errorMsg);
+          onError(errorMsg);
+        }
       } else {
-        const errorMsg = data.error || 'Failed to analyze player';
+        const errorMsg = data.error || 'Failed to analyze players';
         setError(errorMsg);
         onError(errorMsg);
       }
     } catch (err) {
-      const errorMsg = 'Error analyzing player: ' + (err as Error).message;
+      const errorMsg = 'Error analyzing players: ' + (err as Error).message;
       setError(errorMsg);
       onError(errorMsg);
     } finally {
