@@ -223,7 +223,8 @@ function ImpactCanvasChart({
             );
             ctx.rotate(-Math.PI / 3); // 60 degrees
             // Shorten long game state labels
-            const stateLabel = event.game_state;
+            const stateLabel =
+              event.game_state + ' ' + String(event.event_type);
             ctx.fillText(stateLabel, 0, 0);
             ctx.restore();
           }

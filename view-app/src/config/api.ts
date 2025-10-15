@@ -15,5 +15,7 @@ export const API_ENDPOINTS = {
   demoUpload: `${API_BASE_URL}/api/demo/upload`,
   playerAnalysis: (demoId: string, playerName: string) =>
     `${API_BASE_URL}/api/demo/${demoId}/player/${playerName}/analysis`,
+  allPlayersAnalysis: (demoId: string) =>
+    `${API_BASE_URL}/api/demo/${demoId}/analysis`, // v2: all players at once
   deleteDemo: (demoId: string) => `${API_BASE_URL}/api/demo/${demoId}`,
 } as const;

@@ -3,6 +3,7 @@ import { API_ENDPOINTS } from '../config/api';
 import type {
   DemoUploadResponse,
   PlayerAnalysisResponse,
+  AllPlayersAnalysisResponse,
   PlayerAnalysisEvent,
 } from '../types';
 import PlayerImpactChart from './PlayerImpactChart';
@@ -34,6 +35,11 @@ function DemoAnalysis({
   const [uploading, setUploading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [allPlayersData, setAllPlayersData] = useState<Record<
+    string,
+    PlayerAnalysisEvent[]
+  > | null>(null);
+  const [useV2Api, setUseV2Api] = useState(true); // Try v2 first, fallback to v1
 
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -82,10 +88,44 @@ function DemoAnalysis({
     if (!demoId) return;
 
     onPlayerSelect(playerName);
+
+    // If we already have all players data (v2), use cached data
+    if (allPlayersData && allPlayersData[playerName]) {
+      onAnalysisComplete(allPlayersData[playerName]);
+      return;
+    }
+
     setAnalyzing(true);
     setError(null);
 
     try {
+      // Try v2 API first (all players at once)
+      if (useV2Api && !allPlayersData) {
+        try {
+          const v2Response = await fetch(
+            API_ENDPOINTS.allPlayersAnalysis(demoId)
+          );
+          const v2Data: AllPlayersAnalysisResponse = await v2Response.json();
+
+          if (v2Data.success && v2Data.analysis) {
+            // Cache all players data
+            setAllPlayersData(v2Data.analysis);
+
+            // Set current player's data
+            if (v2Data.analysis[playerName]) {
+              onAnalysisComplete(v2Data.analysis[playerName]);
+              setError(null);
+              setAnalyzing(false);
+              return;
+            }
+          }
+        } catch (v2Error) {
+          console.warn('V2 API failed, falling back to V1:', v2Error);
+          setUseV2Api(false);
+        }
+      }
+
+      // Fallback to v1 API (single player)
       const response = await fetch(
         API_ENDPOINTS.playerAnalysis(demoId, playerName)
       );

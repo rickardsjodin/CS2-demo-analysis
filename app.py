@@ -16,7 +16,7 @@ import tempfile
 import os
 from src.ml.train_win_probability_model import load_and_prepare_data
 from src.utils.cache_utils import load_demo
-from src.core.analysis import get_player_kill_death_analysis
+from src.core.analysis import get_player_kill_death_analysis, get_kill_death_analysis
 from awpy import Demo
 
 app = Flask(__name__)
@@ -502,7 +502,7 @@ def upload_demo():
 
 @app.route('/api/demo/<demo_id>/player/<player_name>/analysis', methods=['GET'])
 def analyze_player(demo_id, player_name):
-    """Get kill/death analysis for a specific player in an uploaded demo"""
+    """Get kill/death analysis for a specific player in an uploaded demo (v1 API)"""
     global loaded_models
     try:
         # Check if demo exists
@@ -555,7 +555,69 @@ def analyze_player(demo_id, player_name):
             'success': True,
             'player_name': player_name,
             'demo_filename': demo_data['filename'],
-            'analysis': analysis_results_serializable
+            'analysis': analysis_results_serializable,
+            'version': 1
+        })
+        
+    except Exception as e:
+        print(f"❌ Analysis error: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/demo/<demo_id>/analysis', methods=['GET'])
+def analyze_all_players(demo_id):
+    """Get kill/death analysis for all players in an uploaded demo (v2 API)"""
+    global loaded_models
+    try:
+        # Check if demo exists
+        if demo_id not in uploaded_demos:
+            return jsonify({'success': False, 'error': 'Demo not found'}), 404
+        
+        demo_data = uploaded_demos[demo_id]
+        
+        print(f"🔍 Analyzing all players in {demo_data['filename']}")
+        
+        # Get or parse demo (lazy loading)
+        dem = get_or_parse_demo(demo_id)
+        if dem is None:
+            return jsonify({'success': False, 'error': 'Failed to load demo'}), 500
+        
+        # Run analysis for all players at once
+        all_players_analysis = get_kill_death_analysis(dem, loaded_models['xgboost_hltv'], debug=False)
+        
+        if all_players_analysis is None or len(all_players_analysis) == 0:
+            return jsonify({'success': False, 'error': 'No analysis data generated'}), 500
+        
+        # Convert numpy/pandas types to Python native types for JSON serialization
+        def convert_to_native_types(obj):
+            """Recursively convert numpy and pandas types to Python native types"""
+            if isinstance(obj, dict):
+                return {k: convert_to_native_types(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_to_native_types(item) for item in obj]
+            elif isinstance(obj, (np.integer, np.int32, np.int64)):
+                return int(obj)
+            elif isinstance(obj, (np.floating, np.float32, np.float64)):
+                return float(obj)
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif isinstance(obj, (np.bool_, bool)):
+                return bool(obj)
+            elif pd.isna(obj):
+                return None
+            else:
+                return obj
+        
+        # Convert analysis results
+        all_players_analysis_serializable = convert_to_native_types(all_players_analysis)
+        
+        return jsonify({
+            'success': True,
+            'demo_filename': demo_data['filename'],
+            'analysis': all_players_analysis_serializable,
+            'players': demo_data['players'],
+            'version': 2
         })
         
     except Exception as e:

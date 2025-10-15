@@ -115,20 +115,21 @@ export interface FeatureRangeAnalysis {
 export interface PlayerAnalysisEvent {
   round: number;
   side: string;
-  kills: string;
-  deaths: string;
+  kills?: string;
+  deaths?: string;
   impact: number;
-  event_id: number;
+  event_id?: number;
   event_round: number;
-  event_type: number;
-  event_impact: number;
+  event_type: number | string;
+  event_impact?: number;
   game_state: string;
   pre_win: number;
   post_win: number;
-  weapon: string;
-  victim: string;
+  weapon?: string;
+  victim?: string;
   post_plant: boolean;
   tick: number;
+  trade?: boolean;
 }
 
 export interface PlayerAnalysisResponse {
@@ -137,6 +138,16 @@ export interface PlayerAnalysisResponse {
   demo_filename?: string;
   analysis?: PlayerAnalysisEvent[];
   error?: string;
+  version?: number; // API version (1 or 2)
+}
+
+export interface AllPlayersAnalysisResponse {
+  success: boolean;
+  demo_filename?: string;
+  analysis?: Record<string, PlayerAnalysisEvent[]>; // v2: player_name -> events[]
+  players?: string[];
+  error?: string;
+  version: number; // Should be 2
 }
 
 export interface DemoUploadResponse {
