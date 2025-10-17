@@ -312,9 +312,9 @@ def get_player_and_round_num_to_side_map(dem):
 def get_kill_death_analysis(dem_file, pred_model, debug=False):
 
     TRADE_LIMIT_SEC = 5
-    TRADE_KILL_FACTOR = 0.6
-    FLASH_ASSIST_FACTOR = 0.4
-    DAMAGE_ASSIST_FACTOR = 0.6
+    TRADE_VICTIM_FACTOR = 0.3
+    FLASH_ASSIST_FACTOR = 0.3
+    DAMAGE_ASSIST_FACTOR = 0.5
 
     dem = {}
     for name in ['kills', 'rounds', 'ticks', 'damages']:
@@ -343,6 +343,7 @@ def get_kill_death_analysis(dem_file, pred_model, debug=False):
         if freeze_end is None and round_num == 1:
             round_row['freeze_end'] = 200
             freeze_end = 200
+
 
         if freeze_end is None or round_row['end'] is None:
             tqdm.write(f"Skipping round {round_num} due to missing start/end ticks.")
@@ -385,11 +386,23 @@ def get_kill_death_analysis(dem_file, pred_model, debug=False):
             attacker_delta = ct_delta if attacker_side == 'ct' else -ct_delta
             victim_delta = ct_delta if victim_side == 'ct' else -ct_delta
 
-            was_trade_kill = round_kills.filter( 
-                (pl.col('tick') < tick) & 
-                (pl.col('tick') > tick - TRADE_LIMIT_SEC * TICK_RATE) &
-                (pl.col('attacker_name') == victim)
-            ).height > 0
+            previous_victims = (
+                round_kills
+                .filter(
+                    (pl.col('tick') < tick) &
+                    (pl.col('tick') > tick - TRADE_LIMIT_SEC * TICK_RATE) &
+                    (pl.col('attacker_name') == victim) &
+                    (pl.col('victim_side') != victim_side)
+                )
+                .sort('tick')  # ascending order by tick
+            )
+
+            latest_traded_victim = previous_victims[-1]['victim_name'][0] if previous_victims.height > 0 else None
+
+            was_trade_kill = previous_victims.height > 0
+
+            if was_trade_kill and attacker == 'apEX':
+                pass
 
             # FLASH ASSISTS
             if flash_assist:
@@ -430,6 +443,7 @@ def get_kill_death_analysis(dem_file, pred_model, debug=False):
                 else:
                     player_damage_contribution[dmg_attacker_name]['dmg'] += dmg
 
+            total_assist_credit = 0
             for damage_assister in player_damage_contribution.keys():
                 damage_on_victim = player_damage_contribution[damage_assister]['dmg']
                 damage_assister_side = player_damage_contribution[damage_assister]['attacker_side']
@@ -437,13 +451,14 @@ def get_kill_death_analysis(dem_file, pred_model, debug=False):
                 damage_assister_credit = attacker_delta * (damage_on_victim / 100) * DAMAGE_ASSIST_FACTOR
 
                 attacker_delta -= damage_assister_credit
+                total_assist_credit += damage_assister_credit
 
                 round_player_analysis[damage_assister].append({
                     'round': int(round_num),
                     'side': damage_assister_side,
                     'impact': float(round(damage_assister_credit * 100, 2)),
                     'event_round': round_num,
-                    'event_type': 'assist',
+                    'event_type': 'assist ' + (str(round(damage_on_victim)) + 'hp'),
                     'game_state': f'{cts_alive}v{ts_alive}' if damage_assister_side == 'ct' else f'{ts_alive}v{cts_alive}',
                     'pre_win': float(ct_win_before if damage_assister_side == 'ct' else (1-ct_win_before)),
                     'post_win': float(ct_win_after if damage_assister_side == 'ct' else (1-ct_win_after)),
@@ -452,18 +467,32 @@ def get_kill_death_analysis(dem_file, pred_model, debug=False):
                     'tick': tick
                 })
 
+            # TRADE
+            if was_trade_kill and latest_traded_victim is not None:
+                trade_victim_credit = TRADE_VICTIM_FACTOR * attacker_delta
+                attacker_delta -= trade_victim_credit
+                round_player_analysis[latest_traded_victim].append({
+                    'round': int(round_num),
+                    'side': attacker_side,
+                    'impact': float(round(trade_victim_credit* 100, 2)),
+                    'event_round': round_num,
+                    'event_type': 'traded',
+                    'game_state': f'{cts_alive}v{ts_alive}' if attacker_side == 'ct' else f'{ts_alive}v{cts_alive}',
+                    'pre_win': float(ct_win_before if attacker_side == 'ct' else (1-ct_win_before)),
+                    'post_win': float(ct_win_after if attacker_side == 'ct' else (1-ct_win_after)),
+                    'post_plant': bomb_planted,
+                    'trade': True,
+                    'tick': tick
+                })
 
+            attacker_credit = attacker_delta
             # KILLS
-            trade_factor = TRADE_KILL_FACTOR if was_trade_kill else 1
-
-            attacker_credit = attacker_delta * trade_factor 
-
             round_player_analysis[attacker].append({
                 'round': int(round_num),
                 'side': attacker_side,
                 'impact': float(round(attacker_credit * 100, 2)),
                 'event_round': round_num,
-                'event_type': 'kill',
+                'event_type': 'kill' + (' (t)' if was_trade_kill else '') + (' (a) ' + str(round(total_assist_credit, 1)) if total_assist_credit > 0 else '') + (' (fa)' if flash_assist else ''),
                 'game_state': f'{cts_alive}v{ts_alive}' if attacker_side == 'ct' else f'{ts_alive}v{cts_alive}',
                 'pre_win': float(ct_win_before if attacker_side == 'ct' else (1-ct_win_before)),
                 'post_win': float(ct_win_after if attacker_side == 'ct' else (1-ct_win_after)),
@@ -472,26 +501,19 @@ def get_kill_death_analysis(dem_file, pred_model, debug=False):
                 'tick': tick
             })
 
-            will_be_traded = round_kills.filter(
-                (pl.col('tick') > tick) & 
-                (pl.col('tick') < tick + TRADE_LIMIT_SEC * TICK_RATE) &
-                (pl.col('victim_name') == attacker)
-            ).height > 0
-
-            victim_trade_factor = 1 - TRADE_KILL_FACTOR if will_be_traded else 1
-            victim_credit = victim_delta * victim_trade_factor 
+            victim_credit = victim_delta 
 
             round_player_analysis[victim].append({
                 'round': int(round_num),
                 'side': victim_side,
                 'impact': float(round(victim_credit * 100, 2)),
                 'event_round': round_num,
-                'event_type': 'death' + (' (t)' if will_be_traded else ''),
+                'event_type': 'death',
                 'game_state': f'{cts_alive}v{ts_alive}' if victim_side == 'ct' else f'{ts_alive}v{cts_alive}',
                 'pre_win': float(ct_win_before if victim_side == 'ct' else (1-ct_win_before)),
                 'post_win': float(ct_win_after if victim_side == 'ct' else (1-ct_win_after)),
                 'post_plant': bomb_planted,
-                'trade': will_be_traded,
+                'trade': False,
                 'tick': tick
             })
 

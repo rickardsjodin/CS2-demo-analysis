@@ -1,0 +1,1016 @@
+{
+  "total_maps": 10,
+  "generated_at": "2025-10-17T16:48:09",
+  "scoreboards": [
+    {
+      "match_id": "2386860",
+      "match_url": "https://www.hltv.org/matches/2386860/sparta-vs-nip-impact-cct-season-3-europe-series-9-closed-qualifier",
+      "map_name": "Train",
+      "event": "CCT Season 3 Europe Series 9 Closed Qualifier",
+      "date": "15 Oct",
+      "winner": {
+        "team_name": "SPARTA",
+        "side": "T",
+        "rounds_won": 13,
+        "players": [
+          {
+            "name": "1NVISIBLEE",
+            "kills": 7,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 0.0,
+            "rating": 2.0
+          },
+          {
+            "name": "k4nfuz",
+            "kills": 2,
+            "deaths": 91,
+            "adr": 91.7,
+            "kast": 98.6,
+            "rating": 2.0
+          },
+          {
+            "name": "SoLb",
+            "kills": 2,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 77.7,
+            "rating": 2.0
+          },
+          {
+            "name": "Djon8",
+            "kills": 3,
+            "deaths": 83,
+            "adr": 83.3,
+            "kast": 0.0,
+            "rating": 3.0
+          },
+          {
+            "name": "yuramyata",
+            "kills": 1,
+            "deaths": 83,
+            "adr": 83.3,
+            "kast": 0.0,
+            "rating": 1.0
+          }
+        ]
+      },
+      "loser": {
+        "team_name": "NIP Impact",
+        "side": "CT",
+        "rounds_won": 0,
+        "players": [
+          {
+            "name": "1NVISIBLEE",
+            "kills": 7,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 0.0,
+            "rating": 2.0
+          },
+          {
+            "name": "k4nfuz",
+            "kills": 2,
+            "deaths": 92,
+            "adr": 92.3,
+            "kast": 98.7,
+            "rating": 2.0
+          },
+          {
+            "name": "Djon8",
+            "kills": 4,
+            "deaths": 84,
+            "adr": 84.6,
+            "kast": 0.0,
+            "rating": 1.34
+          },
+          {
+            "name": "yuramyata",
+            "kills": 2,
+            "deaths": 84,
+            "adr": 84.6,
+            "kast": 58.9,
+            "rating": 2.0
+          },
+          {
+            "name": "SoLb",
+            "kills": 2,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 71.7,
+            "rating": 2.0
+          }
+        ]
+      }
+    },
+    {
+      "match_id": "2386721",
+      "match_url": "https://www.hltv.org/matches/2386721/ruby-vs-nuclear-tigeres-nodwin-clutch-series-1",
+      "map_name": "Dust2",
+      "event": "NODWIN Clutch Series 1",
+      "date": "9 Oct",
+      "winner": {
+        "team_name": "RUBY",
+        "side": "T",
+        "rounds_won": 13,
+        "players": [
+          {
+            "name": "fozil",
+            "kills": 3,
+            "deaths": 75,
+            "adr": 75.0,
+            "kast": 73.8,
+            "rating": 3.0
+          },
+          {
+            "name": "H4SAN4TOR",
+            "kills": 6,
+            "deaths": 83,
+            "adr": 83.3,
+            "kast": 0.0,
+            "rating": 1.89
+          },
+          {
+            "name": "Kaide",
+            "kills": 4,
+            "deaths": 83,
+            "adr": 83.3,
+            "kast": 0.0,
+            "rating": 1.68
+          },
+          {
+            "name": "TruNiQ",
+            "kills": 2,
+            "deaths": 91,
+            "adr": 91.7,
+            "kast": 75.1,
+            "rating": 2.0
+          },
+          {
+            "name": "maQuein",
+            "kills": 4,
+            "deaths": 83,
+            "adr": 83.3,
+            "kast": 0.0,
+            "rating": 1.46
+          }
+        ]
+      },
+      "loser": {
+        "team_name": "Nuclear TigeRES",
+        "side": "CT",
+        "rounds_won": 0,
+        "players": [
+          {
+            "name": "fozil",
+            "kills": 4,
+            "deaths": 76,
+            "adr": 76.9,
+            "kast": 84.0,
+            "rating": 3.0
+          },
+          {
+            "name": "H4SAN4TOR",
+            "kills": 6,
+            "deaths": 84,
+            "adr": 84.6,
+            "kast": 0.0,
+            "rating": 1.86
+          },
+          {
+            "name": "Kaide",
+            "kills": 4,
+            "deaths": 76,
+            "adr": 76.9,
+            "kast": 0.0,
+            "rating": 1.55
+          },
+          {
+            "name": "TruNiQ",
+            "kills": 3,
+            "deaths": 92,
+            "adr": 92.3,
+            "kast": 84.7,
+            "rating": 3.0
+          },
+          {
+            "name": "maQuein",
+            "kills": 4,
+            "deaths": 84,
+            "adr": 84.6,
+            "kast": 0.0,
+            "rating": 0.54
+          }
+        ]
+      }
+    },
+    {
+      "match_id": "2386199",
+      "match_url": "https://www.hltv.org/matches/2386199/nexus-vs-eternal-fire-galaxy-battle-2025-phase-4",
+      "map_name": "Inferno",
+      "event": "Galaxy Battle 2025 Phase 4",
+      "date": "3 Oct",
+      "winner": {
+        "team_name": "Eternal Fire",
+        "side": "T",
+        "rounds_won": 13,
+        "players": [
+          {
+            "name": "XELLOW",
+            "kills": 2,
+            "deaths": 50,
+            "adr": 50.0,
+            "kast": 87.0,
+            "rating": 2.0
+          },
+          {
+            "name": "fnl",
+            "kills": 1,
+            "deaths": 58,
+            "adr": 58.3,
+            "kast": 70.2,
+            "rating": 1.0
+          },
+          {
+            "name": "s0und",
+            "kills": 2,
+            "deaths": 33,
+            "adr": 57.0,
+            "kast": 0.0,
+            "rating": 2.0
+          },
+          {
+            "name": "Blytz",
+            "kills": 0,
+            "deaths": 66,
+            "adr": 66.7,
+            "kast": 0.0,
+            "rating": 0.4
+          },
+          {
+            "name": "BTN",
+            "kills": 1,
+            "deaths": 33,
+            "adr": 50.4,
+            "kast": 0.0,
+            "rating": 1.0
+          }
+        ]
+      },
+      "loser": {
+        "team_name": "Nexus",
+        "side": "CT",
+        "rounds_won": 0,
+        "players": [
+          {
+            "name": "XELLOW",
+            "kills": 2,
+            "deaths": 46,
+            "adr": 46.2,
+            "kast": 82.8,
+            "rating": 2.0
+          },
+          {
+            "name": "fnl",
+            "kills": 1,
+            "deaths": 53,
+            "adr": 53.8,
+            "kast": 72.4,
+            "rating": 1.0
+          },
+          {
+            "name": "s0und",
+            "kills": 2,
+            "deaths": 30,
+            "adr": 52.6,
+            "kast": 0.0,
+            "rating": 2.0
+          },
+          {
+            "name": "Blytz",
+            "kills": 0,
+            "deaths": 61,
+            "adr": 61.5,
+            "kast": 0.0,
+            "rating": 0.38
+          },
+          {
+            "name": "BTN",
+            "kills": 1,
+            "deaths": 30,
+            "adr": 46.6,
+            "kast": 0.0,
+            "rating": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "match_id": "2385917",
+      "match_url": "https://www.hltv.org/matches/2385917/astralis-vs-gamerlegion-esl-pro-league-season-22-stage-1",
+      "map_name": "Nuke",
+      "event": "ESL Pro League Season 22 Stage 1",
+      "date": "30 Sep",
+      "winner": {
+        "team_name": "GamerLegion",
+        "side": "T",
+        "rounds_won": 13,
+        "players": [
+          {
+            "name": "Magisk",
+            "kills": 0,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 100.0,
+            "rating": 1.27
+          },
+          {
+            "name": "Staehr",
+            "kills": 0,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 90.0,
+            "rating": 1.18
+          },
+          {
+            "name": "HooXi",
+            "kills": 0,
+            "deaths": 0,
+            "adr": 0.0,
+            "kast": 0.0,
+            "rating": 0.0
+          },
+          {
+            "name": "device",
+            "kills": 0,
+            "deaths": 0,
+            "adr": 0.0,
+            "kast": 0.0,
+            "rating": 0.0
+          },
+          {
+            "name": "jabbi",
+            "kills": 0,
+            "deaths": 0,
+            "adr": 0.0,
+            "kast": 0.0,
+            "rating": 0.0
+          }
+        ]
+      },
+      "loser": {
+        "team_name": "Astralis",
+        "side": "CT",
+        "rounds_won": 0,
+        "players": [
+          {
+            "name": "Magisk",
+            "kills": 1,
+            "deaths": 53,
+            "adr": 53.8,
+            "kast": 73.1,
+            "rating": 1.0
+          },
+          {
+            "name": "Staehr",
+            "kills": 1,
+            "deaths": 46,
+            "adr": 46.2,
+            "kast": 61.2,
+            "rating": 1.0
+          },
+          {
+            "name": "device",
+            "kills": 1,
+            "deaths": 30,
+            "adr": 0.0,
+            "kast": 0.0,
+            "rating": 1.0
+          },
+          {
+            "name": "jabbi",
+            "kills": 0,
+            "deaths": 38,
+            "adr": 0.0,
+            "kast": 0.0,
+            "rating": 0.0
+          },
+          {
+            "name": "HooXi",
+            "kills": 0,
+            "deaths": 15,
+            "adr": 0.0,
+            "kast": 0.0,
+            "rating": 0.0
+          }
+        ]
+      }
+    },
+    {
+      "match_id": "2386247",
+      "match_url": "https://www.hltv.org/matches/2386247/passion-ua-vs-fingers-crossed-urban-riga-open-season-1",
+      "map_name": "Overpass",
+      "event": "Urban Riga Open Season 1",
+      "date": "30 Sep",
+      "winner": {
+        "team_name": "Passion UA",
+        "side": "T",
+        "rounds_won": 13,
+        "players": [
+          {
+            "name": "Grim",
+            "kills": 1,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 0.0,
+            "rating": 1.0
+          },
+          {
+            "name": "nicx",
+            "kills": 0,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 55.0,
+            "rating": 2.03
+          },
+          {
+            "name": "JT",
+            "kills": 0,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 53.0,
+            "rating": 1.5
+          },
+          {
+            "name": "hallzerk",
+            "kills": 0,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 0.0,
+            "rating": 1.18
+          },
+          {
+            "name": "Kvem",
+            "kills": 0,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 0.0,
+            "rating": 1.18
+          }
+        ]
+      },
+      "loser": {
+        "team_name": "Fingers Crossed",
+        "side": "CT",
+        "rounds_won": 0,
+        "players": [
+          {
+            "name": "hallzerk",
+            "kills": 3,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 83.6,
+            "rating": 3.0
+          },
+          {
+            "name": "JT",
+            "kills": 2,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 83.9,
+            "rating": 2.0
+          },
+          {
+            "name": "Grim",
+            "kills": 6,
+            "deaths": 92,
+            "adr": 92.3,
+            "kast": 0.0,
+            "rating": 1.94
+          },
+          {
+            "name": "Kvem",
+            "kills": 3,
+            "deaths": 84,
+            "adr": 84.6,
+            "kast": 80.9,
+            "rating": 3.0
+          },
+          {
+            "name": "nicx",
+            "kills": 3,
+            "deaths": 76,
+            "adr": 76.9,
+            "kast": 79.2,
+            "rating": 3.0
+          }
+        ]
+      }
+    },
+    {
+      "match_id": "2386241",
+      "match_url": "https://www.hltv.org/matches/2386241/eruption-vs-the-qube-extremesland-2025-mongolia-open-qualifier-2",
+      "map_name": "Overpass",
+      "event": "eXTREMESLAND 2025 Mongolia Open Qualifier 2",
+      "date": "28 Sep",
+      "winner": {
+        "team_name": "Eruption",
+        "side": "T",
+        "rounds_won": 13,
+        "players": [
+          {
+            "name": "MagnumZ",
+            "kills": 6,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 0.0,
+            "rating": 1.0
+          },
+          {
+            "name": "sideffect",
+            "kills": 3,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 0.0,
+            "rating": 3.0
+          },
+          {
+            "name": "xenization",
+            "kills": 5,
+            "deaths": 83,
+            "adr": 83.3,
+            "kast": 0.0,
+            "rating": 1.74
+          },
+          {
+            "name": "viscera",
+            "kills": 1,
+            "deaths": 83,
+            "adr": 83.3,
+            "kast": 66.6,
+            "rating": 1.0
+          },
+          {
+            "name": "fury5k",
+            "kills": 2,
+            "deaths": 83,
+            "adr": 83.3,
+            "kast": 80.8,
+            "rating": 2.0
+          }
+        ]
+      },
+      "loser": {
+        "team_name": "The QUBE",
+        "side": "CT",
+        "rounds_won": 0,
+        "players": [
+          {
+            "name": "MagnumZ",
+            "kills": 6,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 0.0,
+            "rating": 1.0
+          },
+          {
+            "name": "xenization",
+            "kills": 6,
+            "deaths": 84,
+            "adr": 84.6,
+            "kast": 0.0,
+            "rating": 1.81
+          },
+          {
+            "name": "sideffect",
+            "kills": 3,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 0.0,
+            "rating": 3.0
+          },
+          {
+            "name": "viscera",
+            "kills": 1,
+            "deaths": 84,
+            "adr": 84.6,
+            "kast": 66.0,
+            "rating": 1.0
+          },
+          {
+            "name": "fury5k",
+            "kills": 3,
+            "deaths": 84,
+            "adr": 84.6,
+            "kast": 93.2,
+            "rating": 3.0
+          }
+        ]
+      }
+    },
+    {
+      "match_id": "2386095",
+      "match_url": "https://www.hltv.org/matches/2386095/9z-vs-sharks-ferjee-rush-2025",
+      "map_name": "Train",
+      "event": "FERJEE Rush 2025",
+      "date": "28 Sep",
+      "winner": {
+        "team_name": "Sharks",
+        "side": "T",
+        "rounds_won": 13,
+        "players": [
+          {
+            "name": "levi",
+            "kills": 0,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 65.0,
+            "rating": 1.06
+          },
+          {
+            "name": "max",
+            "kills": 0,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 85.0,
+            "rating": 0.82
+          },
+          {
+            "name": "HUASOPEEK",
+            "kills": 0,
+            "deaths": 0,
+            "adr": 85.0,
+            "kast": 0.0,
+            "rating": 0.32
+          },
+          {
+            "name": "Luken",
+            "kills": 0,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 75.0,
+            "rating": 0.3
+          },
+          {
+            "name": "urban0",
+            "kills": 0,
+            "deaths": 0,
+            "adr": 0.0,
+            "kast": 0.0,
+            "rating": 0.0
+          }
+        ]
+      },
+      "loser": {
+        "team_name": "9z",
+        "side": "CT",
+        "rounds_won": 0,
+        "players": [
+          {
+            "name": "Luken",
+            "kills": 2,
+            "deaths": 61,
+            "adr": 61.5,
+            "kast": 94.6,
+            "rating": 2.0
+          },
+          {
+            "name": "urban0",
+            "kills": 1,
+            "deaths": 61,
+            "adr": 61.5,
+            "kast": 74.9,
+            "rating": 1.0
+          },
+          {
+            "name": "HUASOPEEK",
+            "kills": 1,
+            "deaths": 46,
+            "adr": 46.2,
+            "kast": 54.4,
+            "rating": 1.0
+          },
+          {
+            "name": "levi",
+            "kills": 2,
+            "deaths": 53,
+            "adr": 53.8,
+            "kast": 0.0,
+            "rating": 2.0
+          },
+          {
+            "name": "max",
+            "kills": 0,
+            "deaths": 76,
+            "adr": 76.9,
+            "kast": 0.0,
+            "rating": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "match_id": "2386075",
+      "match_url": "https://www.hltv.org/matches/2386075/esc-vs-500-birch-cup-2025",
+      "map_name": "Ancient",
+      "event": "Birch Cup 2025",
+      "date": "27 Sep",
+      "winner": {
+        "team_name": "500",
+        "side": "T",
+        "rounds_won": 13,
+        "players": [
+          {
+            "name": "SaMey",
+            "kills": 2,
+            "deaths": 41,
+            "adr": 41.7,
+            "kast": 77.8,
+            "rating": 2.0
+          },
+          {
+            "name": "bajmi",
+            "kills": 2,
+            "deaths": 58,
+            "adr": 58.3,
+            "kast": 73.6,
+            "rating": 2.0
+          },
+          {
+            "name": "reiko",
+            "kills": 1,
+            "deaths": 58,
+            "adr": 58.3,
+            "kast": 68.3,
+            "rating": 1.0
+          },
+          {
+            "name": "olimp",
+            "kills": 1,
+            "deaths": 41,
+            "adr": 41.7,
+            "kast": 0.0,
+            "rating": 1.0
+          },
+          {
+            "name": "moonwalk",
+            "kills": 0,
+            "deaths": 50,
+            "adr": 50.0,
+            "kast": 71.2,
+            "rating": 0.39
+          }
+        ]
+      },
+      "loser": {
+        "team_name": "ESC",
+        "side": "CT",
+        "rounds_won": 0,
+        "players": [
+          {
+            "name": "SaMey",
+            "kills": 2,
+            "deaths": 38,
+            "adr": 71.8,
+            "kast": 0.0,
+            "rating": 2.0
+          },
+          {
+            "name": "bajmi",
+            "kills": 2,
+            "deaths": 53,
+            "adr": 53.8,
+            "kast": 67.9,
+            "rating": 2.0
+          },
+          {
+            "name": "reiko",
+            "kills": 1,
+            "deaths": 53,
+            "adr": 53.8,
+            "kast": 63.1,
+            "rating": 1.0
+          },
+          {
+            "name": "olimp",
+            "kills": 1,
+            "deaths": 38,
+            "adr": 0.0,
+            "kast": 0.0,
+            "rating": 1.0
+          },
+          {
+            "name": "moonwalk",
+            "kills": 0,
+            "deaths": 46,
+            "adr": 46.2,
+            "kast": 65.7,
+            "rating": 0.37
+          }
+        ]
+      }
+    },
+    {
+      "match_id": "2386049",
+      "match_url": "https://www.hltv.org/matches/2386049/atomik-vs-aab-birch-cup-2025",
+      "map_name": "Inferno",
+      "event": "Birch Cup 2025",
+      "date": "26 Sep",
+      "winner": {
+        "team_name": "AaB",
+        "side": "T",
+        "rounds_won": 13,
+        "players": [
+          {
+            "name": "mattz",
+            "kills": 2,
+            "deaths": 58,
+            "adr": 58.3,
+            "kast": 74.1,
+            "rating": 2.0
+          },
+          {
+            "name": "Palo",
+            "kills": 0,
+            "deaths": 66,
+            "adr": 66.7,
+            "kast": 52.0,
+            "rating": 0.7
+          },
+          {
+            "name": "mi00lo",
+            "kills": 1,
+            "deaths": 33,
+            "adr": 65.5,
+            "kast": 0.0,
+            "rating": 1.0
+          },
+          {
+            "name": "mxL",
+            "kills": 1,
+            "deaths": 50,
+            "adr": 50.0,
+            "kast": 50.8,
+            "rating": 1.0
+          },
+          {
+            "name": "Dziedzi",
+            "kills": 0,
+            "deaths": 58,
+            "adr": 58.3,
+            "kast": 0.0,
+            "rating": 0.0
+          }
+        ]
+      },
+      "loser": {
+        "team_name": "ATOMIK",
+        "side": "CT",
+        "rounds_won": 0,
+        "players": [
+          {
+            "name": "Palo",
+            "kills": 0,
+            "deaths": 69,
+            "adr": 69.2,
+            "kast": 59.8,
+            "rating": 0.75
+          },
+          {
+            "name": "mattz",
+            "kills": 2,
+            "deaths": 53,
+            "adr": 53.8,
+            "kast": 68.4,
+            "rating": 2.0
+          },
+          {
+            "name": "mxL",
+            "kills": 1,
+            "deaths": 53,
+            "adr": 53.8,
+            "kast": 54.6,
+            "rating": 1.0
+          },
+          {
+            "name": "mi00lo",
+            "kills": 1,
+            "deaths": 30,
+            "adr": 60.5,
+            "kast": 0.0,
+            "rating": 1.0
+          },
+          {
+            "name": "Dziedzi",
+            "kills": 0,
+            "deaths": 61,
+            "adr": 61.5,
+            "kast": 0.0,
+            "rating": 0.0
+          }
+        ]
+      }
+    },
+    {
+      "match_id": "2386137",
+      "match_url": "https://www.hltv.org/matches/2386137/nip-impact-vs-1win-cct-season-3-europe-series-8-closed-qualifier",
+      "map_name": "Inferno",
+      "event": "CCT Season 3 Europe Series 8 Closed Qualifier",
+      "date": "25 Sep",
+      "winner": {
+        "team_name": "1win",
+        "side": "T",
+        "rounds_won": 13,
+        "players": [
+          {
+            "name": "vilga",
+            "kills": 1,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 0.0,
+            "rating": 1.0
+          },
+          {
+            "name": "aiM",
+            "kills": 0,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 100.0,
+            "rating": 1.0
+          },
+          {
+            "name": "Qiyarah",
+            "kills": 0,
+            "deaths": 100,
+            "adr": 100.0,
+            "kast": 0.0,
+            "rating": 0.52
+          },
+          {
+            "name": "Zana",
+            "kills": 0,
+            "deaths": 0,
+            "adr": 0.0,
+            "kast": 0.0,
+            "rating": 0.0
+          },
+          {
+            "name": "Nayomy",
+            "kills": 0,
+            "deaths": 0,
+            "adr": 0.0,
+            "kast": 0.0,
+            "rating": 0.0
+          }
+        ]
+      },
+      "loser": {
+        "team_name": "NIP Impact",
+        "side": "CT",
+        "rounds_won": 0,
+        "players": [
+          {
+            "name": "vilga",
+            "kills": 2,
+            "deaths": 38,
+            "adr": 53.9,
+            "kast": 0.0,
+            "rating": 2.0
+          },
+          {
+            "name": "Nayomy",
+            "kills": 1,
+            "deaths": 46,
+            "adr": 46.2,
+            "kast": 76.1,
+            "rating": 1.0
+          },
+          {
+            "name": "Qiyarah",
+            "kills": 1,
+            "deaths": 38,
+            "adr": 0.0,
+            "kast": 0.0,
+            "rating": 1.0
+          },
+          {
+            "name": "aiM",
+            "kills": 0,
+            "deaths": 30,
+            "adr": 0.0,
+            "kast": 0.0,
+            "rating": 0.3
+          },
+          {
+            "name": "Zana",
+            "kills": 0,
+            "deaths": 15,
+            "adr": 0.0,
+            "kast": 0.0,
+            "rating": 0.0
+          }
+        ]
+      }
+    }
+  ]
+}

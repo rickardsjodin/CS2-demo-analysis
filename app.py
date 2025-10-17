@@ -598,6 +598,8 @@ if __name__ == '__main__':
     print(f"📊 Available models: {len(models_info)}")
     for model_name, info in models_info.items():
         print(f"   - {info['display_name']}: {info['feature_count']} features, AUC={info['auc']:.3f}")
+
+    load_model('xgboost_hltv')
     
     _, _, _, dataset_df = load_and_prepare_data(data_file=None, check_data=False)
     print("\n🚀 Starting Flask app on http://localhost:5000")

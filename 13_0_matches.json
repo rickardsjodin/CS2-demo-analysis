@@ -1,0 +1,157 @@
+{
+  "total_matches_with_13_0_maps": 10,
+  "total_13_0_maps": 10,
+  "generated_at": "2025-10-16T17:15:28.613246",
+  "matches": [
+    {
+      "match_id": "2386860",
+      "match_url": "https://www.hltv.org/matches/2386860/sparta-vs-nip-impact-cct-season-3-europe-series-9-closed-qualifier",
+      "team1": "SPARTA",
+      "team2": "NIP Impact",
+      "date": "15 Oct",
+      "event": "CCT Season 3 Europe Series 9 Closed Qualifier",
+      "maps": [
+        {
+          "map_name": "Train",
+          "final_score": "13-0",
+          "winner": "SPARTA"
+        }
+      ]
+    },
+    {
+      "match_id": "2386721",
+      "match_url": "https://www.hltv.org/matches/2386721/ruby-vs-nuclear-tigeres-nodwin-clutch-series-1",
+      "team1": "RUBY",
+      "team2": "Nuclear TigeRES",
+      "date": "9 Oct",
+      "event": "NODWIN Clutch Series 1",
+      "maps": [
+        {
+          "map_name": "Dust2",
+          "final_score": "13-0",
+          "winner": "RUBY"
+        }
+      ]
+    },
+    {
+      "match_id": "2386199",
+      "match_url": "https://www.hltv.org/matches/2386199/nexus-vs-eternal-fire-galaxy-battle-2025-phase-4",
+      "team1": "Nexus",
+      "team2": "Eternal Fire",
+      "date": "3 Oct",
+      "event": "Galaxy Battle 2025 Phase 4",
+      "maps": [
+        {
+          "map_name": "Inferno",
+          "final_score": "0-13",
+          "winner": "Eternal Fire"
+        }
+      ]
+    },
+    {
+      "match_id": "2385917",
+      "match_url": "https://www.hltv.org/matches/2385917/astralis-vs-gamerlegion-esl-pro-league-season-22-stage-1",
+      "team1": "Astralis",
+      "team2": "GamerLegion",
+      "date": "30 Sep",
+      "event": "ESL Pro League Season 22 Stage 1",
+      "maps": [
+        {
+          "map_name": "Nuke",
+          "final_score": "0-13",
+          "winner": "GamerLegion"
+        }
+      ]
+    },
+    {
+      "match_id": "2386247",
+      "match_url": "https://www.hltv.org/matches/2386247/passion-ua-vs-fingers-crossed-urban-riga-open-season-1",
+      "team1": "Passion UA",
+      "team2": "Fingers Crossed",
+      "date": "30 Sep",
+      "event": "Urban Riga Open Season 1",
+      "maps": [
+        {
+          "map_name": "Overpass",
+          "final_score": "13-0",
+          "winner": "Passion UA"
+        }
+      ]
+    },
+    {
+      "match_id": "2386241",
+      "match_url": "https://www.hltv.org/matches/2386241/eruption-vs-the-qube-extremesland-2025-mongolia-open-qualifier-2",
+      "team1": "Eruption",
+      "team2": "The QUBE",
+      "date": "28 Sep",
+      "event": "eXTREMESLAND 2025 Mongolia Open Qualifier 2",
+      "maps": [
+        {
+          "map_name": "Overpass",
+          "final_score": "13-0",
+          "winner": "Eruption"
+        }
+      ]
+    },
+    {
+      "match_id": "2386095",
+      "match_url": "https://www.hltv.org/matches/2386095/9z-vs-sharks-ferjee-rush-2025",
+      "team1": "9z",
+      "team2": "Sharks",
+      "date": "28 Sep",
+      "event": "FERJEE Rush 2025",
+      "maps": [
+        {
+          "map_name": "Train",
+          "final_score": "0-13",
+          "winner": "Sharks"
+        }
+      ]
+    },
+    {
+      "match_id": "2386075",
+      "match_url": "https://www.hltv.org/matches/2386075/esc-vs-500-birch-cup-2025",
+      "team1": "ESC",
+      "team2": "500",
+      "date": "27 Sep",
+      "event": "Birch Cup 2025",
+      "maps": [
+        {
+          "map_name": "Ancient",
+          "final_score": "0-13",
+          "winner": "500"
+        }
+      ]
+    },
+    {
+      "match_id": "2386049",
+      "match_url": "https://www.hltv.org/matches/2386049/atomik-vs-aab-birch-cup-2025",
+      "team1": "ATOMIK",
+      "team2": "AaB",
+      "date": "26 Sep",
+      "event": "Birch Cup 2025",
+      "maps": [
+        {
+          "map_name": "Inferno",
+          "final_score": "0-13",
+          "winner": "AaB"
+        }
+      ]
+    },
+    {
+      "match_id": "2386137",
+      "match_url": "https://www.hltv.org/matches/2386137/nip-impact-vs-1win-cct-season-3-europe-series-8-closed-qualifier",
+      "team1": "NIP Impact",
+      "team2": "1win",
+      "date": "25 Sep",
+      "event": "CCT Season 3 Europe Series 8 Closed Qualifier",
+      "maps": [
+        {
+          "map_name": "Inferno",
+          "final_score": "0-13",
+          "winner": "1win"
+        }
+      ]
+    }
+  ]
+}

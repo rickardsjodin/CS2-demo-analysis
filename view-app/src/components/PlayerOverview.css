@@ -1,0 +1,126 @@
+.player-overview-section {
+  margin: 30px 0;
+}
+
+.player-overview-section h2 {
+  margin-bottom: 20px;
+  font-size: 1.5rem;
+}
+
+.teams-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 30px;
+}
+
+@media (max-width: 768px) {
+  .teams-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+.team-group {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 12px;
+  padding: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.team-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.team-badge {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.team-count {
+  font-size: 0.85rem;
+  color: #aaa;
+}
+
+.players-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.player-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  color: inherit;
+  font-family: inherit;
+}
+
+.player-card:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateX(4px);
+}
+
+.player-card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.player-card.selected {
+  background: rgba(76, 175, 80, 0.2);
+  border-color: rgba(76, 175, 80, 0.5);
+}
+
+.player-card.positive {
+  border-left: 4px solid #4caf50;
+}
+
+.player-card.negative {
+  border-left: 4px solid #f44336;
+}
+
+.player-name {
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: 6px;
+  color: #fff;
+}
+
+.player-stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.85rem;
+}
+
+.impact-value {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.impact-value.positive {
+  color: #4caf50;
+}
+
+.impact-value.negative {
+  color: #f44336;
+}
+
+.event-count {
+  color: #aaa;
+  font-size: 0.8rem;
+}

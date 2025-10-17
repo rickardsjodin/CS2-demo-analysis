@@ -6,6 +6,7 @@ import type {
   PlayerAnalysisEvent,
 } from '../types';
 import PlayerImpactChart from './PlayerImpactChart';
+import PlayerOverview from './PlayerOverview';
 import './DemoAnalysis.css';
 
 interface DemoAnalysisProps {
@@ -23,7 +24,6 @@ interface DemoAnalysisProps {
 function DemoAnalysis({
   demoId,
   filename,
-  players,
   selectedPlayer,
   analysisData,
   onDemoUpload,
@@ -38,6 +38,34 @@ function DemoAnalysis({
     string,
     PlayerAnalysisEvent[]
   > | null>(null);
+
+  const handleAutoAnalysis = async (currentDemoId: string) => {
+    setAnalyzing(true);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        API_ENDPOINTS.allPlayersAnalysis(currentDemoId)
+      );
+      const data: AllPlayersAnalysisResponse = await response.json();
+
+      if (data.success && data.analysis) {
+        // Cache all players data
+        setAllPlayersData(data.analysis);
+        setError(null);
+      } else {
+        const errorMsg = data.error || 'Failed to analyze players';
+        setError(errorMsg);
+        onError(errorMsg);
+      }
+    } catch (err) {
+      const errorMsg = 'Error analyzing players: ' + (err as Error).message;
+      setError(errorMsg);
+      onError(errorMsg);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
 
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -68,6 +96,9 @@ function DemoAnalysis({
       if (data.success && data.demo_id && data.players) {
         onDemoUpload(data.demo_id, data.filename || file.name, data.players);
         setError(null);
+
+        // Automatically trigger analysis after successful upload
+        await handleAutoAnalysis(data.demo_id);
       } else {
         const errorMsg = data.error || 'Failed to upload demo';
         setError(errorMsg);
@@ -156,28 +187,17 @@ function DemoAnalysis({
         </div>
       )}
 
-      {players.length > 0 && (
-        <section className='players-section'>
-          <h2>🎮 Players ({players.length})</h2>
-          <div className='players-grid'>
-            {players.map((player) => (
-              <button
-                key={player}
-                className={`player-button ${
-                  selectedPlayer === player ? 'selected' : ''
-                }`}
-                onClick={() => handlePlayerSelect(player)}
-                disabled={analyzing}
-              >
-                {player}
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
       {analyzing && (
         <div className='loading-message'>⏳ Analyzing player data...</div>
+      )}
+
+      {allPlayersData && (
+        <PlayerOverview
+          allPlayersData={allPlayersData}
+          selectedPlayer={selectedPlayer}
+          onPlayerSelect={handlePlayerSelect}
+          analyzing={analyzing}
+        />
       )}
 
       {analysisData && selectedPlayer && (

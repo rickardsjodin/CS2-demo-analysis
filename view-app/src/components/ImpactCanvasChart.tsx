@@ -113,10 +113,14 @@ function ImpactCanvasChart({
 
       // Calculate bar positions
       const totalBars = sideData.length;
-      const barWidth = Math.max(
-        15,
-        Math.min(40, chartWidth / (totalBars + rounds.length * 2))
+      const barWidth = Math.min(
+        40,
+        chartWidth / (totalBars + rounds.length * 2) - 0.5
       );
+      // Math.max(
+      //   15,
+      //
+      // );
       const roundGap = barWidth * 2;
 
       // Draw background
