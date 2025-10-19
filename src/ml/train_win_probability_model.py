@@ -27,7 +27,7 @@ TRAIN_MODELS = {
     'logistic_regression_all': False,         # Full feature set
     
     # Neural Network variants
-    'neural_network_hltv': True,             # HLTV-style minimal features
+    'neural_network_hltv': False,             # HLTV-style minimal features
     'neural_network_hltv_time': False,        # Core game state features
     'neural_network_all': False,               # Full feature set
     
@@ -63,7 +63,7 @@ HYPERPARAMETER_TUNING = {
         # Neural Network variants
         'neural_network_hltv': False,
         'neural_network_hltv_time': False,
-        'neural_network_all': True
+        'neural_network_all': False
     },
     'search_method': 'random',      # 'grid' or 'random'
     'search_intensity': 'quick',    # 'quick' or 'thorough'
@@ -101,13 +101,14 @@ from tqdm import tqdm
 import sys
 
 
+
 project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from config import CS2_MAPS
-from src.ml.feature_sets import HLTV_WITH_TIME
-from src.core.constants import FLASH_NADE, GRENADE_AND_BOMB_TYPES, HE_NADE, MOLOTOV_NADE, SMOKE_NADE, WEAPON_TIERS
+from src.core.analysis import calculate_player_stats
+from src.core.constants import  WEAPON_TIERS
 
 warnings.filterwarnings('ignore')
 
@@ -295,6 +296,50 @@ def load_and_prepare_data(data_file=None, feature_set=None, check_data=True, use
     print(f"✅ Loaded {len(df)} snapshots")
     print(f"📈 Data shape: {df.shape}")
     
+    # Validate and filter data quality
+    print("\n🔍 Validating data quality...")
+    initial_count = len(df)
+    
+    # Create boolean mask for valid samples
+    valid_mask = pd.Series(True, index=df.index)
+    
+    # Filter 1: Player counts must be between 0 and 5
+    if 'cts_alive' in df.columns:
+        invalid_ct = (df['cts_alive'] < 0) | (df['cts_alive'] > 5)
+        if invalid_ct.any():
+            print(f"   ⚠️ Found {invalid_ct.sum()} samples with invalid CT player count")
+            valid_mask &= ~invalid_ct
+    
+    if 'ts_alive' in df.columns:
+        invalid_t = (df['ts_alive'] < 0) | (df['ts_alive'] > 5)
+        if invalid_t.any():
+            print(f"   ⚠️ Found {invalid_t.sum()} samples with invalid T player count")
+            valid_mask &= ~invalid_t
+    
+    # Filter 2: At least one team must have players alive
+    if 'cts_alive' in df.columns and 'ts_alive' in df.columns:
+        no_players = (df['cts_alive'] == 0) & (df['ts_alive'] == 0)
+        if no_players.any():
+            print(f"   ⚠️ Found {no_players.sum()} samples with no players alive")
+            valid_mask &= ~no_players
+    
+    # Filter 3: If bomb not planted, at least one T must be alive
+    if 'bomb_planted' in df.columns and 'ts_alive' in df.columns:
+        invalid_bomb = (df['bomb_planted'] == 0) & (df['ts_alive'] == 0)
+        if invalid_bomb.any():
+            print(f"   ⚠️ Found {invalid_bomb.sum()} samples with no Ts alive and bomb not planted")
+            valid_mask &= ~invalid_bomb
+    
+    # Apply filters
+    df = df[valid_mask].copy()
+    
+    removed_count = initial_count - len(df)
+    if removed_count > 0:
+        print(f"   🧹 Removed {removed_count} invalid samples ({removed_count / initial_count * 100:.2f}%)")
+        print(f"   ✅ Clean dataset: {len(df)} samples")
+    else:
+        print(f"   ✅ All samples valid!")
+    
     # Create target variable (1 if CT wins, 0 if T wins)
     df['ct_wins'] = (df['winner'] == 'ct').astype(int)
     
@@ -355,55 +400,6 @@ def load_and_prepare_data(data_file=None, feature_set=None, check_data=True, use
     
     return X, y, feature_columns, df
 
-def calculate_player_stats(alive_players: List[Dict[str, Any]]) -> Dict[str, int]:
-    """Calculates equipment and stats for alive players at a specific tick."""
-    stats = {
-        "ct_main_weapons": 0, "t_main_weapons": 0,
-        "ct_helmets": 0, "t_helmets": 0,
-        "ct_armor": 0, "t_armor": 0,
-        "defusers": 0,
-        "ct_smokes": 0, "ct_flashes": 0, "ct_he_nades" : 0, "ct_molotovs": 0,
-        "t_smokes": 0, "t_flashes": 0, "t_he_nades" : 0, "t_molotovs": 0
-    }
-
-    for player_row in alive_players:
-        inventory = player_row.get('inventory', [])
-        player_side = player_row['side']
-        
-        best_weapon_tier = player_row['best_weapon_tier']
-
-        if best_weapon_tier >= 5:
-            if player_side == 0:
-                stats["ct_main_weapons"] += 1
-            else:
-                stats["t_main_weapons"] += 1
-        
-        smoke_count = sum(1 for item in inventory if item == SMOKE_NADE)
-        molotov_count = sum(1 for item in inventory if item in MOLOTOV_NADE)
-        flash_count = sum(1 for item in inventory if item == FLASH_NADE)
-        he_count = sum(1 for item in inventory if item == HE_NADE)
-
-        armor = player_row.get('armor', 0) or 0
-        has_armor = armor > 0
-
-        if player_side == 0:
-            stats["ct_smokes"] += smoke_count
-            stats["ct_flashes"] += flash_count
-            stats["ct_he_nades"] += he_count
-            stats["ct_molotovs"] += molotov_count
-            stats["ct_helmets"] += 1 if player_row.get('has_helmet') else 0
-            stats["ct_armor"] += has_armor
-        else:
-            stats["t_smokes"] += smoke_count
-            stats["t_flashes"] += flash_count
-            stats["t_he_nades"] += he_count
-            stats["t_molotovs"] += molotov_count
-            stats["t_helmets"] += 1 if player_row.get('has_helmet') else 0
-            stats["t_armor"] += has_armor
-
-        stats["defusers"] += 1 if player_row.get('has_defuser') else 0
-        
-    return stats
 
 def load_snapshots_from_parquet(parquet_file: str) -> List[Dict[str, Any]]:
     """
@@ -450,7 +446,7 @@ def load_snapshots_from_parquet(parquet_file: str) -> List[Dict[str, Any]]:
             if row_dict[player_base_key + 'has_defuser'] is None:
                 pass
 
-            row_dict[player_base_key + 'side'] = 0 if row_dict[player_base_key + 'side'] == 'ct' else 1
+            row_dict[player_base_key + 'side'] = 1 if row_dict[player_base_key + 'side'] == 'ct' else 0
             row_dict[player_base_key + 'best_weapon_tier'] = best_weapon_tier
             row_dict[player_base_key + 'has_defuser'] = bool(row_dict[player_base_key + 'has_defuser'])
             row_dict[player_base_key + 'has_helmet'] = bool(row_dict[player_base_key + 'has_helmet'])
@@ -467,7 +463,8 @@ def load_snapshots_from_parquet(parquet_file: str) -> List[Dict[str, Any]]:
             player_info['armor'] = 1 if armor > 0 else 0
             
             alive_player_info.append(player_info)
-        
+
+        alive_player_info = pl.DataFrame(alive_player_info) 
         player_summaries = calculate_player_stats(alive_player_info) 
     
         snapshots.append({

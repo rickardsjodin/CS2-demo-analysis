@@ -8,10 +8,12 @@ Supports multiple XGBoost models with different feature sets.
 HLTV_FEATURES = [
     'cts_alive',
     'ts_alive',
-    "ct_main_weapons",
-    "t_main_weapons",
+    # "ct_main_weapons",
+    # "t_main_weapons",
     'bomb_planted',
-    'map_name'
+    'map_name',
+    "ct_avg_gear",
+    "t_avg_gear",
 ]
 
 HLTV_WITH_TIME = HLTV_FEATURES + [
@@ -42,6 +44,7 @@ BASE_PLAYER_FEATURES = [
     'has_helmet',
     'armor',
     'side',
+
 ]
 
 # Generate all player-specific feature columns

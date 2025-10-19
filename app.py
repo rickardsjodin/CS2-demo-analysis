@@ -18,7 +18,7 @@ from src.ml.train_win_probability_model import load_and_prepare_data
 from src.utils.cache_utils import load_demo
 from src.core.analysis import get_kill_death_analysis
 from awpy import Demo
-from config import CS2_MAPS
+from config import CS2_MAPS, GEAR_CATEGORY_NAMES
 
 app = Flask(__name__)
 
@@ -269,6 +269,8 @@ def get_feature_defaults(features):
             defaults[feature] = 2  # Number of HE grenades
         elif 'molotovs' in feature.lower():
             defaults[feature] = 1  # Number of molotovs/incendiaries
+        elif 'avg_gear' in feature.lower():
+            defaults[feature] = 'tier1_rifle'  # Default to tier 1 rifles (AK/M4)
         elif 'player_' in feature.lower() and 'health' in feature.lower():
             defaults[feature] = 80  # Individual player health
         elif 'player_' in feature.lower() and 'best_weapon_tier' in feature.lower():
@@ -317,6 +319,8 @@ def get_feature_constraints(feature):
         constraints.update({'min': 0, 'max': 5, 'step': 1})
     elif 'helmets' in feature.lower():
         constraints.update({'min': 0, 'max': 5, 'step': 1})
+    elif 'avg_gear' in feature.lower():
+        constraints.update({'type': 'select', 'options': GEAR_CATEGORY_NAMES})
     elif any(nade in feature.lower() for nade in ['smokes', 'flashes', 'he_nades', 'molotovs']):
         constraints.update({'min': 0, 'max': 10, 'step': 1})
     elif 'player_' in feature.lower() and 'health' in feature.lower():
@@ -396,6 +400,9 @@ def predict():
             elif isinstance(value, str) and 'de_' in value.lower():
                 # Keep map_name as string - will be converted to categorical
                 feature_dict[feature_name] = value
+            elif isinstance(value, str) and 'avg_gear' in feature_name:
+                # Keep gear categories as strings - will be converted to categorical
+                feature_dict[feature_name] = value
             elif isinstance(value, bool):
                 feature_dict[feature_name] = int(value)
             else:
@@ -408,6 +415,13 @@ def predict():
         if 'map_name' in X.columns:
             # Use consistent categorical encoding with all CS2 maps
             X['map_name'] = pd.Categorical(X['map_name'], categories=CS2_MAPS)
+        
+        # Convert gear categories to categorical if present
+        if 'ct_avg_gear' in X.columns:
+            X['ct_avg_gear'] = pd.Categorical(X['ct_avg_gear'], categories=GEAR_CATEGORY_NAMES)
+        
+        if 't_avg_gear' in X.columns:
+            X['t_avg_gear'] = pd.Categorical(X['t_avg_gear'], categories=GEAR_CATEGORY_NAMES)
         
         # Check if model uses preprocessor (neural networks with categorical features)
         preprocessor = model_data.get('preprocessor')

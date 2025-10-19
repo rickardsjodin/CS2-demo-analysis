@@ -70,7 +70,7 @@ export interface BinningValues {
 }
 
 export interface ScenarioData {
-  [key: string]: number;
+  [key: string]: number | string;
 }
 
 export interface Scenarios {

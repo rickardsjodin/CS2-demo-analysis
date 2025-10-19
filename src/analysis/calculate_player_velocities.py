@@ -5,6 +5,7 @@ Minimal script with minimal error handling.
 
 import os
 from pathlib import Path
+import sys
 from awpy import Demo
 import polars as pl
 import math
@@ -12,6 +13,10 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import json
 import hashlib
+
+project_root = Path(__file__).parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 from src.core.snapshot_extractor_optimized import sort_demo_paths_by_dir_number_desc
 from src.utils.cache_utils import load_demo
@@ -82,15 +87,33 @@ def merge_player_data(existing_data, new_data):
         if steam_id not in existing_data:
             existing_data[steam_id] = {
                 'name': new_info['name'],
-                'total_vel_xy': 0,
-                'total_time_alive': 0,
-                'round_count': 0
+                't_side': {
+                    '5v5': {'total_vel_xy': 0, 'total_time_alive': 0, 'round_count': 0},
+                    '4v4': {'total_vel_xy': 0, 'total_time_alive': 0, 'round_count': 0},
+                    '3v3': {'total_vel_xy': 0, 'total_time_alive': 0, 'round_count': 0},
+                    'all': {'total_vel_xy': 0, 'total_time_alive': 0, 'round_count': 0}
+                },
+                'ct_side': {
+                    '5v5': {'total_vel_xy': 0, 'total_time_alive': 0, 'round_count': 0},
+                    '4v4': {'total_vel_xy': 0, 'total_time_alive': 0, 'round_count': 0},
+                    '3v3': {'total_vel_xy': 0, 'total_time_alive': 0, 'round_count': 0},
+                    'all': {'total_vel_xy': 0, 'total_time_alive': 0, 'round_count': 0}
+                }
             }
         
         existing_data[steam_id]['name'] = new_info['name']  # Update name in case it changed
-        existing_data[steam_id]['total_vel_xy'] += new_info['total_vel_xy']
-        existing_data[steam_id]['total_time_alive'] += new_info['total_time_alive']
-        existing_data[steam_id]['round_count'] += new_info['round_count']
+        
+        # Merge T side stats
+        for player_count in ['5v5', '4v4', '3v3', 'all']:
+            existing_data[steam_id]['t_side'][player_count]['total_vel_xy'] += new_info['t_side'][player_count]['total_vel_xy']
+            existing_data[steam_id]['t_side'][player_count]['total_time_alive'] += new_info['t_side'][player_count]['total_time_alive']
+            existing_data[steam_id]['t_side'][player_count]['round_count'] += new_info['t_side'][player_count]['round_count']
+        
+        # Merge CT side stats
+        for player_count in ['5v5', '4v4', '3v3', 'all']:
+            existing_data[steam_id]['ct_side'][player_count]['total_vel_xy'] += new_info['ct_side'][player_count]['total_vel_xy']
+            existing_data[steam_id]['ct_side'][player_count]['total_time_alive'] += new_info['ct_side'][player_count]['total_time_alive']
+            existing_data[steam_id]['ct_side'][player_count]['round_count'] += new_info['ct_side'][player_count]['round_count']
     
     return existing_data
 
@@ -182,6 +205,30 @@ def calculate_velocities_by_round(demo_file, tick_rate=64):
         .alias('velocity_xy')
     ])
     
+    # Count alive players per side at each tick for player count categories
+    player_counts = ticks_df.filter(pl.col('is_alive') == True).group_by(['tick', 'side']).agg([
+        pl.col('name').n_unique().alias('player_count')
+    ])
+    
+    # Join player counts back to ticks
+    ticks_df = ticks_df.join(
+        player_counts,
+        on=['tick', 'side'],
+        how='left'
+    )
+    
+    # Categorize player count (5v5, 4v4, 3v3, or other)
+    ticks_df = ticks_df.with_columns([
+        pl.when(pl.col('player_count') == 5)
+        .then(pl.lit('5v5'))
+        .when(pl.col('player_count') == 4)
+        .then(pl.lit('4v4'))
+        .when(pl.col('player_count') == 3)
+        .then(pl.lit('3v3'))
+        .otherwise(pl.lit('other'))
+        .alias('player_count_category')
+    ])
+    
     round_velocities = {}
     
     # Process each round
@@ -203,8 +250,8 @@ def calculate_velocities_by_round(demo_file, tick_rate=64):
             (pl.col('is_alive') == True)
         )
         
-        # Group by player and calculate statistics
-        player_velocities = round_ticks.group_by('name').agg([
+        # Group by player, side, and player count category
+        player_velocities = round_ticks.group_by(['name', 'side', 'player_count_category']).agg([
             pl.col('velocity').mean().alias('avg_velocity'),
             pl.col('velocity').max().alias('max_velocity'),
             pl.col('velocity').min().alias('min_velocity'),
@@ -272,20 +319,20 @@ if __name__ == '__main__':
     ]
     # Sort by directory number first, then by team priority
 
-    with open('player_velocity_data_v1.json', 'r') as f:
-        data_v1 = json.load(f)
+    # with open('player_velocity_data_v1.json', 'r') as f:
+    #     data_v1 = json.load(f)
 
-    data_v1_hashes = data_v1['processed_demos']
+    # data_v1_hashes = data_v1['processed_demos']
     
-    demo_files = sort_demo_paths_by_dir_number_desc(demo_files)
-    # demo_files = sorted(demo_files, key=lambda x: (get_team_priority(x), -os.path.getmtime(x)))[:80]
+    demo_files = sort_demo_paths_by_dir_number_desc(demo_files)[:3000]
+    demo_files = sorted(demo_files, key=lambda x: (get_team_priority(x), -os.path.getmtime(x)))[:1]
 
     
     # Filter out already processed demos
     demos_to_process = []
     for demo_file in demo_files:
         demo_hash = get_demo_hash(demo_file)
-        if demo_hash not in processed_demos and demo_hash in data_v1_hashes:
+        if demo_hash not in processed_demos:
             demos_to_process.append(demo_file)
     
     print(f"📊 Total demos: {len(demo_files)}")
@@ -308,6 +355,8 @@ if __name__ == '__main__':
                 
                     for row in player_data.iter_rows(named=True):
                         player_name = row['name']
+                        player_side = row['side']  # Get the side (T or CT)
+                        player_count_cat = row['player_count_category']  # Get player count (5v5, 4v4, 3v3, other)
                         avg_vel_xy = row['avg_velocity_xy']
                         time_alive = row['time_alive']
                         
@@ -324,15 +373,33 @@ if __name__ == '__main__':
                             if steam_id not in new_player_data:
                                 new_player_data[steam_id] = {
                                     'name': player_name,
-                                    'total_vel_xy': 0,
-                                    'total_time_alive': 0,
-                                    'round_count': 0
+                                    't_side': {
+                                        '5v5': {'total_vel_xy': 0, 'total_time_alive': 0, 'round_count': 0},
+                                        '4v4': {'total_vel_xy': 0, 'total_time_alive': 0, 'round_count': 0},
+                                        '3v3': {'total_vel_xy': 0, 'total_time_alive': 0, 'round_count': 0},
+                                        'all': {'total_vel_xy': 0, 'total_time_alive': 0, 'round_count': 0}
+                                    },
+                                    'ct_side': {
+                                        '5v5': {'total_vel_xy': 0, 'total_time_alive': 0, 'round_count': 0},
+                                        '4v4': {'total_vel_xy': 0, 'total_time_alive': 0, 'round_count': 0},
+                                        '3v3': {'total_vel_xy': 0, 'total_time_alive': 0, 'round_count': 0},
+                                        'all': {'total_vel_xy': 0, 'total_time_alive': 0, 'round_count': 0}
+                                    }
                                 }
                             
-                            # Accumulate statistics
-                            new_player_data[steam_id]['total_vel_xy'] += avg_vel_xy
-                            new_player_data[steam_id]['total_time_alive'] += time_alive
-                            new_player_data[steam_id]['round_count'] += 1
+                            # Determine which side stats to update
+                            side_key = 't_side' if player_side.lower() == 't' else 'ct_side'
+                            
+                            # Always accumulate in 'all' category (includes any player count)
+                            new_player_data[steam_id][side_key]['all']['total_vel_xy'] += avg_vel_xy
+                            new_player_data[steam_id][side_key]['all']['total_time_alive'] += time_alive
+                            new_player_data[steam_id][side_key]['all']['round_count'] += 1
+                            
+                            # Also accumulate in specific player count category if it's 5v5, 4v4, or 3v3
+                            if player_count_cat in ['5v5', '4v4', '3v3']:
+                                new_player_data[steam_id][side_key][player_count_cat]['total_vel_xy'] += avg_vel_xy
+                                new_player_data[steam_id][side_key][player_count_cat]['total_time_alive'] += time_alive
+                                new_player_data[steam_id][side_key][player_count_cat]['round_count'] += 1
             except Exception as e:
                 print("Skipping demo: " + str(e))
                 continue
@@ -356,39 +423,185 @@ if __name__ == '__main__':
     # Calculate final averages for display
     display_data = {}
     for steam_id, info in player_info_by_id.items():
+        t_rounds_all = info['t_side']['all']['round_count']
+        ct_rounds_all = info['ct_side']['all']['round_count']
+        total_rounds = t_rounds_all + ct_rounds_all
+        
+        if total_rounds == 0:
+            continue
+            
         display_data[steam_id] = {
             'name': info['name'],
-            'avg_vel_xy': info['total_vel_xy'] / info['round_count'],
-            'avg_time_alive': info['total_time_alive'] / info['round_count'],
-            'round_count': info['round_count']
+            'round_count': total_rounds,
+            't_side': {},
+            'ct_side': {},
+            'combined': {}
+        }
+        
+        # Process each player count category for T side
+        for pc in ['5v5', '4v4', '3v3', 'all']:
+            rounds = info['t_side'][pc]['round_count']
+            display_data[steam_id]['t_side'][pc] = {
+                'avg_vel_xy': info['t_side'][pc]['total_vel_xy'] / rounds if rounds > 0 else 0,
+                'avg_time_alive': info['t_side'][pc]['total_time_alive'] / rounds if rounds > 0 else 0,
+                'round_count': rounds
+            }
+        
+        # Process each player count category for CT side
+        for pc in ['5v5', '4v4', '3v3', 'all']:
+            rounds = info['ct_side'][pc]['round_count']
+            display_data[steam_id]['ct_side'][pc] = {
+                'avg_vel_xy': info['ct_side'][pc]['total_vel_xy'] / rounds if rounds > 0 else 0,
+                'avg_time_alive': info['ct_side'][pc]['total_time_alive'] / rounds if rounds > 0 else 0,
+                'round_count': rounds
+            }
+        
+        # Combined stats (all player counts)
+        display_data[steam_id]['combined'] = {
+            'avg_vel_xy': (info['t_side']['all']['total_vel_xy'] + info['ct_side']['all']['total_vel_xy']) / total_rounds,
+            'avg_time_alive': (info['t_side']['all']['total_time_alive'] + info['ct_side']['all']['total_time_alive']) / total_rounds
         }
     
     # Print results
     print("\n=== Player Statistics Across All Demos ===")
     for steam_id, info in sorted(display_data.items(), key=lambda x: x[1]['round_count'], reverse=True)[:20]:
-        print(f"{info['name']} (Steam ID: {steam_id}):")
-        print(f"  Avg XY Velocity: {info['avg_vel_xy']:.2f} units/s")
-        print(f"  Avg Time Alive: {info['avg_time_alive']:.2f} seconds")
-        print(f"  Round Samples: {info['round_count']}")
+        print(f"\n{info['name']} (Steam ID: {steam_id}):")
+        print(f"  Total Rounds: {info['round_count']}")
+        
+        if info['t_side']['all']['round_count'] > 0:
+            print(f"\n  T-Side (Total: {info['t_side']['all']['round_count']} rounds):")
+            print(f"    Overall: {info['t_side']['all']['avg_vel_xy']:.2f} units/s, {info['t_side']['all']['avg_time_alive']:.2f}s alive")
+            
+            for pc in ['5v5', '4v4', '3v3']:
+                if info['t_side'][pc]['round_count'] > 0:
+                    print(f"    {pc} ({info['t_side'][pc]['round_count']} rounds): " + 
+                          f"{info['t_side'][pc]['avg_vel_xy']:.2f} units/s, " +
+                          f"{info['t_side'][pc]['avg_time_alive']:.2f}s alive")
+        
+        if info['ct_side']['all']['round_count'] > 0:
+            print(f"\n  CT-Side (Total: {info['ct_side']['all']['round_count']} rounds):")
+            print(f"    Overall: {info['ct_side']['all']['avg_vel_xy']:.2f} units/s, {info['ct_side']['all']['avg_time_alive']:.2f}s alive")
+            
+            for pc in ['5v5', '4v4', '3v3']:
+                if info['ct_side'][pc]['round_count'] > 0:
+                    print(f"    {pc} ({info['ct_side'][pc]['round_count']} rounds): " + 
+                          f"{info['ct_side'][pc]['avg_vel_xy']:.2f} units/s, " +
+                          f"{info['ct_side'][pc]['avg_time_alive']:.2f}s alive")
+        
+        print(f"\n  Combined: {info['combined']['avg_vel_xy']:.2f} units/s, {info['combined']['avg_time_alive']:.2f}s alive")
     
-    # Get top 10 players by round count
-    top_10_players = sorted(display_data.items(), key=lambda x: x[1]['round_count'], reverse=True)[:80]
+    # Get top players by round count
+    top_players = sorted(display_data.items(), key=lambda x: x[1]['round_count'], reverse=True)[:80]
     
-    # Create scatter plot
-    plt.figure(figsize=(14, 10))
+    # Filter players with sufficient data
+    players_to_plot = [(steam_id, info) for steam_id, info in top_players 
+                       if info['name'] not in ['Ex3rcice', 'MUTiRiS']]
     
-    for steam_id, info in top_10_players:
-        if info['name'] in ['Ex3rcice', 'MUTiRiS']:
-            continue
-        plt.scatter(info['avg_vel_xy'], info['avg_time_alive'], 
-                   s=10, alpha=0.6)
-        # Add text label next to each point
-        plt.text(info['avg_vel_xy'] + 0.2, info['avg_time_alive'] - 0.1, 
-                info['name'], fontsize=8, alpha=0.8)
+    # Define colors for each scenario
+    scenario_colors = {
+        '5v5': '#2E86AB',  # Blue
+        '4v4': '#A23B72',  # Purple
+        '3v3': '#F18F01',  # Orange
+        'all': '#90A959'   # Green
+    }
     
-    plt.xlabel('Average XY Velocity (units/second)')
-    plt.ylabel('Average Time Alive (seconds)')
-    plt.title('Top 20 Players: XY Velocity vs Time Alive\n(Bubble size = number of round samples)')
-    plt.grid(True, alpha=0.3)
+    # Create figure with 2x2 subplots (T-side and CT-side, with scenarios)
+    fig, axes = plt.subplots(2, 2, figsize=(24, 16))
+    
+    # Collect all data points to determine global axis ranges
+    all_vel_xy = []
+    all_time_alive = []
+    
+    for steam_id, info in players_to_plot:
+        for side in ['t_side', 'ct_side']:
+            for scenario in ['5v5', '4v4', '3v3', 'all']:
+                if info[side][scenario]['round_count'] > 5:
+                    all_vel_xy.append(info[side][scenario]['avg_vel_xy'])
+                    all_time_alive.append(info[side][scenario]['avg_time_alive'])
+    
+    # Calculate global axis limits with some padding
+    x_min, x_max = min(all_vel_xy), max(all_vel_xy)
+    y_min, y_max = min(all_time_alive), max(all_time_alive)
+    x_padding = (x_max - x_min) * 0.05
+    y_padding = (y_max - y_min) * 0.05
+    x_lim = (x_min - x_padding, x_max + x_padding)
+    y_lim = (y_min - y_padding, y_max + y_padding)
+    
+    # T-Side by scenario
+    for scenario in ['5v5', '4v4', '3v3']:
+        scenario_plotted = False
+        for steam_id, info in players_to_plot:
+            if info['t_side'][scenario]['round_count'] > 5:  # Only show if enough samples
+                ax = axes[0, 0]
+                ax.scatter(info['t_side'][scenario]['avg_vel_xy'], 
+                          info['t_side'][scenario]['avg_time_alive'],
+                          s=15, alpha=0.6, color=scenario_colors[scenario], 
+                          label=scenario if not scenario_plotted else "")
+                scenario_plotted = True
+    
+    axes[0, 0].set_xlabel('Average XY Velocity (units/second)', fontsize=11)
+    axes[0, 0].set_ylabel('Average Time Alive (seconds)', fontsize=11)
+    axes[0, 0].set_title('T-Side: Velocity vs Time Alive by Scenario', fontsize=12, fontweight='bold')
+    axes[0, 0].grid(True, alpha=0.3)
+    axes[0, 0].legend(loc='upper right')
+    axes[0, 0].set_xlim(x_lim)
+    axes[0, 0].set_ylim(y_lim)
+    
+    # CT-Side by scenario
+    for scenario in ['5v5', '4v4', '3v3']:
+        scenario_plotted = False
+        for steam_id, info in players_to_plot:
+            if info['ct_side'][scenario]['round_count'] > 5:  # Only show if enough samples
+                ax = axes[0, 1]
+                ax.scatter(info['ct_side'][scenario]['avg_vel_xy'], 
+                          info['ct_side'][scenario]['avg_time_alive'],
+                          s=15, alpha=0.6, color=scenario_colors[scenario],
+                          label=scenario if not scenario_plotted else "")
+                scenario_plotted = True
+    
+    axes[0, 1].set_xlabel('Average XY Velocity (units/second)', fontsize=11)
+    axes[0, 1].set_ylabel('Average Time Alive (seconds)', fontsize=11)
+    axes[0, 1].set_title('CT-Side: Velocity vs Time Alive by Scenario', fontsize=12, fontweight='bold')
+    axes[0, 1].grid(True, alpha=0.3)
+    axes[0, 1].legend(loc='upper right')
+    axes[0, 1].set_xlim(x_lim)
+    axes[0, 1].set_ylim(y_lim)
+    
+    # T-Side overall with player names
+    for steam_id, info in players_to_plot[:30]:  # Top 30 players
+        if info['t_side']['all']['round_count'] > 10:
+            ax = axes[1, 0]
+            ax.scatter(info['t_side']['all']['avg_vel_xy'], 
+                      info['t_side']['all']['avg_time_alive'],
+                      s=20, alpha=0.7, color=scenario_colors['all'])
+            ax.text(info['t_side']['all']['avg_vel_xy'] + 0.3, 
+                   info['t_side']['all']['avg_time_alive'] - 0.2,
+                   info['name'], fontsize=7, alpha=0.8)
+    
+    axes[1, 0].set_xlabel('Average XY Velocity (units/second)', fontsize=11)
+    axes[1, 0].set_ylabel('Average Time Alive (seconds)', fontsize=11)
+    axes[1, 0].set_title('T-Side: Overall (All Scenarios) - Top 30 Players', fontsize=12, fontweight='bold')
+    axes[1, 0].grid(True, alpha=0.3)
+    axes[1, 0].set_xlim(x_lim)
+    axes[1, 0].set_ylim(y_lim)
+    
+    # CT-Side overall with player names
+    for steam_id, info in players_to_plot[:30]:  # Top 30 players
+        if info['ct_side']['all']['round_count'] > 10:
+            ax = axes[1, 1]
+            ax.scatter(info['ct_side']['all']['avg_vel_xy'], 
+                      info['ct_side']['all']['avg_time_alive'],
+                      s=20, alpha=0.7, color='#C73E1D')  # Red for CT
+            ax.text(info['ct_side']['all']['avg_vel_xy'] + 0.3, 
+                   info['ct_side']['all']['avg_time_alive'] - 0.2,
+                   info['name'], fontsize=7, alpha=0.8)
+    
+    axes[1, 1].set_xlabel('Average XY Velocity (units/second)', fontsize=11)
+    axes[1, 1].set_ylabel('Average Time Alive (seconds)', fontsize=11)
+    axes[1, 1].set_title('CT-Side: Overall (All Scenarios) - Top 30 Players', fontsize=12, fontweight='bold')
+    axes[1, 1].grid(True, alpha=0.3)
+    axes[1, 1].set_xlim(x_lim)
+    axes[1, 1].set_ylim(y_lim)
+    
     plt.tight_layout()
     plt.show()

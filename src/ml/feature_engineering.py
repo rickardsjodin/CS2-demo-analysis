@@ -11,7 +11,7 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from config import CS2_MAPS
+from config import CS2_MAPS, GEAR_CATEGORY_NAMES
 
 def create_features(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -30,6 +30,14 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     # between training and prediction. The order matters!
     if 'map_name' in df.columns:
         df['map_name'] = pd.Categorical(df['map_name'], categories=CS2_MAPS)
+    
+    # Convert gear features to categorical type
+    # CRITICAL: Use explicit categories to ensure consistency between training and prediction
+    if 'ct_avg_gear' in df.columns:
+        df['ct_avg_gear'] = pd.Categorical(df['ct_avg_gear'], categories=GEAR_CATEGORY_NAMES)
+    
+    if 't_avg_gear' in df.columns:
+        df['t_avg_gear'] = pd.Categorical(df['t_avg_gear'], categories=GEAR_CATEGORY_NAMES)
     
     # Player advantage
     df['player_advantage'] = df['cts_alive'] - df['ts_alive']

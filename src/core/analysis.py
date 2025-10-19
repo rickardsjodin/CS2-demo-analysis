@@ -16,9 +16,44 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from config import BOMB_TIME, MODELS_DIR, ROUND_TIME, TICK_RATE
-from src.core.constants import FLASH_NADE, GRENADE_AND_BOMB_TYPES, HE_NADE, MOLOTOV_NADE, SMOKE_NADE, WEAPON_TIERS
+from src.core.constants import (
+    FLASH_NADE, GRENADE_AND_BOMB_TYPES, HE_NADE, MOLOTOV_NADE, SMOKE_NADE, 
+    WEAPON_TIERS, WEAPON_PRICES, ARMOR_PRICE_KEVLAR, ARMOR_PRICE_HELMET, GEAR_CATEGORIES
+)
 from src.ml.feature_engineering import create_features
 from src.utils.cache_utils import load_demo
+
+
+def categorize_gear_value(gear_value: float) -> str:
+    """
+    Categorize gear value into discrete categories based on equipment loadout.
+    
+    Categories:
+    'starter_pistol' - $0-800
+    'upgraded_pistol' - $800-1500
+    'smg_shotgun' - $1500-2700
+    'tier2_rifle' - $2700-3500
+    'tier1_rifle' - $3500-4500
+    'sniper' - $4500+
+    
+    Args:
+        gear_value: Total gear value (armor + most expensive weapon)
+    
+    Returns:
+        Category name (string)
+    """
+    if gear_value < 800:
+        return "starter_pistol"
+    elif gear_value < 1500:
+        return "upgraded_pistol"
+    elif gear_value < 2700:
+        return "smg_shotgun"
+    elif gear_value < 3500:
+        return "tier2_rifle"
+    elif gear_value < 4500:
+        return "tier1_rifle"
+    else:
+        return "sniper"
 
 
 
@@ -64,55 +99,103 @@ def calculate_player_stats(alive_players: pl.DataFrame) -> Dict[str, int]:
         "ct_armor": 0, "t_armor": 0,
         "defusers": 0,
         "ct_smokes": 0, "ct_flashes": 0, "ct_he_nades" : 0, "ct_molotovs": 0,
-        "t_smokes": 0, "t_flashes": 0, "t_he_nades" : 0, "t_molotovs": 0
+        "t_smokes": 0, "t_flashes": 0, "t_he_nades" : 0, "t_molotovs": 0,
+        "ct_total_gear_value": 0, "t_total_gear_value": 0,
+        "ct_player_count": 0, "t_player_count": 0
     }
 
     for player_row in alive_players.iter_rows(named=True):
         inventory = player_row.get('inventory', [])
         player_side = player_row['side']
+        if player_side == 1:
+            player_side = 'ct'
         
+        # Track player count for averaging
+        if player_side == 'ct':
+            stats["ct_player_count"] += 1
+        else:
+            stats["t_player_count"] += 1
+        
+        # Calculate gear value for this player
+        player_gear_value = 0
+        
+        # Add armor cost
+        armor = player_row.get('armor', 0) or 0
+        has_armor = armor > 0
+        has_helmet = player_row.get('has_helmet', False)
+        
+        if has_armor:
+            player_gear_value += ARMOR_PRICE_KEVLAR
+            if has_helmet:
+                player_gear_value += ARMOR_PRICE_HELMET
+        
+        # Find most expensive weapon
         best_weapon_tier = 0
+        most_expensive_weapon_price = 0
+        
         if inventory:
             for item_name in inventory:
+                # Get weapon tier for main weapon tracking
                 tier = WEAPON_TIERS.get(item_name)
                 if tier is not None:
                     if tier > best_weapon_tier:
                         best_weapon_tier = tier
                 elif (item_name not in GRENADE_AND_BOMB_TYPES) and ("Knife" not in item_name):
                     tqdm.write(f"Warning: Unknown weapon '{item_name}' not in WEAPON_TIERS.")
+                
+                # Get weapon price for gear value calculation
+                weapon_price = WEAPON_PRICES.get(item_name, 0)
+                if weapon_price > most_expensive_weapon_price and item_name not in GRENADE_AND_BOMB_TYPES:
+                    most_expensive_weapon_price = weapon_price
         
+        player_gear_value += most_expensive_weapon_price
+        
+        # Track main weapons (tier 5+)
         if best_weapon_tier >= 5:
             if player_side == 'ct':
                 stats["ct_main_weapons"] += 1
             else:
                 stats["t_main_weapons"] += 1
         
+        # Count grenades
         smoke_count = sum(1 for item in inventory if item == SMOKE_NADE)
         molotov_count = sum(1 for item in inventory if item in MOLOTOV_NADE)
         flash_count = sum(1 for item in inventory if item == FLASH_NADE)
         he_count = sum(1 for item in inventory if item == HE_NADE)
         
-
-        armor = player_row.get('armor', 0) or 0
-        has_armor = armor > 0
-
+        # Add to team-specific stats
         if player_side == 'ct':
             stats["ct_smokes"] += smoke_count
             stats["ct_flashes"] += flash_count
             stats["ct_he_nades"] += he_count
             stats["ct_molotovs"] += molotov_count
-            stats["ct_helmets"] += 1 if player_row.get('has_helmet') else 0
+            stats["ct_helmets"] += 1 if has_helmet else 0
             stats["ct_armor"] += has_armor
+            stats["ct_total_gear_value"] += player_gear_value
         else:
             stats["t_smokes"] += smoke_count
             stats["t_flashes"] += flash_count
             stats["t_he_nades"] += he_count
             stats["t_molotovs"] += molotov_count
-            stats["t_helmets"] += 1 if player_row.get('has_helmet') else 0
+            stats["t_helmets"] += 1 if has_helmet else 0
             stats["t_armor"] += has_armor
+            stats["t_total_gear_value"] += player_gear_value
 
         stats["defusers"] += 1 if player_row.get('has_defuser') else 0
-        
+    
+    # Calculate average gear values and convert to categorical
+    ct_avg_value = (stats["ct_total_gear_value"] / stats["ct_player_count"]) if stats["ct_player_count"] > 0 else 0
+    t_avg_value = (stats["t_total_gear_value"] / stats["t_player_count"]) if stats["t_player_count"] > 0 else 0
+    
+    stats["ct_avg_gear"] = categorize_gear_value(ct_avg_value)
+    stats["t_avg_gear"] = categorize_gear_value(t_avg_value)
+    
+    # Remove intermediate calculation fields
+    del stats["ct_total_gear_value"]
+    del stats["t_total_gear_value"]
+    del stats["ct_player_count"]
+    del stats["t_player_count"]
+    
     return stats
 
 def create_snapshot(

@@ -72,6 +72,9 @@ export default function FeatureInputs({
       if (isCalculatedTeamStat(feature.name)) {
         hasCalculatedFeatures = true;
       }
+    } else if (feature.name.includes('avg_gear')) {
+      // Gear categories go in Equipment group
+      groups['Equipment'].push(feature);
     } else {
       groups['Equipment'].push(feature);
       if (isCalculatedTeamStat(feature.name)) {
@@ -153,9 +156,22 @@ export default function FeatureInputs({
             >
               {feature.constraints.options?.map((value) => {
                 if (typeof value === 'string') {
+                  // For gear categories, create better display names
+                  let displayName: string = value;
+                  if (feature.name.includes('avg_gear')) {
+                    const gearNames: Record<string, string> = {
+                      starter_pistol: 'Starter Pistol ($0-800)',
+                      upgraded_pistol: 'Upgraded Pistol ($800-1500)',
+                      smg_shotgun: 'SMG/Shotgun ($1500-2700)',
+                      tier2_rifle: 'Tier 2 Rifle ($2700-3500)',
+                      tier1_rifle: 'Tier 1 Rifle ($3500-4500)',
+                      sniper: 'Sniper ($4500+)',
+                    };
+                    displayName = gearNames[value] || value;
+                  }
                   return (
                     <option key={value} value={value}>
-                      {value}
+                      {displayName}
                     </option>
                   );
                 }

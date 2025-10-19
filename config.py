@@ -50,6 +50,17 @@ CS2_MAPS = [
     'de_vertigo'
 ]
 
+# Gear categories - centralized for consistent categorical encoding
+# Order matters! This must be used consistently during training and prediction
+GEAR_CATEGORY_NAMES = [
+    'starter_pistol',    # 0: $0-800
+    'upgraded_pistol',   # 1: $800-1500
+    'smg_shotgun',       # 2: $1500-2700
+    'tier2_rifle',       # 3: $2700-3500
+    'tier1_rifle',       # 4: $3500-4500
+    'sniper'             # 5: $4500+
+]
+
 
 # Create directories if they don't exist
 for directory in [DATA_DIR, DEMOS_DIR, OUTPUTS_DIR, CACHE_DIR, MODELS_DIR, VISUALIZATIONS_DIR, REPORTS_DIR]:
