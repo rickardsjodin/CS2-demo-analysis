@@ -36,6 +36,20 @@ TICK_RATE = 64
 ROUND_TIME = 115
 BOMB_TIME = 40
 
+# CS2 Map names - centralized for consistent categorical encoding
+# Order matters! This must be used consistently during training and prediction
+CS2_MAPS = [
+    'de_dust2', 
+    'de_nuke', 
+    'de_overpass', 
+    'de_inferno',
+    'de_train', 
+    'de_mirage', 
+    'de_ancient', 
+    'de_anubis', 
+    'de_vertigo'
+]
+
 
 # Create directories if they don't exist
 for directory in [DATA_DIR, DEMOS_DIR, OUTPUTS_DIR, CACHE_DIR, MODELS_DIR, VISUALIZATIONS_DIR, REPORTS_DIR]:

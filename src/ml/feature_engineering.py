@@ -3,6 +3,15 @@ Feature Engineering for CS2 Win Probability Model
 This module creates the features used for model training and prediction.
 """
 import pandas as pd
+import sys
+from pathlib import Path
+
+# Add project root to path for imports
+project_root = Path(__file__).parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+from config import CS2_MAPS
 
 def create_features(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -17,8 +26,10 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
         pd.DataFrame: The DataFrame with added feature columns.
     """
     # Convert map_name to categorical type for XGBoost compatibility
+    # CRITICAL: Use explicit categories from CS2_MAPS to ensure consistency
+    # between training and prediction. The order matters!
     if 'map_name' in df.columns:
-        df['map_name'] = df['map_name'].astype('category')
+        df['map_name'] = pd.Categorical(df['map_name'], categories=CS2_MAPS)
     
     # Player advantage
     df['player_advantage'] = df['cts_alive'] - df['ts_alive']

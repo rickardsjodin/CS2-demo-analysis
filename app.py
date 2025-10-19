@@ -18,10 +18,7 @@ from src.ml.train_win_probability_model import load_and_prepare_data
 from src.utils.cache_utils import load_demo
 from src.core.analysis import get_kill_death_analysis
 from awpy import Demo
-
-# CS2 map names
-CS2_MAPS = ['de_dust2', 'de_nuke', 'de_overpass', 'de_inferno', 
-            'de_train', 'de_mirage', 'de_ancient', 'de_anubis', 'de_vertigo']
+from config import CS2_MAPS
 
 app = Flask(__name__)
 
