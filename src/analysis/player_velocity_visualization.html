@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Player Velocity Analysis</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
+          'Oxygen', 'Ubuntu', sans-serif;
+        background: #0a0e27;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px;
+        color: #e4e4e7;
+      }
+
+      .container {
+        background: linear-gradient(145deg, #1a1f3a 0%, #0f1222 100%);
+        border-radius: 24px;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5),
+          0 0 100px rgba(102, 126, 234, 0.1);
+        padding: 40px;
+        max-width: 1600px;
+        width: 100%;
+        border: 1px solid rgba(102, 126, 234, 0.1);
+      }
+
+      h1 {
+        text-align: center;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 10px;
+        font-size: 2.8em;
+        font-weight: 800;
+        letter-spacing: -1px;
+      }
+
+      .subtitle {
+        text-align: center;
+        color: #9ca3af;
+        margin-bottom: 30px;
+        font-size: 1.1em;
+        font-weight: 300;
+      }
+
+      .chart-container {
+        position: relative;
+        display: inline-block;
+        margin: 0 auto;
+      }
+
+      #chartCanvas {
+        background: #1e2237;
+        border: 1px solid rgba(102, 126, 234, 0.2);
+        cursor: crosshair;
+        display: block;
+      }
+
+      .player-label {
+        position: absolute;
+        color: #f4f4f5;
+        font-size: 10px;
+        font-weight: 600;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        pointer-events: none;
+        white-space: nowrap;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+      }
+
+      .axis-label {
+        position: absolute;
+        color: #d1d5db;
+        font-size: 16px;
+        font-weight: 700;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        pointer-events: none;
+      }
+
+      .axis-label.x-axis {
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+
+      .axis-label.y-axis {
+        left: 25px;
+        top: 50%;
+        transform: rotate(-90deg) translateX(-50%);
+        transform-origin: left center;
+      }
+
+      .controls {
+        display: flex;
+        justify-content: center;
+        gap: 30px;
+        margin-top: 30px;
+        flex-wrap: wrap;
+        padding: 20px;
+        background: rgba(102, 126, 234, 0.05);
+        border-radius: 12px;
+        border: 1px solid rgba(102, 126, 234, 0.1);
+      }
+
+      .control-group {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      label {
+        color: #d1d5db;
+        font-weight: 600;
+        font-size: 0.95em;
+      }
+
+      input[type='range'] {
+        width: 200px;
+        height: 6px;
+        background: rgba(102, 126, 234, 0.2);
+        border-radius: 5px;
+        outline: none;
+        -webkit-appearance: none;
+      }
+
+      input[type='range']::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 18px;
+        height: 18px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        cursor: pointer;
+        border-radius: 50%;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.5);
+      }
+
+      input[type='range']::-moz-range-thumb {
+        width: 18px;
+        height: 18px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        cursor: pointer;
+        border-radius: 50%;
+        border: none;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.5);
+      }
+
+      .control-group span {
+        color: #667eea;
+        font-weight: 700;
+        min-width: 35px;
+        text-align: center;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-top: 30px;
+      }
+
+      .stat-card {
+        background: linear-gradient(
+          135deg,
+          rgba(102, 126, 234, 0.2) 0%,
+          rgba(118, 75, 162, 0.2) 100%
+        );
+        color: #e4e4e7;
+        padding: 24px;
+        border-radius: 16px;
+        text-align: center;
+        border: 1px solid rgba(102, 126, 234, 0.2);
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+      }
+
+      .stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 24px rgba(102, 126, 234, 0.2);
+        border-color: rgba(102, 126, 234, 0.4);
+      }
+
+      .stat-card h3 {
+        font-size: 0.85em;
+        opacity: 0.7;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-weight: 600;
+      }
+
+      .stat-card p {
+        font-size: 2.2em;
+        font-weight: 800;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      #tooltip {
+        position: absolute;
+        background: rgba(15, 18, 34, 0.98);
+        color: #e4e4e7;
+        padding: 16px 20px;
+        border-radius: 12px;
+        font-size: 14px;
+        pointer-events: none;
+        display: none;
+        z-index: 1000;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
+          0 0 0 1px rgba(102, 126, 234, 0.3);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(102, 126, 234, 0.2);
+      }
+
+      #tooltip strong {
+        display: block;
+        font-size: 16px;
+        margin-bottom: 8px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🎮 CS2 Player Velocity Analysis</h1>
+      <p class="subtitle">Average XY Velocity vs Time Alive per Round</p>
+
+      <div class="chart-container">
+        <canvas id="chartCanvas" width="2000" height="1200"></canvas>
+        <div id="labelsContainer"></div>
+        <div class="axis-label x-axis">Average XY Velocity (units/second)</div>
+        <div class="axis-label y-axis">Average Time Alive (seconds)</div>
+      </div>
+
+      <div class="controls">
+        <div class="control-group">
+          <label for="minRounds">Min Rounds:</label>
+          <input
+            type="range"
+            id="minRounds"
+            min="0"
+            max="100"
+            value="10"
+            step="5"
+          />
+          <span id="minRoundsValue">10</span>
+        </div>
+        <div class="control-group">
+          <label for="topPlayers">Top Players:</label>
+          <input
+            type="range"
+            id="topPlayers"
+            min="10"
+            max="100"
+            value="50"
+            step="10"
+          />
+          <span id="topPlayersValue">50</span>
+        </div>
+      </div>
+
+      <div class="stats" id="statsContainer"></div>
+    </div>
+
+    <div id="tooltip"></div>
+
+    <script>
+      const canvas = document.getElementById('chartCanvas');
+      const ctx = canvas.getContext('2d');
+      const tooltip = document.getElementById('tooltip');
+
+      let playerData = [];
+      let currentHoveredPlayer = null;
+
+      // Setup high DPI canvas
+      function setupCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+
+        // Set actual size in memory (scaled to account for extra pixel density)
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+
+        // Scale all drawing operations by the dpr
+        ctx.scale(dpr, dpr);
+
+        // Set display size (css pixels)
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+
+        return dpr;
+      }
+
+      // Initialize high DPI canvas
+      const dpr = setupCanvas();
+
+      // Load data from JSON file
+      async function loadData() {
+        try {
+          const response = await fetch('player_velocity_data.json');
+          const data = await response.json();
+
+          // Transform data
+          playerData = Object.entries(data.player_info).map(
+            ([steamId, info]) => ({
+              steamId,
+              name: info.name,
+              avgVelocity: info.total_vel_xy / info.round_count,
+              avgTimeAlive: info.total_time_alive / info.round_count,
+              roundCount: info.round_count,
+            })
+          );
+
+          // Sort by round count
+          playerData.sort((a, b) => b.roundCount - a.roundCount);
+
+          updateChart();
+          updateStats();
+        } catch (error) {
+          console.error('Error loading data:', error);
+          ctx.fillStyle = '#ef4444';
+          ctx.font = 'bold 20px -apple-system, BlinkMacSystemFont, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(
+            'Error loading data. Make sure player_velocity_data.json exists.',
+            canvas.width / 2,
+            canvas.height / 2
+          );
+        }
+      }
+
+      function updateChart() {
+        const minRounds = parseInt(document.getElementById('minRounds').value);
+        const topN = parseInt(document.getElementById('topPlayers').value);
+
+        // Filter data
+        const filteredData = playerData
+          .filter(
+            (p) =>
+              p.roundCount >= minRounds &&
+              !['Ex3rcice', 'MUTiRiS'].includes(p.name)
+          )
+          .slice(0, topN);
+
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Calculate scales
+        const padding = 80;
+        const chartWidth = canvas.width - 2 * padding;
+        const chartHeight = canvas.height - 2 * padding;
+
+        const velocities = filteredData.map((p) => p.avgVelocity);
+        const times = filteredData.map((p) => p.avgTimeAlive);
+
+        const minVel = Math.min(...velocities) * 0.95;
+        const maxVel = Math.max(...velocities) * 1.05;
+        const minTime = Math.min(...times) * 0.95;
+        const maxTime = Math.max(...times) * 1.05;
+
+        // Draw background gradient
+        const gradient = ctx.createLinearGradient(
+          padding,
+          padding,
+          canvas.width - padding,
+          canvas.height - padding
+        );
+        gradient.addColorStop(0, 'rgba(102, 126, 100, 0.00)');
+        gradient.addColorStop(1, 'rgba(118, 75, 100, 0.00)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(padding, padding, chartWidth, chartHeight);
+
+        // Draw grid
+        ctx.strokeStyle = 'rgba(102, 126, 234, 0.15)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 10; i++) {
+          const x = padding + (chartWidth / 10) * i;
+          const y = padding + (chartHeight / 10) * i;
+
+          ctx.beginPath();
+          ctx.moveTo(x, padding);
+          ctx.lineTo(x, canvas.height - padding);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(padding, y);
+          ctx.lineTo(canvas.width - padding, y);
+          ctx.stroke();
+        }
+
+        // Draw axes
+        // ctx.strokeStyle = '#667eea';
+        // ctx.lineWidth = 10;
+        // ctx.beginPath();
+        // ctx.moveTo(padding, canvas.height - padding);
+        // ctx.lineTo(canvas.width - padding, canvas.height - padding);
+        // ctx.lineTo(canvas.width - padding, padding);
+        // ctx.stroke();
+
+        // Draw data points
+        filteredData.forEach((player, index) => {
+          const x =
+            padding +
+            ((player.avgVelocity - minVel) / (maxVel - minVel)) * chartWidth;
+          const y =
+            canvas.height -
+            padding -
+            ((player.avgTimeAlive - minTime) / (maxTime - minTime)) *
+              chartHeight;
+          const radius = 5;
+
+          // Color based on index with vibrant colors
+          const hue = 200;
+
+          // Draw glow effect
+          ctx.beginPath();
+          ctx.arc(x, y, radius + 3, 0, Math.PI * 2);
+          const glowGradient = ctx.createRadialGradient(
+            x,
+            y,
+            0,
+            x,
+            y,
+            radius + 3
+          );
+          glowGradient.addColorStop(0, `hsla(${hue}, 80%, 65%, 0.1)`);
+          glowGradient.addColorStop(1, `hsla(${hue}, 80%, 65%, 0)`);
+          ctx.fillStyle = glowGradient;
+          ctx.fill();
+
+          // Draw circle
+          ctx.beginPath();
+          ctx.arc(x, y, radius, 0, Math.PI * 2);
+          const gradient = ctx.createRadialGradient(
+            x - radius / 3,
+            y - radius / 3,
+            0,
+            x,
+            y,
+            radius
+          );
+          gradient.addColorStop(0, `hsla(${hue}, 80%, 75%, 0.9)`);
+          gradient.addColorStop(1, `hsla(${hue}, 80%, 55%, 0.7)`);
+          ctx.fillStyle = gradient;
+          ctx.fill();
+          //   ctx.strokeStyle = `hsla(${hue}, 80%, 85%, 0.6)`;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          // Store position for hover detection
+          player._x = x;
+          player._y = y;
+          player._radius = radius;
+        });
+
+        // Create HTML labels for player names
+        const labelsContainer = document.getElementById('labelsContainer');
+        labelsContainer.innerHTML = ''; // Clear existing labels
+
+        const canvasRect = canvas.getBoundingClientRect();
+
+        filteredData.forEach((player) => {
+          const label = document.createElement('div');
+          label.className = 'player-label';
+          label.textContent = player.name;
+
+          // Position relative to canvas
+          label.style.left = player._x + 10 + 'px';
+          label.style.top = player._y - 8 + 'px';
+
+          labelsContainer.appendChild(label);
+        });
+
+        // Draw axis ticks
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.textAlign = 'center';
+        for (let i = 0; i <= 5; i++) {
+          const vel = minVel + (maxVel - minVel) * (i / 5);
+          const x = padding + (chartWidth / 5) * i;
+          ctx.fillText(vel.toFixed(0), x, canvas.height - padding + 25);
+
+          const time = minTime + (maxTime - minTime) * (i / 5);
+          const y = canvas.height - padding - (chartHeight / 5) * i;
+          ctx.textAlign = 'right';
+          ctx.fillText(time.toFixed(0), padding - 10, y + 5);
+        }
+
+        // Store filtered data for hover
+        canvas.filteredData = filteredData;
+      }
+
+      function updateStats() {
+        const statsContainer = document.getElementById('statsContainer');
+        const totalPlayers = playerData.length;
+        const avgVelocity =
+          playerData.reduce((sum, p) => sum + p.avgVelocity, 0) / totalPlayers;
+        const avgTime =
+          playerData.reduce((sum, p) => sum + p.avgTimeAlive, 0) / totalPlayers;
+        const totalRounds = playerData.reduce(
+          (sum, p) => sum + p.roundCount,
+          0
+        );
+
+        statsContainer.innerHTML = `
+                <div class="stat-card">
+                    <h3>Total Players</h3>
+                    <p>${totalPlayers}</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Avg Velocity</h3>
+                    <p>${avgVelocity.toFixed(1)}</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Avg Time Alive</h3>
+                    <p>${avgTime.toFixed(1)}s</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Total Rounds</h3>
+                    <p>${totalRounds}</p>
+                </div>
+            `;
+      }
+
+      // Event listeners
+      document.getElementById('minRounds').addEventListener('input', (e) => {
+        document.getElementById('minRoundsValue').textContent = e.target.value;
+        updateChart();
+      });
+
+      document.getElementById('topPlayers').addEventListener('input', (e) => {
+        document.getElementById('topPlayersValue').textContent = e.target.value;
+        updateChart();
+      });
+
+      canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        if (!canvas.filteredData) return;
+
+        let found = false;
+        for (const player of canvas.filteredData) {
+          const distance = Math.sqrt(
+            (x - player._x) ** 2 + (y - player._y) ** 2
+          );
+          if (distance <= player._radius) {
+            tooltip.innerHTML = `
+                        <strong>${player.name}</strong>
+                        Velocity: ${player.avgVelocity.toFixed(2)} units/s<br>
+                        Time Alive: ${player.avgTimeAlive.toFixed(2)} sec<br>
+                        Rounds: ${player.roundCount}
+                    `;
+            tooltip.style.display = 'block';
+            tooltip.style.left = e.clientX + 15 + 'px';
+            tooltip.style.top = e.clientY + 15 + 'px';
+            found = true;
+            break;
+          }
+        }
+
+        if (!found) {
+          tooltip.style.display = 'none';
+        }
+      });
+
+      canvas.addEventListener('mouseleave', () => {
+        tooltip.style.display = 'none';
+      });
+
+      // Initialize
+      loadData();
+    </script>
+  </body>
+</html>
