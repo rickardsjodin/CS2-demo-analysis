@@ -112,12 +112,13 @@ def get_or_parse_demo(demo_id):
             dem = Demo(str(demo_data['path']))
             dem.parse(player_props=['armor_value', 'has_helmet', 'has_defuser', 'inventory'])
             demo_data['demo'] = dem
+            demo_data['map_name'] = dem.parse_header()['map_name']
             print(f"✅ Demo parsed: {demo_data['filename']}")
         except Exception as e:
             print(f"❌ Error parsing demo: {e}")
             raise
     
-    return demo_data['demo']
+    return demo_data['demo'], demo_data['map_name']
 
 
 
@@ -129,10 +130,12 @@ def slice_dataset():
     mask = pd.Series(True, index=dataset_df.index)
     for key, cfg in features_with_bins.items():
         v, bs = cfg['value'], cfg['bin_size']
+        # bin_size < 0 means skip this feature (match any value)
         if bs < 0:
             continue
-        if key == 'map_name':
-            mask &=dataset_df[key] == v
+        # For categorical features like map_name, bin_size=0 means exact match
+        if bs == 0:
+            mask &= dataset_df[key] == v
         else:
             mask &= dataset_df[key].between(v - bs, v + bs)
 
@@ -406,14 +409,24 @@ def predict():
             # Use consistent categorical encoding with all CS2 maps
             X['map_name'] = pd.Categorical(X['map_name'], categories=CS2_MAPS)
         
-        # Apply scaling if needed (only on numeric columns)
-        if scaler is not None:
+        # Check if model uses preprocessor (neural networks with categorical features)
+        preprocessor = model_data.get('preprocessor')
+        
+        if preprocessor is not None:
+            # Use preprocessor for models with categorical features (e.g., neural networks)
+            # Preprocessor handles both scaling and one-hot encoding
+            X_processed = preprocessor.transform(X)
+        elif scaler is not None:
+            # Legacy path: Use scaler for models without categorical features
             # Get numeric columns (exclude categorical columns)
             numeric_cols = X.select_dtypes(include=[np.number]).columns
-            X[numeric_cols] = scaler.transform(X[numeric_cols])
+            X_processed = scaler.transform(X[numeric_cols])
+        else:
+            # No preprocessing needed (e.g., tree-based models)
+            X_processed = X
         
         # Make prediction
-        probability = model.predict_proba(X)[0, 1]  # Probability of CT win
+        probability = model.predict_proba(X_processed)[0, 1]  # Probability of CT win
         prediction = int(probability > 0.5)
         
         # Get model info for context
@@ -482,6 +495,7 @@ def upload_demo():
         try:
             dem = Demo(str(demo_path))
             dem.parse(player_props=['armor_value', 'has_helmet', 'has_defuser', 'inventory'])
+            map_name = dem.parse_header()['map_name']
             print(f"✅ Demo parsed successfully: {filename}")
         except Exception as e:
             print(f"❌ Error parsing demo: {e}")
@@ -498,7 +512,8 @@ def upload_demo():
             'filename': filename,
             'demo': dem,
             'players': players,
-            'path': demo_path
+            'path': demo_path,
+            'map_name': map_name
         }
         
         # Save metadata to disk
@@ -534,8 +549,8 @@ def analyze_all_players(demo_id):
         
         print(f"🔍 Analyzing all players in {demo_data['filename']} using model: {model_name}")
         
-        # Get or parse demo (lazy loading)
-        dem = get_or_parse_demo(demo_id)
+        # Get or parse demo
+        dem, map_name = get_or_parse_demo(demo_id)
         if dem is None:
             return jsonify({'success': False, 'error': 'Failed to load demo'}), 500
         
@@ -548,7 +563,7 @@ def analyze_all_players(demo_id):
             return jsonify({'success': False, 'error': f'Error loading model: {str(e)}'}), 500
         
         # Run analysis for all players at once
-        all_players_analysis = get_kill_death_analysis(dem, model_data, debug=False)
+        all_players_analysis = get_kill_death_analysis(dem, model_data, map_name, debug=False)
         
         if all_players_analysis is None or len(all_players_analysis) == 0:
             return jsonify({'success': False, 'error': 'No analysis data generated'}), 500

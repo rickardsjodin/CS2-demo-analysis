@@ -327,6 +327,49 @@
   margin-top: 4px;
 }
 
+.binning-select {
+  padding: 6px 8px;
+  border: 1px solid #475569;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  background: #0f172a;
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.binning-select:hover {
+  border-color: #64748b;
+  background: #1e293b;
+}
+
+.binning-select:focus {
+  outline: none;
+  border-color: #64748b;
+  box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.1);
+}
+
+.binning-checkbox-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.binning-checkbox-wrapper input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.binning-checkbox-label {
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  cursor: pointer;
+  margin: 0;
+  font-weight: 500;
+}
+
 .checkbox-input .feature-main-control {
   flex-direction: row;
   align-items: center;

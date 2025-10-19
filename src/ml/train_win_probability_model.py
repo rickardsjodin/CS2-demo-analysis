@@ -27,7 +27,7 @@ TRAIN_MODELS = {
     'logistic_regression_all': False,         # Full feature set
     
     # Neural Network variants
-    'neural_network_hltv': False,             # HLTV-style minimal features
+    'neural_network_hltv': True,             # HLTV-style minimal features
     'neural_network_hltv_time': False,        # Core game state features
     'neural_network_all': False,               # Full feature set
     
@@ -86,7 +86,8 @@ from sklearn.model_selection import train_test_split, cross_val_score, Stratifie
 from sklearn.ensemble import RandomForestClassifier, VotingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, roc_auc_score, log_loss
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.neural_network import MLPClassifier
 import matplotlib
@@ -104,6 +105,7 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+from config import CS2_MAPS
 from src.ml.feature_sets import HLTV_WITH_TIME
 from src.core.constants import FLASH_NADE, GRENADE_AND_BOMB_TYPES, HE_NADE, MOLOTOV_NADE, SMOKE_NADE, WEAPON_TIERS
 
@@ -272,7 +274,8 @@ def load_and_prepare_data(data_file=None, feature_set=None, check_data=True, use
                 print(f"   CT wins: {y.sum()} ({y.mean():.1%})")
                 print(f"   T wins:  {len(y) - y.sum()} ({1 - y.mean():.1%})")
 
-            df = create_features(df)
+            if 'map_name' in df.columns:
+                df['map_name'] = pd.Categorical(df['map_name'], categories=CS2_MAPS)
             return X, y, feature_columns, df
     
     # Cache miss or cache disabled - process data from scratch
@@ -968,13 +971,43 @@ def train_models():
                 X_model, y, test_size=0.2, random_state=42, stratify=y
             )
             
-            # Scale features for neural network
-            scaler = StandardScaler()
-            X_train_scaled = scaler.fit_transform(X_train)
-            X_test_scaled = scaler.transform(X_test)
+            # Identify column types for preprocessing
+            categorical_cols = X_train.select_dtypes(include=['object', 'category']).columns.tolist()
+            numeric_cols = X_train.select_dtypes(include=[np.number]).columns.tolist()
             
             print(f"     Training set: {len(X_train)} samples")
             print(f"     Test set: {len(X_test)} samples")
+            
+            # Create preprocessor for mixed data types (numeric + categorical)
+            if len(categorical_cols) > 0:
+                print(f"     Categorical features detected: {categorical_cols}")
+                print(f"     Numeric features: {len(numeric_cols)}")
+                
+                # Use ColumnTransformer to handle both numeric and categorical features
+                preprocessor = ColumnTransformer(
+                    transformers=[
+                        ('num', StandardScaler(), numeric_cols),
+                        ('cat', OneHotEncoder(drop='first', sparse_output=False, 
+                                              handle_unknown='ignore'), categorical_cols)
+                    ],
+                    remainder='passthrough'  # Keep any other columns as-is
+                )
+                
+                X_train_scaled = preprocessor.fit_transform(X_train)
+                X_test_scaled = preprocessor.transform(X_test)
+                
+                # Report feature count after one-hot encoding
+                original_feature_count = X_train.shape[1]
+                final_feature_count = X_train_scaled.shape[1]
+                print(f"     Features after one-hot encoding: {final_feature_count} "
+                      f"(from {original_feature_count} original features)")
+            else:
+                print(f"     Numeric features only: {len(numeric_cols)}")
+                
+                # No categorical features - use simple StandardScaler
+                preprocessor = StandardScaler()
+                X_train_scaled = preprocessor.fit_transform(X_train)
+                X_test_scaled = preprocessor.transform(X_test)
             
             # Check if hyperparameter tuning is enabled for this model
             tuned_model, tuned_params, tuned_score = perform_hyperparameter_tuning(
@@ -1009,7 +1042,8 @@ def train_models():
             models[model_name] = {
                 'model': mlp_calibrated,
                 'original_model': mlp_model,
-                'scaler': scaler,
+                'scaler': None,  # Deprecated: use preprocessor instead
+                'preprocessor': preprocessor,  # New: handles both scaling and encoding
                 'predictions': mlp_pred,
                 'probabilities': mlp_pred_proba,
                 'accuracy': accuracy_score(y_test, mlp_pred),
@@ -1045,12 +1079,17 @@ def train_models():
                 model_features = model_info['feature_columns']
                 X_model_test = X_ensemble[model_features]
                 
-                if model_info['scaler'] is not None:
-                    # Scale the features if needed
+                # Check if model uses preprocessor (neural networks with categorical features)
+                if model_info.get('preprocessor') is not None:
+                    # Use preprocessor for models with categorical features
+                    X_model_test_processed = model_info['preprocessor'].transform(X_model_test)
+                    model_proba = model_info['model'].predict_proba(X_model_test_processed)[:, 1]
+                elif model_info.get('scaler') is not None:
+                    # Legacy path: scale the features if needed
                     X_model_test_scaled = model_info['scaler'].transform(X_model_test)
                     model_proba = model_info['model'].predict_proba(X_model_test_scaled)[:, 1]
                 else:
-                    # Use unscaled features
+                    # Use unscaled features (tree-based models)
                     model_proba = model_info['model'].predict_proba(X_model_test)[:, 1]
                 
                 ensemble_proba += model_proba
@@ -1567,7 +1606,8 @@ def save_all_models(models, default_feature_columns):
         model_data = {
             'model': model_info['model'],
             'original_model': model_info.get('original_model'),
-            'scaler': model_info['scaler'],
+            'scaler': model_info.get('scaler'),  # Deprecated for neural networks
+            'preprocessor': model_info.get('preprocessor'),  # New: for neural networks with categorical features
             'feature_columns': model_feature_columns,
             'model_type': name,
             'accuracy': model_info['accuracy'],
@@ -1613,7 +1653,8 @@ def save_all_models(models, default_feature_columns):
         best_model_data = {
             'model': best_model_info['model'],
             'original_model': best_model_info.get('original_model'),
-            'scaler': best_model_info['scaler'],
+            'scaler': best_model_info.get('scaler'),
+            'preprocessor': best_model_info.get('preprocessor'),  # For neural networks with categorical features
             'feature_columns': best_model_feature_columns,
             'model_type': best_model_name,
             'accuracy': best_model_info['accuracy'],

@@ -127,7 +127,9 @@ export default function FeatureInputs({
       return (
         <div
           key={feature.name}
-          className={`feature-input ${isCalculated ? 'calculated' : ''}`}
+          className={`feature-input feature-input-with-binning ${
+            isCalculated ? 'calculated' : ''
+          }`}
         >
           <div className='feature-main-control'>
             <label htmlFor={feature.name}>
@@ -161,11 +163,26 @@ export default function FeatureInputs({
             </select>
           </div>
           <div className='binning-control'>
-            <span className='binning-info'>
-              {currentBinValue === 0
-                ? 'Exact match only'
-                : 'No binning for select'}
-            </span>
+            <div className='binning-checkbox-wrapper'>
+              <input
+                type='checkbox'
+                id={`${feature.name}_bin`}
+                checked={currentBinValue === -1}
+                onChange={(e) =>
+                  handleBinningChange(
+                    feature.name,
+                    e.target.checked ? '-1' : '0'
+                  )
+                }
+                title='Check to include all values in dataset comparison'
+              />
+              <label
+                htmlFor={`${feature.name}_bin`}
+                className='binning-checkbox-label'
+              >
+                Any value
+              </label>
+            </div>
           </div>
         </div>
       );

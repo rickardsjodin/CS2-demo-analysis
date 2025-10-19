@@ -44,6 +44,13 @@ def predict(model_data, snapshot_data):
     
     X = df[feature_columns]
 
+    # Apply preprocessing if the model has a preprocessor (e.g., for neural networks with categorical features)
+    if 'preprocessor' in model_data and model_data['preprocessor'] is not None:
+        X = model_data['preprocessor'].transform(X)
+    elif 'scaler' in model_data and model_data['scaler'] is not None:
+        # Legacy support for older models with just a scaler
+        X = model_data['scaler'].transform(X)
+
     # Predict probability - handle both calibrated and original models
     model = model_data['model']
     ct_win_prob = model.predict_proba(X)[0, 1]
@@ -109,7 +116,7 @@ def calculate_player_stats(alive_players: pl.DataFrame) -> Dict[str, int]:
     return stats
 
 def create_snapshot(
-    current_tick: int, round_row: Dict, demo_data: Dict, tick_rate: int, file_name: str = ""
+    current_tick: int, round_row: Dict, demo_data: Dict, tick_rate: int, map_name:str, file_name: str = ""
 ) -> Optional[Dict[str, Any]]:
     """Creates a single snapshot for a given tick."""
     
@@ -155,6 +162,7 @@ def create_snapshot(
 
     return {
         "source": f"Round {round_row['round_num']} in {file_name}",
+        "map_name": map_name,
         "time_left": ticks_left / tick_rate,
         "cts_alive": 5 - ct_deaths,
         "ts_alive": 5 - t_deaths,
@@ -170,6 +178,7 @@ def calculate_round_probabilities_all_ticks(
     dem_file, 
     round_num: int, 
     pred_model, 
+    map_name:str,
     tick_rate: int = 64,
     tick_step: int = 10,
     file_name: str = "demo"
@@ -226,7 +235,7 @@ def calculate_round_probabilities_all_ticks(
     for current_tick in tqdm(range(freeze_end, end_tick + 1, tick_step), 
                             desc=f"Calculating probabilities for round {round_num}",
                             leave=False):
-        snapshot = create_snapshot(current_tick, round_row, dem, tick_rate, file_name)
+        snapshot = create_snapshot(current_tick, round_row, dem, tick_rate, file_name, map_name)
         
         if snapshot is None:
             continue
@@ -309,7 +318,7 @@ def get_player_and_round_num_to_side_map(dem):
     
     return player_side_map
 
-def get_kill_death_analysis(dem_file, pred_model, debug=False):
+def get_kill_death_analysis(dem_file, pred_model, map_name, debug=False):
 
     TRADE_LIMIT_SEC = 5
     TRADE_VICTIM_FACTOR = 0.3
@@ -366,14 +375,17 @@ def get_kill_death_analysis(dem_file, pred_model, debug=False):
                 ts_alive -= 1 if victim_side == 't' else 0
                 continue # Don't care about TK's
 
+
             victim = kill_row['victim_name']
             flash_assist = kill_row['assistedflash']
             flash_assister = kill_row['assister_name']
             flash_assister_side = kill_row['assister_side']
             bomb_planted = plant_tick is not None and tick >= plant_tick
 
-            snapshot_before = create_snapshot(tick - 1, round_row, dem, TICK_RATE)
-            snapshot_after = create_snapshot(tick, round_row, dem, TICK_RATE)
+            if victim == 'ZywOo' and round_num == 8:
+                pass
+            snapshot_before = create_snapshot(tick - 1, round_row, dem,  TICK_RATE, map_name)
+            snapshot_after = create_snapshot(tick, round_row, dem, TICK_RATE, map_name)
             
             if snapshot_before is None or snapshot_after is None:
                 continue
@@ -522,8 +534,8 @@ def get_kill_death_analysis(dem_file, pred_model, debug=False):
 
         # BOMB PLANT
         if plant_tick is not None:
-            snapshot_before = create_snapshot(plant_tick - 1, round_row, dem, TICK_RATE)
-            snapshot_after = create_snapshot(plant_tick, round_row, dem, TICK_RATE)
+            snapshot_before = create_snapshot(plant_tick - 1, round_row, dem, TICK_RATE, map_name)
+            snapshot_after = create_snapshot(plant_tick, round_row, dem, TICK_RATE, map_name)
 
             if snapshot_before is not None and snapshot_after is not None:
                 ct_win_pre_plant = predict(pred_model, snapshot_before)
@@ -587,7 +599,7 @@ def get_kill_death_analysis(dem_file, pred_model, debug=False):
 
 
         # SAVING / ROUND END
-        snapshot_before_end = create_snapshot(round_end - 100, round_row, dem, TICK_RATE)
+        snapshot_before_end = create_snapshot(round_end - 100, round_row, dem, TICK_RATE, map_name)
         
         if snapshot_before_end is not None and not 'killed' in round_row['reason']:
             ct_win_pre_end = predict(pred_model, snapshot_before_end)
@@ -658,14 +670,5 @@ def get_kill_death_analysis(dem_file, pred_model, debug=False):
     return player_analysis
 
 
-if __name__ == "__main__":
-    model_path = MODELS_DIR / f"ct_win_probability_xgboost_hltv.pkl"
-    pred_model = joblib.load(model_path)
-
-
-    DEMO_FILE = str("demos/the-mongolz-vs-vitality-m1-mirage.dem")  # or set your own path
-    dem = load_demo(DEMO_FILE, use_cache=True)
-    
-    get_kill_death_analysis(dem, pred_model)
     
     
