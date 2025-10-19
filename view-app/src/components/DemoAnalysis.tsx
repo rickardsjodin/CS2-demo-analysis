@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { API_ENDPOINTS } from '../config/api';
 import type {
   DemoUploadResponse,
   AllPlayersAnalysisResponse,
   PlayerAnalysisEvent,
+  Model,
 } from '../types';
 import PlayerImpactChart from './PlayerImpactChart';
 import PlayerOverview from './PlayerOverview';
@@ -38,14 +39,51 @@ function DemoAnalysis({
     string,
     PlayerAnalysisEvent[]
   > | null>(null);
+  const [availableModels, setAvailableModels] = useState<Model[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>('xgboost_hltv');
+  const [modelUsed, setModelUsed] = useState<string>('xgboost_hltv');
+  const [loadingModels, setLoadingModels] = useState(false);
 
-  const handleAutoAnalysis = async (currentDemoId: string) => {
+  // Fetch available models on component mount
+  useEffect(() => {
+    const fetchModels = async () => {
+      setLoadingModels(true);
+      try {
+        const response = await fetch(API_ENDPOINTS.models);
+        const data = await response.json();
+        console.log('Models API response:', data);
+        if (data.success && data.models) {
+          // Convert array of models to Model[]
+          setAvailableModels(data.models);
+          console.log('Available models set:', data.models);
+          // Set default model if available
+          if (data.models.length > 0) {
+            setSelectedModel(data.models[0].name);
+            setModelUsed(data.models[0].name);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching models:', err);
+      } finally {
+        setLoadingModels(false);
+      }
+    };
+
+    fetchModels();
+  }, []);
+
+  const handleAutoAnalysis = async (
+    currentDemoId: string,
+    modelToUse?: string
+  ) => {
     setAnalyzing(true);
     setError(null);
 
+    const modelName = modelToUse || selectedModel;
+
     try {
       const response = await fetch(
-        API_ENDPOINTS.allPlayersAnalysis(currentDemoId)
+        API_ENDPOINTS.allPlayersAnalysis(currentDemoId, modelName)
       );
       const data: AllPlayersAnalysisResponse = await response.json();
 
@@ -53,6 +91,10 @@ function DemoAnalysis({
         // Cache all players data
         setAllPlayersData(data.analysis);
         setError(null);
+        // Update the model that was actually used
+        if (data.model_used) {
+          setModelUsed(data.model_used);
+        }
       } else {
         const errorMsg = data.error || 'Failed to analyze players';
         setError(errorMsg);
@@ -64,6 +106,19 @@ function DemoAnalysis({
       onError(errorMsg);
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const handleModelChange = (newModel: string) => {
+    setSelectedModel(newModel);
+    // Clear cached analysis when model changes
+    setAllPlayersData(null);
+    onAnalysisComplete([]);
+
+    // Re-run analysis with new model if we have a demo
+    // Pass the new model directly to avoid stale state
+    if (demoId) {
+      handleAutoAnalysis(demoId, newModel);
     }
   };
 
@@ -128,12 +183,19 @@ function DemoAnalysis({
     setError(null);
 
     try {
-      const response = await fetch(API_ENDPOINTS.allPlayersAnalysis(demoId));
+      const response = await fetch(
+        API_ENDPOINTS.allPlayersAnalysis(demoId, selectedModel)
+      );
       const data: AllPlayersAnalysisResponse = await response.json();
 
       if (data.success && data.analysis) {
         // Cache all players data
         setAllPlayersData(data.analysis);
+
+        // Update the model that was actually used
+        if (data.model_used) {
+          setModelUsed(data.model_used);
+        }
 
         // Set current player's data
         if (data.analysis[playerName]) {
@@ -177,6 +239,39 @@ function DemoAnalysis({
           {filename && <p className='filename'>📄 {filename}</p>}
         </div>
       </section>
+
+      {demoId && !loadingModels && availableModels.length > 0 && (
+        <section className='model-selection-section'>
+          <h3>🤖 Prediction Model</h3>
+          <div className='demo-model-selector'>
+            <select
+              value={selectedModel}
+              onChange={(e) => handleModelChange(e.target.value)}
+              disabled={analyzing}
+              className='model-dropdown'
+            >
+              {availableModels.map((model) => (
+                <option key={model.name} value={model.name}>
+                  {model.display_name} (AUC: {model.auc.toFixed(3)})
+                </option>
+              ))}
+            </select>
+            {allPlayersData && modelUsed && modelUsed !== selectedModel && (
+              <p className='model-info'>
+                ℹ️ Results are from model: {modelUsed}. Change selection above
+                to re-analyze.
+              </p>
+            )}
+          </div>
+        </section>
+      )}
+
+      {demoId && loadingModels && (
+        <section className='model-selection-section'>
+          <h3>🤖 Prediction Model</h3>
+          <div className='loading-message'>Loading models...</div>
+        </section>
+      )}
 
       {error && (
         <div

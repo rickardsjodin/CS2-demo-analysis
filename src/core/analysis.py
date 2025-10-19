@@ -536,30 +536,55 @@ def get_kill_death_analysis(dem_file, pred_model, debug=False):
                     if any(item['impact'] > 0 and item['side'] == 't' for item in contributions):
                         ts_that_have_contributed.add(player)
                 
+                if len(ts_that_have_contributed) == 0:
+                    # TODO: Add all 
+                    pass
+                
                 deaths_so_far = round_kills.filter(pl.col('tick') <= plant_tick)
                 ct_deaths = deaths_so_far.filter(pl.col('victim_side') == 'ct').height
                 t_deaths = deaths_so_far.filter(pl.col('victim_side') == 't').height
                 cts_alive = 5 - ct_deaths
                 ts_alive = 5 - t_deaths
 
-                if len(ts_that_have_contributed) > 0:
-                    for player in ts_that_have_contributed:
-                        credit = -(ct_win_post_plant - ct_win_pre_plant) / len(ts_that_have_contributed)
-                        round_player_analysis[player].append({
-                            'round': int(round_num),
-                            'side': 't',
-                            'impact': float(round(credit * 100, 2)),
-                            'event_round': round_num,
-                            'event_type': 'bomb_plant',
-                            'game_state': f'{ts_alive}v{cts_alive}',
-                            'pre_win': (1-ct_win_pre_plant),
-                            'post_win': (1-ct_win_post_plant),
-                            'post_plant': True,
-                            'trade': False,
-                            'tick': plant_tick
-                        })
+                for player in ts_that_have_contributed:
+                    credit = -(ct_win_post_plant - ct_win_pre_plant) / len(ts_that_have_contributed)
+                    round_player_analysis[player].append({
+                        'round': int(round_num),
+                        'side': 't',
+                        'impact': float(round(credit * 100, 2)),
+                        'event_round': round_num,
+                        'event_type': 'bomb_plant',
+                        'game_state': f'{ts_alive}v{cts_alive}',
+                        'pre_win': (1-ct_win_pre_plant),
+                        'post_win': (1-ct_win_post_plant),
+                        'post_plant': True,
+                        'trade': False,
+                        'tick': plant_tick
+                    })
 
-            # TODO: Discredit all CT's?
+            
+                cts_with_interactions = set()
+                # Check which Ts have contributed
+                for player in round_player_analysis.keys():
+                    contributions = round_player_analysis[player]
+                    if any(item['side'] == 'ct' for item in contributions):
+                        cts_with_interactions.add(player)
+                for ct_player in cts_with_interactions:
+                    credit = (ct_win_post_plant - ct_win_pre_plant) / len(cts_with_interactions)
+                    round_player_analysis[ct_player].append({
+                        'round': int(round_num),
+                        'side': 'ct',
+                        'impact': float(round(credit * 100, 2)),
+                        'event_round': round_num,
+                        'event_type': 'bomb_plant',
+                        'game_state': f'{ts_alive}v{cts_alive}',
+                        'pre_win': (1-ct_win_pre_plant),
+                        'post_win': (1-ct_win_post_plant),
+                        'post_plant': True,
+                        'trade': False,
+                        'tick': plant_tick
+                    })
+
 
         # SAVING / ROUND END
         snapshot_before_end = create_snapshot(round_end - 100, round_row, dem, TICK_RATE)

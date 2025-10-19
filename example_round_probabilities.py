@@ -225,8 +225,8 @@ def main():
     """Calculate and display probabilities for every tick of a specific round."""
     
     # Configuration
-    DEMO_FILE = "C:\\Users\\Rickard\\Downloads\\esl-pro-league-season-19-forze-vs-furia-bo3-peZBbn8_BvGatAm4iQTGtP\\forze-vs-furia-m2-overpass.dem"
-    ROUND_TO_ANALYZE = 13  # Change this to analyze different rounds
+    DEMO_FILE = "C:\\Users\\Rickard\\Downloads\\esl-pro-league-season-22-furia-vs-vitality-bo3-ZNzuF_vw0WBzn8QEbGrbgj\\furia-vs-vitality-m1-overpass.dem"
+    ROUND_TO_ANALYZE = 16  # Change this to analyze different rounds
     TICK_STEP = 10  # Sample every Nth tick (default: 10, means ~6.4 samples per second at 64 tick rate)
     
     # Define multiple models to compare

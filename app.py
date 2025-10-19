@@ -19,6 +19,10 @@ from src.utils.cache_utils import load_demo
 from src.core.analysis import get_kill_death_analysis
 from awpy import Demo
 
+# CS2 map names
+CS2_MAPS = ['de_dust2', 'de_nuke', 'de_overpass', 'de_inferno', 
+            'de_train', 'de_mirage', 'de_ancient', 'de_anubis', 'de_vertigo']
+
 app = Flask(__name__)
 
 # Enable CORS for all routes
@@ -130,7 +134,10 @@ def slice_dataset():
         v, bs = cfg['value'], cfg['bin_size']
         if bs < 0:
             continue
-        mask &= dataset_df[key].between(v - bs, v + bs)
+        if key == 'map_name':
+            mask &=dataset_df[key] == v
+        else:
+            mask &= dataset_df[key].between(v - bs, v + bs)
 
     df_filtered = dataset_df[mask]
 
@@ -187,7 +194,8 @@ def get_model_info():
         if config and 'description' in config:
             description = config['description']
         else:
-            description = f"{display_name} model for win probability prediction"
+            feature_count = len(model_data.get('feature_columns', []))
+            description = f"{display_name} with {feature_count} features"
         
         models_info[model_name] = {
             'name': model_name,
@@ -241,6 +249,8 @@ def get_feature_defaults(features):
                 defaults[feature] = 5
         elif feature.lower() == 'bomb_planted':
             defaults[feature] = 0  # Boolean: 0 = False, 1 = True
+        elif feature.lower() == 'map_name':
+            defaults[feature] = 'de_dust2'  
         elif 'hp_' in feature.lower():
             defaults[feature] = 500  # Total HP for team
         elif 'main_weapons' in feature.lower():
@@ -293,6 +303,8 @@ def get_feature_constraints(feature):
             constraints.update({'min': 0, 'max': 115, 'step': 1})
     elif 'alive' in feature.lower():
         constraints.update({'min': 0, 'max': 5, 'step': 1})
+    elif 'map_name' in feature.lower():
+        constraints.update({'type': 'select', 'options': CS2_MAPS})
     elif feature.lower() == 'bomb_planted':
         constraints.update({'type': 'checkbox'})
     elif 'hp_' in feature.lower():
@@ -372,27 +384,36 @@ def predict():
         scaler = model_data.get('scaler')
         feature_columns = model_data['feature_columns']
         
-        # Prepare feature vector
-        feature_vector = []
+        # Prepare feature vector as a dictionary first for proper type handling
+        feature_dict = {}
         for feature_name in feature_columns:
             value = features.get(feature_name, 0)
             
             # Handle boolean features
             if isinstance(value, str) and value.lower() in ['true', 'false']:
                 value = value.lower() == 'true'
+                feature_dict[feature_name] = int(value)
+            elif isinstance(value, str) and 'de_' in value.lower():
+                # Keep map_name as string - will be converted to categorical
+                feature_dict[feature_name] = value
             elif isinstance(value, bool):
-                value = int(value)
+                feature_dict[feature_name] = int(value)
             else:
-                value = float(value)
-            
-            feature_vector.append(value)
+                feature_dict[feature_name] = float(value)
         
-        # Convert to numpy array and reshape for prediction
-        X = np.array(feature_vector).reshape(1, -1)
+        # Convert to DataFrame for proper categorical handling
+        X = pd.DataFrame([feature_dict])
         
-        # Apply scaling if needed
+        # Convert map_name to categorical if present
+        if 'map_name' in X.columns:
+            # Use consistent categorical encoding with all CS2 maps
+            X['map_name'] = pd.Categorical(X['map_name'], categories=CS2_MAPS)
+        
+        # Apply scaling if needed (only on numeric columns)
         if scaler is not None:
-            X = scaler.transform(X)
+            # Get numeric columns (exclude categorical columns)
+            numeric_cols = X.select_dtypes(include=[np.number]).columns
+            X[numeric_cols] = scaler.transform(X[numeric_cols])
         
         # Make prediction
         probability = model.predict_proba(X)[0, 1]  # Probability of CT win
@@ -505,21 +526,32 @@ def analyze_all_players(demo_id):
     """Get kill/death analysis for all players in an uploaded demo"""
     global loaded_models
     try:
+        # Get optional model_name parameter from query string
+        model_name = request.args.get('model_name', 'xgboost_hltv')
+        
         # Check if demo exists
         if demo_id not in uploaded_demos:
             return jsonify({'success': False, 'error': 'Demo not found'}), 404
         
         demo_data = uploaded_demos[demo_id]
         
-        print(f"🔍 Analyzing all players in {demo_data['filename']}")
+        print(f"🔍 Analyzing all players in {demo_data['filename']} using model: {model_name}")
         
         # Get or parse demo (lazy loading)
         dem = get_or_parse_demo(demo_id)
         if dem is None:
             return jsonify({'success': False, 'error': 'Failed to load demo'}), 500
         
+        # Load the selected model if not already loaded
+        try:
+            model_data = load_model(model_name)
+        except FileNotFoundError:
+            return jsonify({'success': False, 'error': f'Model "{model_name}" not found'}), 404
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'Error loading model: {str(e)}'}), 500
+        
         # Run analysis for all players at once
-        all_players_analysis = get_kill_death_analysis(dem, loaded_models['xgboost_hltv'], debug=False)
+        all_players_analysis = get_kill_death_analysis(dem, model_data, debug=False)
         
         if all_players_analysis is None or len(all_players_analysis) == 0:
             return jsonify({'success': False, 'error': 'No analysis data generated'}), 500
@@ -551,7 +583,8 @@ def analyze_all_players(demo_id):
             'success': True,
             'demo_filename': demo_data['filename'],
             'analysis': all_players_analysis_serializable,
-            'players': demo_data['players']
+            'players': demo_data['players'],
+            'model_used': model_name
         })
         
     except Exception as e:
@@ -587,9 +620,6 @@ def delete_demo(demo_id):
 if __name__ == '__main__':
     print("🎮 CS2 Win Probability Prediction App")
     print("=" * 50)
-    
-    # Load cached demos from disk
-    load_demo_metadata()
     
     # Load model summary on startup
     load_model_summary()

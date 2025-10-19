@@ -134,7 +134,7 @@ function App() {
           if (feature.constraints.type === 'number') {
             initialBinning[feature.name] = -1; // Math.max(1, Math.round(range * 0.1)); // 10% of range
           } else {
-            initialBinning[feature.name] = feature.default; // No binning for non-numeric features
+            initialBinning[feature.name] = 0; // feature.default; // No binning for non-numeric features
           }
         });
 
@@ -161,7 +161,10 @@ function App() {
     }
   };
 
-  const handleFeatureValueChange = (featureName: string, value: number) => {
+  const handleFeatureValueChange = (
+    featureName: string,
+    value: number | string
+  ) => {
     const newVals = {
       ...featureValuesRaw,
       [featureName]: value,
@@ -201,10 +204,15 @@ function App() {
 
       // Create features with bins for slice_dataset call
       const featuresWithBins: {
-        [key: string]: { value: number; bin_size: number };
+        [key: string]: { value: number | string; bin_size: number };
       } = {};
       Object.keys(currentFeatures).forEach((featureName) => {
-        if (isNaN(currentFeatures[featureName])) return;
+        const val = currentFeatures[featureName];
+        if (
+          typeof val === 'number' &&
+          isNaN(currentFeatures[featureName] as number)
+        )
+          return;
         featuresWithBins[featureName] = {
           value: currentFeatures[featureName],
           bin_size: binningValues[featureName] ?? 0,
@@ -379,10 +387,15 @@ function App() {
       for (const featureVal of featureValueRange) {
         try {
           const featuresWithBins: {
-            [key: string]: { value: number; bin_size: number };
+            [key: string]: { value: number | string; bin_size: number };
           } = {};
           Object.keys(featureValues).forEach((featureName) => {
-            if (isNaN(featureValues[featureName])) return;
+            const val = featureValues[featureName];
+            if (
+              typeof val === 'number' &&
+              isNaN(featureValues[featureName] as number)
+            )
+              return;
             featuresWithBins[featureName] = {
               value: featureValues[featureName],
               bin_size: binningValues[featureName] ?? 0,

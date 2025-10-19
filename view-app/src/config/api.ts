@@ -13,7 +13,9 @@ export const API_ENDPOINTS = {
   predict: `${API_BASE_URL}/api/predict`,
   sliceDataset: `${API_BASE_URL}/api/slice_dataset`,
   demoUpload: `${API_BASE_URL}/api/demo/upload`,
-  allPlayersAnalysis: (demoId: string) =>
-    `${API_BASE_URL}/api/demo/${demoId}/analysis`,
+  allPlayersAnalysis: (demoId: string, modelName?: string) =>
+    `${API_BASE_URL}/api/demo/${demoId}/analysis${
+      modelName ? `?model_name=${modelName}` : ''
+    }`,
   deleteDemo: (demoId: string) => `${API_BASE_URL}/api/demo/${demoId}`,
 } as const;

@@ -7,7 +7,7 @@ interface FeatureInputsProps {
   featureValues: FeatureValues;
   binningValues: BinningValues;
   selectedModels: string[];
-  onFeatureValueChange: (featureName: string, value: number) => void;
+  onFeatureValueChange: (featureName: string, value: number | string) => void;
   onBinningValueChange: (featureName: string, value: number) => void;
   isLoading: boolean;
 }
@@ -140,7 +140,7 @@ export default function FeatureInputs({
               id={feature.name}
               value={currentValue}
               onChange={(e) =>
-                onFeatureValueChange(feature.name, parseFloat(e.target.value))
+                onFeatureValueChange(feature.name, e.target.value)
               }
               disabled={isCalculated}
               title={
@@ -149,11 +149,15 @@ export default function FeatureInputs({
                   : ''
               }
             >
-              {feature.constraints.options?.map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
+              {feature.constraints.options?.map((value) => {
+                if (typeof value === 'string') {
+                  return (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  );
+                }
+              })}
             </select>
           </div>
           <div className='binning-control'>

@@ -48,23 +48,9 @@ def load_cached_demo(demo_file):
             print(f"📦 Loading cached demo data from {cache_file}...")
             with open(cache_file, 'rb') as f:
                 cache_data = pickle.load(f)
-            
-            # Create a minimal demo-like object with the cached data
-            class CachedDemo:
-                def __init__(self, data):
-                    self.kills = data.get('kills')
-                    self.rounds = data.get('rounds')
-                    self.damages = data.get('damages')
-                    self.smokes = data.get('smokes')
-                    self.flashes = data.get('flashes')
-                    self.grenades = data.get('grenades')
-                    self.bomb = data.get('bomb')
-                    self.frames = data.get('frames')
-                    self.ticks = data.get('ticks')
-            
-            cached_demo = CachedDemo(cache_data)
+
             print("✅ Cached demo loaded successfully!")
-            return cached_demo
+            return cache_data
             
         except (pickle.UnpicklingError, EOFError, ValueError) as e:
             print(f"⚠️ Cache file is corrupted: {e}")
@@ -84,6 +70,19 @@ def load_cached_demo(demo_file):
     
     return None
 
+def dem_to_dict(demo):
+    return {
+        'kills': demo.kills,
+        'rounds': demo.rounds,
+        'damages': demo.damages if hasattr(demo, 'damages') else None,
+        'smokes': demo.smokes if hasattr(demo, 'smokes') else None,
+        'flashes': demo.flashes if hasattr(demo, 'flashes') else None,
+        'grenades': demo.grenades if hasattr(demo, 'grenades') else None,
+        'bomb': demo.bomb if hasattr(demo, 'bomb') else None,
+        'ticks': demo.ticks,
+        'events': demo.events
+    }
+
 
 def save_demo_to_cache(demo, demo_file):
     """Save parsed demo data to cache (only the essential DataFrames)"""
@@ -93,17 +92,7 @@ def save_demo_to_cache(demo, demo_file):
             print(f"💾 Saving demo data to cache: {cache_file}...")
             
             # Extract only the essential data that we actually use
-            cache_data = {
-                'kills': demo.kills,
-                'rounds': demo.rounds,
-                'damages': demo.damages if hasattr(demo, 'damages') else None,
-                'smokes': demo.smokes if hasattr(demo, 'smokes') else None,
-                'flashes': demo.flashes if hasattr(demo, 'flashes') else None,
-                'grenades': demo.grenades if hasattr(demo, 'grenades') else None,
-                'bomb': demo.bomb if hasattr(demo, 'bomb') else None,
-                'ticks': demo.ticks,
-                'events': demo.events
-            }
+            cache_data = dem_to_dict(demo)
             
             # Write to a temporary file first, then rename to avoid corruption
             temp_file = cache_file.with_suffix('.tmp')

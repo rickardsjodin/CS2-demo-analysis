@@ -11,6 +11,7 @@ HLTV_FEATURES = [
     "ct_main_weapons",
     "t_main_weapons",
     'bomb_planted',
+    'map_name'
 ]
 
 HLTV_WITH_TIME = HLTV_FEATURES + [

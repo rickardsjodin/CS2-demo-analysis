@@ -8,7 +8,7 @@ Trains a model to predict CT team win probability using game state snapshots
 # ============================================================================
 TRAIN_MODELS = {
     # XGBoost variants
-    'xgboost_hltv': False,                    # HLTV-style minimal features
+    'xgboost_hltv': True,                    # HLTV-style minimal features
     'xgboost_hltv_time': False,               # Core game state features
     
     # Random Forest variants
@@ -28,8 +28,8 @@ TRAIN_MODELS = {
     
     # Neural Network variants
     'neural_network_hltv': False,             # HLTV-style minimal features
-    'neural_network_hltv_time': True,        # Core game state features
-    'neural_network_all': True,               # Full feature set
+    'neural_network_hltv_time': False,        # Core game state features
+    'neural_network_all': False,               # Full feature set
     
     # Ensemble (combines all trained models)
     'ensemble': False                         # Combines all models (automatic if >1 model)
@@ -271,7 +271,8 @@ def load_and_prepare_data(data_file=None, feature_set=None, check_data=True, use
                 print(f"🎯 Target distribution:")
                 print(f"   CT wins: {y.sum()} ({y.mean():.1%})")
                 print(f"   T wins:  {len(y) - y.sum()} ({1 - y.mean():.1%})")
-            
+
+            df = create_features(df)
             return X, y, feature_columns, df
     
     # Cache miss or cache disabled - process data from scratch
@@ -647,7 +648,7 @@ def train_models():
             )
             
             if tuned_model is not None:
-                # Use tuned model
+                # Use tuned model (already trained)
                 xgb_model = tuned_model
                 print(f"     🎯 Using tuned hyperparameters (score: {tuned_score:.4f})")
                 
@@ -659,18 +660,23 @@ def train_models():
                     random_state=42,
                     eval_metric='logloss',
                     use_label_encoder=False,
+                    enable_categorical=True,  # Enable categorical feature support
                     **hyperparams
                 )
                 
                 xgb_model.fit(X_train, y_train)
             
+            # Apply calibration
+            xgb_calibrated = CalibratedClassifierCV(xgb_model, method='isotonic', cv=5)
+            xgb_calibrated.fit(X_train, y_train)
+            
             # Make predictions
-            xgb_pred = xgb_model.predict(X_test)
-            xgb_pred_proba = xgb_model.predict_proba(X_test)[:, 1]
+            xgb_pred = xgb_calibrated.predict(X_test)
+            xgb_pred_proba = xgb_calibrated.predict_proba(X_test)[:, 1]
             
             # Store model results
             models[model_name] = {
-                'model': xgb_model,
+                'model': xgb_calibrated,
                 'original_model': xgb_model,
                 'scaler': None,
                 'predictions': xgb_pred,
@@ -726,7 +732,7 @@ def train_models():
             )
             
             if tuned_model is not None:
-                # Use tuned model
+                # Use tuned model (already trained)
                 rf_model = tuned_model
                 print(f"     🎯 Using tuned hyperparameters (score: {tuned_score:.4f})")
                 
@@ -743,13 +749,17 @@ def train_models():
                 
                 rf_model.fit(X_train, y_train)
             
+            # Apply calibration
+            rf_calibrated = CalibratedClassifierCV(rf_model, method='isotonic', cv=5)
+            rf_calibrated.fit(X_train, y_train)
+            
             # Make predictions
-            rf_pred = rf_model.predict(X_test)
-            rf_pred_proba = rf_model.predict_proba(X_test)[:, 1]
+            rf_pred = rf_calibrated.predict(X_test)
+            rf_pred_proba = rf_calibrated.predict_proba(X_test)[:, 1]
             
             # Store model results
             models[model_name] = {
-                'model': rf_model,
+                'model': rf_calibrated,
                 'original_model': rf_model,
                 'scaler': None,
                 'predictions': rf_pred,
@@ -802,7 +812,7 @@ def train_models():
             )
             
             if tuned_model is not None:
-                # Use tuned model
+                # Use tuned model (already trained)
                 lgb_model = tuned_model
                 print(f"     🎯 Using tuned hyperparameters (score: {tuned_score:.4f})")
                 
@@ -889,7 +899,7 @@ def train_models():
             )
             
             if tuned_model is not None:
-                # Use tuned model
+                # Use tuned model (already trained)
                 lr_model = tuned_model
                 print(f"     🎯 Using tuned hyperparameters (score: {tuned_score:.4f})")
                 
@@ -904,13 +914,17 @@ def train_models():
                 
                 lr_model.fit(X_train_scaled, y_train)
             
+            # Apply calibration
+            lr_calibrated = CalibratedClassifierCV(lr_model, method='isotonic', cv=5)
+            lr_calibrated.fit(X_train_scaled, y_train)
+            
             # Make predictions
-            lr_pred = lr_model.predict(X_test_scaled)
-            lr_pred_proba = lr_model.predict_proba(X_test_scaled)[:, 1]
+            lr_pred = lr_calibrated.predict(X_test_scaled)
+            lr_pred_proba = lr_calibrated.predict_proba(X_test_scaled)[:, 1]
             
             # Store model results
             models[model_name] = {
-                'model': lr_model,
+                'model': lr_calibrated,
                 'original_model': lr_model,
                 'scaler': scaler,
                 'predictions': lr_pred,
@@ -968,7 +982,7 @@ def train_models():
             )
             
             if tuned_model is not None:
-                # Use tuned model
+                # Use tuned model (already trained)
                 mlp_model = tuned_model
                 print(f"     🎯 Using tuned hyperparameters (score: {tuned_score:.4f})")
                 
@@ -982,8 +996,10 @@ def train_models():
                 )
                 
                 mlp_model.fit(X_train_scaled, y_train)
-                mlp_calibrated = CalibratedClassifierCV(mlp_model, method='isotonic', cv=5)
-                mlp_calibrated.fit(X_train_scaled, y_train)
+            
+            # Apply calibration
+            mlp_calibrated = CalibratedClassifierCV(mlp_model, method='isotonic', cv=5)
+            mlp_calibrated.fit(X_train_scaled, y_train)
             
             # Make predictions
             mlp_pred = mlp_calibrated.predict(X_test_scaled)
@@ -1485,9 +1501,15 @@ def merge_model_summaries(existing_summary, new_models, sorted_models, saved_mod
                     'rank': i+1  # Will be recalculated later
                 }
                 
-                # Add config info if this is an XGBoost model
+                # Add config info but without redundant features list
                 if 'config' in model_info:
-                    merged_models[name]['config'] = model_info['config']
+                    config_copy = model_info['config'].copy()
+                    # Remove redundant features from config (already in feature_columns)
+                    if 'features' in config_copy:
+                        del config_copy['features']
+                    # Only add config if it has useful info (description, hyperparams)
+                    if config_copy:
+                        merged_models[name]['config'] = config_copy
                 
                 print(f"✅ Updated model entry for '{name}' with {len(model_feature_columns)} features")
             else:

@@ -26,7 +26,13 @@ function PlayerOverview({
 }: PlayerOverviewProps) {
   // Calculate player summaries and group by team
   const teamGroups = useMemo(() => {
-    if (!allPlayersData) return { team1: [], team2: [] };
+    if (!allPlayersData)
+      return {
+        team1: [],
+        team2: [],
+        team1Total: 0,
+        team2Total: 0,
+      };
 
     const playerSummaries: PlayerSummary[] = [];
 
@@ -72,7 +78,16 @@ function PlayerOverview({
       .filter((p) => p.side === 't' || p.side === 'mixed')
       .sort((a, b) => b.avgImpact - a.avgImpact);
 
-    return { team1: team1Players, team2: team2Players };
+    // Calculate total average impact for each team
+    const team1Total = team1Players.reduce((sum, p) => sum + p.avgImpact, 0);
+    const team2Total = team2Players.reduce((sum, p) => sum + p.avgImpact, 0);
+
+    return {
+      team1: team1Players,
+      team2: team2Players,
+      team1Total,
+      team2Total,
+    };
   }, [allPlayersData]);
 
   if (!allPlayersData) return null;
@@ -88,6 +103,14 @@ function PlayerOverview({
             <span className='team-badge team1'>Team 1</span>
             <span className='team-count'>
               {teamGroups.team1.length} players
+            </span>
+            <span
+              className={`team-total ${
+                teamGroups.team1Total >= 0 ? 'positive' : 'negative'
+              }`}
+            >
+              Total: {teamGroups.team1Total >= 0 ? '+' : ''}
+              {teamGroups.team1Total.toFixed(1)}%
             </span>
           </h3>
           <div className='players-list'>
@@ -122,6 +145,14 @@ function PlayerOverview({
             <span className='team-badge team2'>Team 2</span>
             <span className='team-count'>
               {teamGroups.team2.length} players
+            </span>
+            <span
+              className={`team-total ${
+                teamGroups.team2Total >= 0 ? 'positive' : 'negative'
+              }`}
+            >
+              Total: {teamGroups.team2Total >= 0 ? '+' : ''}
+              {teamGroups.team2Total.toFixed(1)}%
             </span>
           </h3>
           <div className='players-list'>

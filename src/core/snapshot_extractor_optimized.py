@@ -6,12 +6,14 @@ Maintains all the same data structure and information as the original extractor.
 
 import os
 import pickle
+from awpy import Demo
 import polars as pl
 import pyarrow as pa
 import pyarrow.parquet as pq
 from tqdm import tqdm
-from typing import List, Dict, Any, Optional
+from typing import Iterable, List, Dict, Any, Optional, Tuple
 import json
+import re
 
 from pathlib import Path
 import sys
@@ -19,44 +21,19 @@ import sys
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.utils.cache_utils import get_cache_filename, load_demo
+from src.utils.cache_utils import dem_to_dict, get_cache_filename, load_demo
 
 try:
-    from ..utils.cache_utils import CACHE_DIR
     from .constants import ROUND_TIME, BOMB_TIME, WEAPON_TIERS, MOLOTOV_NADE, HE_NADE, SMOKE_NADE, FLASH_NADE, GRENADE_AND_BOMB_TYPES
 except ImportError:
     # Handle case when running directly for testing or standalone execution
     import sys
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from utils.cache_utils import CACHE_DIR
     from core.constants import ROUND_TIME, BOMB_TIME, WEAPON_TIERS, MOLOTOV_NADE, HE_NADE, SMOKE_NADE, FLASH_NADE, GRENADE_AND_BOMB_TYPES
 
-def load_demo_data(parsed_demo_file: str) -> Optional[Dict[str, pl.DataFrame]]:
-    """Loads and prepares data from a parsed demo file."""
-    if '.dem' in parsed_demo_file:
-        load_demo(parsed_demo_file)
-        parsed_demo_file = get_cache_filename(parsed_demo_file)
-        
-    try:
-        with open(parsed_demo_file, 'rb') as f:
-            cache_data = pickle.load(f)
-    except (FileNotFoundError, pickle.UnpicklingError) as e:
-        tqdm.write(f"Error loading {parsed_demo_file}: {e}")
-        return None
-
-    data = {}
-    for name in ['kills', 'rounds', 'ticks']:
-        df = cache_data.get(name)
-        if df is None:
-            tqdm.write(f"Warning: Missing '{name}' data in {parsed_demo_file}")
-            return None
-        if not isinstance(df, pl.DataFrame):
-            df = pl.from_pandas(df)
-        data[name] = df
-    return data
 
 def create_snapshot(
-    current_tick: int, round_row: Dict, demo_data: Dict, tick_rate: int, file_name: str
+    current_tick: int, round_row: Dict, demo_data: Dict, tick_rate: int, file_name: str, map_name:str
 ) -> Optional[Dict[str, Any]]:
     """Creates a single snapshot for a given tick."""
     
@@ -102,6 +79,7 @@ def create_snapshot(
 
     return {
         "source": f"Round {round_row['round_num']} in {file_name}",
+        "map_name": map_name,
         "time_left": ticks_left / tick_rate,
         "cts_alive": 5 - ct_deaths,
         "ts_alive": 5 - t_deaths,
@@ -113,15 +91,23 @@ def create_snapshot(
         "alive_player_details": alive_player_info
     }
 
-def extract_snapshots_from_demo(parsed_demo_file: str, tick_rate=64) -> List[Dict[str, Any]]:
+def extract_snapshots_from_demo(demo_file: str, tick_rate=64) -> List[Dict[str, Any]]:
     """Extracts snapshots from a single parsed demo file."""
     
-    demo_data = load_demo_data(parsed_demo_file)
+    dem = Demo(demo_file)
+    dem_header = dem.parse_header()
+    demo_data = load_demo(demo_file, use_cache=True)
+
+    if isinstance(demo_data, Demo):
+        demo_data = dem_to_dict(demo_data)
+
     if not demo_data:
         return []
 
+    map_name = dem_header['map_name']
+
     snapshots = []
-    file_name = os.path.basename(parsed_demo_file)
+    file_name = os.path.basename(demo_file)
     
     for round_row in demo_data['rounds'].iter_rows(named=True):
         round_num = round_row['round_num']
@@ -139,7 +125,7 @@ def extract_snapshots_from_demo(parsed_demo_file: str, tick_rate=64) -> List[Dic
         snapshot_ticks = sorted(set([freeze_end] + round_kills['tick'].to_list()))
         
         for current_tick in snapshot_ticks:
-            snapshot = create_snapshot(current_tick, round_row, demo_data, tick_rate, file_name)
+            snapshot = create_snapshot(current_tick, round_row, demo_data, tick_rate, file_name, map_name)
             if snapshot:
                 snapshots.append(snapshot)
             else:
@@ -159,6 +145,7 @@ def normalize_snapshots_for_parquet(snapshots: List[Dict[str, Any]]) -> pl.DataF
         # Start with base snapshot info
         record = {
             'source': snapshot['source'],
+            'map_name': snapshot['map_name'],
             'time_left': snapshot['time_left'],
             'cts_alive': snapshot['cts_alive'],
             'ts_alive': snapshot['ts_alive'],
@@ -330,20 +317,46 @@ def convert_json_to_parquet(json_file: str, parquet_file: str):
     except Exception as e:
         print(f"❌ Error converting {json_file} to Parquet: {e}")
 
+_demo_num_re = re.compile(r'[\\/][dD]emos[\\/](\d+)(?:[\\/]|$)')
+
+def _extract_demo_number(path: str) -> Optional[int]:
+    """Return the integer after 'demos\\' in path, or None if not found."""
+    m = _demo_num_re.search(path)
+    return int(m.group(1)) if m else None
+
+def sort_demo_paths_by_dir_number_desc(paths: Iterable[str]) -> List[str]:
+    """
+    Sort an iterable of file paths by the numeric directory directly after 'demos\\',
+    largest number first. Paths without a matching number are placed at the end.
+    """
+    items: List[Tuple[int, str]] = []
+    for p in paths:
+        num = _extract_demo_number(p)
+        # use -1 for missing so it ends up last when sorting reverse=True
+        key_num = num if num is not None else -1
+        items.append((key_num, p))
+    items.sort(key=lambda t: t[0], reverse=True)
+    return [p for _, p in items]
+
 def main():
     """Main function to run the optimized snapshot extraction process."""
     
-    cache_path = CACHE_DIR
+    dem_dir = Path("G:\\CS2\\demos")
     
-    if not os.path.exists(cache_path):
-        print(f"Cache directory not found at {cache_path}")
+    if not os.path.exists(dem_dir):
+        print(f"Demo directory not found at {dem_dir}")
         return
 
-    demo_files = [os.path.join(cache_path, f) for f in os.listdir(cache_path) if f.endswith('.pkl')]
-    if not demo_files:
-        print("No processed demo files found in cache.")
-        return
-        
+    # Recursively collect all .dem files in cache_path and its subfolders
+    demo_files = [
+        os.path.join(root, file)
+        for root, _, files in os.walk(dem_dir)
+        for file in files
+        if file.endswith('.dem')
+    ]
+    # Sort
+    demo_files = sort_demo_paths_by_dir_number_desc(demo_files)
+    
     # Set up output directory
     output_dir = "data/datasets"
     os.makedirs(output_dir, exist_ok=True)

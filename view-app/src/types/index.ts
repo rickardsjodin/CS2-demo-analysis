@@ -62,7 +62,7 @@ export interface PredictionResult {
 }
 
 export interface FeatureValues {
-  [key: string]: number;
+  [key: string]: number | string;
 }
 
 export interface BinningValues {
@@ -138,6 +138,7 @@ export interface AllPlayersAnalysisResponse {
   demo_filename?: string;
   analysis?: Record<string, PlayerAnalysisEvent[]>;
   players?: string[];
+  model_used?: string;
   error?: string;
 }
 

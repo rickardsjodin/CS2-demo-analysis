@@ -16,6 +16,10 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         pd.DataFrame: The DataFrame with added feature columns.
     """
+    # Convert map_name to categorical type for XGBoost compatibility
+    if 'map_name' in df.columns:
+        df['map_name'] = df['map_name'].astype('category')
+    
     # Player advantage
     df['player_advantage'] = df['cts_alive'] - df['ts_alive']
     
